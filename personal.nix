@@ -29,6 +29,7 @@
     bitwarden-desktop
     jetbrains.idea
     dbeaver-bin
+    vscode
 
     # Linguagens e SDKs
     temurin-bin-25 # Java
@@ -89,6 +90,18 @@
 
   # Validar o nome do usuário definido no sistema
   users.users.david.shell = pkgs.zsh;
+
+  # ---------------------------------------------------------------------------
+  # Configurações globais do Git
+  # ---------------------------------------------------------------------------
+  environment.etc."gitconfig".text = ''
+    [user]
+      name = David
+      email = welbersolucoesti@gmail.com
+
+    [init]
+      defaultBranch = main
+  '';
 
 
   # ----------------------------------------------------------------------------

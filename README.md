@@ -14,18 +14,18 @@ O repositório representa meu ambiente pessoal. Ele pode servir como referência
 
 ## Ambiente
 
-A configuração foi desenvolvida para NixOS com KDE Plasma e Wayland.
+A configuração foi desenvolvida para um ambiente NixOS com KDE Plasma e Wayland. O `personal.nix` não habilita o ambiente gráfico nem configura a sessão Wayland; essas definições devem existir na configuração principal da máquina.
 
 As definições incluem:
 
 | Categoria | Recursos |
 |---|---|
-| Desenvolvimento | Eclipse Temurin JDK 25, IntelliJ IDEA, DBeaver |
-| Navegadores | Google Chrome |
+| Desenvolvimento | Eclipse Temurin JDK 25, IntelliJ IDEA, Visual Studio Code, DBeaver |
+| Navegadores | Google Chrome; Firefox desabilitado com `lib.mkForce false` |
 | Segurança | Bitwarden, fprintd e Polkit |
-| Terminal | Zsh, Oh My Zsh, Git, Vim e Htop |
+| Terminal e utilitários | Zsh, Oh My Zsh, Git, Vim, Htop, wget e usbutils |
 | Banco de dados | PostgreSQL 18 |
-| Hardware | Bluetooth e remapeamento de teclado com keyd |
+| Hardware | Bluetooth habilitado e ligado no boot; remapeamento de teclado com keyd |
 
 Alguns recursos dependem de hardware compatível ou da disponibilidade dos pacotes no canal Nixpkgs utilizado.
 
@@ -34,11 +34,14 @@ Alguns recursos dependem de hardware compatível ou da disponibilidade dos pacot
 ```text
 nix-configs/
 ├── .gitignore
+├── AGENTS.md
 ├── README.md
 └── personal.nix
 ```
 
 **`personal.nix`** contém as configurações pessoais do sistema, incluindo aplicativos, serviços e ajustes de hardware.
+
+**`AGENTS.md`** estabelece orientações para agentes de IA que trabalham neste repositório, incluindo limites de edição e validação.
 
 **`.gitignore`** define os padrões de arquivos que não serão rastreados pelo Git.
 
@@ -100,6 +103,12 @@ users.users.david.shell = pkgs.zsh;
 
 Substitua `david` pelo nome do usuário da sua instalação.
 
+**Identidade Git**
+
+O módulo também define `user.name` e `user.email` no arquivo `/etc/gitconfig`. Antes de aplicar a configuração, substitua esses dados pelos seus e considere que o endereço de e-mail ficará visível se o repositório for público.
+
+Por ser uma configuração **de sistema**, os valores podem ser herdados por outros usuários. Configurações de usuário (`~/.gitconfig` ou `~/.config/git/config`) e de repositório podem sobrescrevê-los.
+
 **Pacotes não livres**
 
 Alguns aplicativos utilizados exigem a permissão para pacotes não livres. Se necessário, configure no `configuration.nix`:
@@ -110,29 +119,41 @@ nixpkgs.config.allowUnfree = true;
 
 **Hardware**
 
-O leitor biométrico e o remapeamento de teclado dependem de compatibilidade com o hardware utilizado.
+O leitor biométrico e o remapeamento de teclado dependem de compatibilidade com o hardware utilizado. O módulo habilita o `fprintd` e o Polkit, mas não cadastra impressões digitais; o cadastro e o funcionamento da autenticação precisam ser verificados na máquina.
 
 **Serviços**
 
 Revise a configuração do PostgreSQL antes de utilizá-la em ambientes com dados importantes.
 
-### 5. Validar e aplicar
+### 5. Validar a configuração e aplicar manualmente
 
-Primeiro, execute:
+**Validação pelo Emu (agente Codex), sem `sudo`:**
 
 ```bash
-sudo nixos-rebuild dry-build
+nixos-rebuild dry-build
 ```
 
-Esse comando avalia a configuração e apresenta as derivações que precisariam ser construídas, sem ativar uma nova geração.
+O comando avalia a configuração do sistema que importa o módulo e determina o que precisaria ser construído, **sem ativar uma nova geração**. A execução sem `sudo` depende das permissões e da configuração do Nix. Executá-lo na raiz deste repositório não seleciona automaticamente o `personal.nix`; a importação precisa estar configurada conforme as etapas anteriores.
 
-Se a avaliação estiver correta:
+Para alterações exclusivamente de documentação, `git diff --check` é suficiente; não é necessário executar `nixos-rebuild dry-build`. O `dry-build` não valida a qualidade do Markdown nem garante que os serviços funcionarão depois de ativados. Para conferir problemas de espaços em branco nas alterações locais, execute:
+
+```bash
+git diff --check
+```
+
+Se as alterações já estiverem na área de preparação do Git (`git add`), verifique também:
+
+```bash
+git diff --cached --check
+```
+
+**Aplicação exclusiva pelo proprietário da máquina (David):** após revisar pessoalmente os arquivos e os resultados da validação, somente David decide quando executar, no próprio terminal:
 
 ```bash
 sudo nixos-rebuild switch
 ```
 
-O NixOS construirá e ativará a configuração.
+**O Emu e quaisquer outros agentes automatizados estão proibidos de executar `nixos-rebuild switch`, com ou sem `sudo`.** Sua responsabilidade termina na validação e no relato do resultado. O comando `switch` constrói e ativa a configuração e exige privilégios administrativos.
 
 ## PostgreSQL
 
@@ -143,6 +164,7 @@ Configuração:
 - Escuta TCP limitada a `localhost`.
 - Porta `5432`.
 - Autenticação TCP local utilizando SCRAM-SHA-256.
+- Criação ou alteração de senhas configurada para usar SCRAM-SHA-256 (`password_encryption`).
 - Nenhuma senha definida diretamente no arquivo Nix.
 
 As regras de autenticação TCP configuradas são:
@@ -162,7 +184,7 @@ Não utilize esta configuração como referência de segurança para produção 
 
 ## Java
 
-O ambiente utiliza **Eclipse Temurin JDK 25** como distribuição Java padrão.
+O módulo inclui **Eclipse Temurin JDK 25** nos pacotes globais do sistema. Ele não define `JAVA_HOME` nem configura o JDK utilizado por cada IDE ou projeto.
 
 Pacote Nixpkgs:
 
@@ -170,7 +192,7 @@ Pacote Nixpkgs:
 temurin-bin-25
 ```
 
-Para verificar a instalação:
+Após aplicar a configuração, confira a versão encontrada no `PATH`:
 
 ```bash
 java -version
@@ -191,6 +213,29 @@ O módulo habilita:
 
 As configurações são administradas pelo módulo do NixOS.
 
+## Git
+
+O Git é instalado globalmente e recebe configurações padrão declarativas pelo NixOS, sem necessidade de Home Manager.
+
+O módulo gerencia `/etc/gitconfig` com as opções:
+
+```gitconfig
+[user]
+    name = David
+    email = seu-email@example.com
+
+[init]
+    defaultBranch = main
+```
+
+O e-mail acima é apenas ilustrativo. No `personal.nix`, revise a identidade antes de publicar ou reutilizar a configuração. Como `/etc/gitconfig` é global para o sistema, outros usuários podem herdar essa identidade. Configurações específicas do usuário ou do repositório têm precedência.
+
+Após aplicar a configuração, confira quais arquivos estão fornecendo os valores efetivos:
+
+```bash
+git config --list --show-origin
+```
+
 ## Remapeamento da tecla Copilot
 
 Uma das personalizações deste ambiente é o remapeamento da tecla Copilot para controle de reprodução multimídia.
@@ -201,7 +246,7 @@ Em determinados teclados, essa tecla emite a combinação:
 LeftShift + LeftMeta + F23
 ```
 
-O módulo utiliza `keyd` para transformá-la em:
+O módulo configura o `keyd` com a intenção de transformá-la em:
 
 ```text
 Play/Pause
@@ -223,7 +268,7 @@ services.keyd = {
 };
 ```
 
-O `keyd` realiza o remapeamento em uma camada independente dos atalhos específicos do KDE Plasma, permitindo seu uso em sessões Wayland e X11.
+O remapeamento é configurado no serviço `keyd`, separado dos atalhos do KDE Plasma. A presença dessa regra no módulo não comprova seu funcionamento: valide a combinação emitida pelo teclado e o resultado na máquina antes de depender desse atalho.
 
 **Observação:** nem todos os teclados possuem a mesma implementação da tecla Copilot. A configuração também utiliza `ids = [ "*" ]`, abrangendo os teclados gerenciados pelo serviço.
 
@@ -243,7 +288,7 @@ Antes de utilizar ou compartilhar qualquer configuração:
 
 - Revise os serviços habilitados e as interfaces de rede expostas.
 - Não armazene senhas, tokens ou outras credenciais diretamente em arquivos Nix públicos.
-- Verifique as alterações antes de executar `nixos-rebuild` com privilégios administrativos.
+- Para alterações no módulo Nix, o agente deve validar com `nixos-rebuild dry-build`, sem `sudo`, e informar o resultado. Para alterações exclusivamente de documentação, basta `git diff --check`. Somente David pode executar manualmente `sudo nixos-rebuild switch`.
 - Mantenha os arquivos e diretórios importados protegidos contra modificações não autorizadas.
 - Adapte configurações específicas de usuário e hardware.
 
