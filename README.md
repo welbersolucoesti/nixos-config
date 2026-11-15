@@ -111,11 +111,13 @@ Por ser uma configuração **de sistema**, os valores podem ser herdados por out
 
 **Pacotes não livres**
 
-Alguns aplicativos utilizados exigem a permissão para pacotes não livres. Se necessário, configure no `configuration.nix`:
+Alguns aplicativos utilizados exigem a permissão para pacotes não livres. O `personal.nix` já inclui:
 
 ```nix
-nixpkgs.config.allowUnfree = true;
+nixpkgs.config.allowUnfree = lib.mkForce true;
 ```
+
+O `lib.mkForce` dá prioridade a essa definição sobre definições comuns de outros módulos. Revise essa política ao adaptar o módulo.
 
 **Hardware**
 
