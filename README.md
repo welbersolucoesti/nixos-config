@@ -36,10 +36,13 @@ nix-configs/
 ├── .gitignore
 ├── AGENTS.md
 ├── README.md
-└── personal.nix
+├── personal.nix
+└── cron.nix
 ```
 
 **`personal.nix`** contém as configurações pessoais do sistema, incluindo aplicativos, serviços e ajustes de hardware.
+
+**`cron.nix`** define um serviço e um timer opcionais para um script privado externo ao repositório.
 
 **`AGENTS.md`** estabelece orientações para agentes de IA que trabalham neste repositório, incluindo limites de edição e validação.
 
@@ -157,6 +160,54 @@ sudo nixos-rebuild switch
 
 **O Emu e quaisquer outros agentes automatizados estão proibidos de executar `nixos-rebuild switch`, com ou sem `sudo`.** Sua responsabilidade termina na validação e no relato do resultado. O comando `switch` constrói e ativa a configuração e exige privilégios administrativos.
 
+## Agendamento diário opcional
+
+O módulo `cron.nix` executa `/home/david/.local/share/nixos-cron/cron.sh` como usuário `david`, diariamente às **03h00 no horário local**. O serviço é `oneshot` e termina ao concluir o script. Se o arquivo não existir, a execução é ignorada; `Persistent=false` impede recuperar tarefas perdidas enquanto o computador estava desligado.
+
+A partir da raiz do repositório, crie o link (se o destino já existir, revise-o antes):
+
+```bash
+sudo ln -s "$(realpath cron.nix)" /etc/nixos/cron.nix
+```
+
+Adicione `./cron.nix` à lista `imports` existente em `/etc/nixos/configuration.nix`, preservando os demais módulos:
+
+```nix
+imports = [
+  ./hardware-configuration.nix
+  ./personal.nix
+  ./cron.nix
+];
+```
+
+Após revisar e validar, o proprietário aplica manualmente a configuração:
+
+```bash
+sudo nixos-rebuild switch
+```
+
+Como usuário `david`, crie e edite manualmente o script privado fora do repositório:
+
+```bash
+mkdir -p /home/david/.local/share/nixos-cron
+chmod 700 /home/david/.local/share/nixos-cron
+touch /home/david/.local/share/nixos-cron/cron.sh
+chmod 600 /home/david/.local/share/nixos-cron/cron.sh
+vim /home/david/.local/share/nixos-cron/cron.sh
+```
+
+O Bash do Nixpkgs lê o arquivo diretamente, sem exigir permissão de execução. O `PATH` inclui coreutils, findutils, grep, sed e awk; não depende da configuração interativa do Zsh. Para outros programas, declare os pacotes em `path` no módulo. Não use `sudo` no script nem inclua senhas, tokens ou chaves no repositório. O conteúdo privado não é copiado para o Nix Store, e cada computador pode manter comandos diferentes.
+
+Para verificar o timer, iniciar uma execução manual e consultar os logs:
+
+```bash
+systemctl list-timers --all david-cron.timer
+sudo systemctl start david-cron.service
+journalctl -u david-cron.service
+```
+
+Mesmo na execução manual, o serviço roda como `david`. Alterações no conteúdo do script privado **não exigem rebuild**; mudanças em `cron.nix` exigem reconstruir e aplicar a configuração. Ao adaptar para outra máquina, ajuste o usuário e os caminhos no módulo e nos comandos acima. O usuário precisa existir e o diretório pessoal deve estar acessível no horário agendado.
+
 ## PostgreSQL
 
 O módulo habilita o PostgreSQL 18 para desenvolvimento local.
@@ -214,6 +265,27 @@ O módulo habilita:
 - Autocompletar, sugestões automáticas e destaque de sintaxe.
 
 As configurações são administradas pelo módulo do NixOS.
+
+### Atalhos de manutenção
+
+`environment.shellAliases` define aliases globais para os shells dos usuários, incluindo o Zsh. Após aplicar a configuração, abra um novo terminal para utilizá-los.
+
+| Alias | Efeito |
+|---|---|
+| `nix-update` | Atualiza os canais do usuário root com `sudo nix-channel --update`; não atualiza o sistema em execução. |
+| `nix-check` | Executa `nixos-rebuild dry-build`: avalia e planeja a construção, sem realizar uma compilação completa nem ativar o sistema. |
+| `nix-system-build` | Executa `nixos-rebuild build`: constrói a configuração sem ativá-la. |
+| `nix-switch` | Executa `sudo nixos-rebuild switch`: constrói e ativa a configuração. Uso manual exclusivo do proprietário; agentes não devem executá-lo. |
+| `nix-generations` | Lista as gerações do perfil do sistema. |
+| `nix-diff` | Executa `nix store diff-closures` com dois caminhos explícitos, na ordem origem e destino. |
+
+O nome `nix-system-build` preserva o comando nativo `nix-build`. Para comparar gerações, escolha dois caminhos existentes; não é necessário que seus números sejam consecutivos. Por exemplo, se as gerações 10 e 14 existirem:
+
+```bash
+nix-diff /nix/var/nix/profiles/system-10-link /nix/var/nix/profiles/system-14-link
+```
+
+A comparação apenas consulta as closures, sem alterar ou ativar gerações. `nix-diff` habilita `nix-command` somente nessa chamada. `/run/current-system` pode ser usado como um dos caminhos para representar a geração ativa.
 
 ## Git
 

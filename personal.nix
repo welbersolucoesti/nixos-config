@@ -97,6 +97,32 @@
   # Define o shell do usuário david; adapte o nome ao reutilizar o módulo.
   users.users.david.shell = pkgs.zsh;
 
+
+  # ---------------------------------------------------------------------------
+  # Atalhos de terminal para manutenção do NixOS
+  # ---------------------------------------------------------------------------
+
+  # Define aliases globais para os shells dos usuários, incluindo o Zsh.
+  environment.shellAliases = {
+    # Atualiza os canais configurados para o usuário root.
+    nix-update = "sudo nix-channel --update";
+
+    # Executa um dry-build: avalia e planeja, sem compilação completa nem ativação.
+    nix-check = "nixos-rebuild dry-build";
+
+    # Constrói a configuração do sistema sem ativá-la.
+    nix-system-build = "nixos-rebuild build";
+
+    # Constrói e ativa a configuração; uso manual exclusivo do proprietário.
+    nix-switch = "sudo nixos-rebuild switch";
+
+    # Lista as gerações preservadas do sistema.
+    nix-generations = "sudo nix-env --list-generations --profile /nix/var/nix/profiles/system";
+
+    # Compara dois caminhos de gerações informados como argumentos, na ordem dada.
+    nix-diff = "nix --extra-experimental-features 'nix-command' store diff-closures";
+  };
+
   # ---------------------------------------------------------------------------
   # Git: identidade e branch inicial em /etc/gitconfig (escopo do sistema)
   # ---------------------------------------------------------------------------
