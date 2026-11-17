@@ -76,16 +76,19 @@ Os exemplos abaixo consideram o repositório localizado em:
 
 ### 3. Importar o módulo pessoal
 
-No arquivo `/etc/nixos/configuration.nix`, inclua:
+No arquivo `/etc/nixos/configuration.nix`, **preserve a lista `imports` existente** e acrescente somente `./personal.nix`, caso ainda não esteja presente. O exemplo consolidado abaixo é apenas uma referência: **não copie a lista inteira sobre a sua configuração**.
 
 ```nix
 imports = [
   ./hardware-configuration.nix
   ./personal.nix
+  # ./cron.nix           # opcional, somente quando David decidir habilitar
+  # ./virtualization.nix # opcional, somente quando David decidir habilitar
+  # ... outros módulos já utilizados pela máquina ...
 ];
 ```
 
-Em seguida, crie um link simbólico apontando para o arquivo versionado.
+As linhas comentadas são opcionais e não ativam os módulos. Preserve também todos os imports não exibidos no exemplo. Para usar caminhos relativos como `./personal.nix`, crie um link simbólico apontando para o arquivo versionado.
 
 A partir da raiz do repositório:
 
@@ -163,7 +166,7 @@ git diff --cached --check
 sudo nixos-rebuild switch
 ```
 
-**O Emu e quaisquer outros agentes automatizados estão proibidos de executar `nixos-rebuild switch`, com ou sem `sudo`.** Sua responsabilidade termina na validação e no relato do resultado. O comando `switch` constrói e ativa a configuração e exige privilégios administrativos.
+**O Emu e quaisquer outros agentes automatizados estão proibidos de executar `nixos-rebuild switch`, `nixos-rebuild boot` e `nixos-rebuild test`, com ou sem `sudo`.** Apenas David pode ativar ou agendar a ativação de uma geração. `dry-build` avalia e planeja derivações sem ativá-las; não comprova o funcionamento do serviço nem substitui testes funcionais. A responsabilidade dos agentes termina na validação permitida e no relato dos resultados.
 
 ## Agendamento diário opcional
 
@@ -175,15 +178,7 @@ A partir da raiz do repositório, crie o link (se o destino já existir, revise-
 sudo ln -s "$(realpath cron.nix)" /etc/nixos/cron.nix
 ```
 
-Adicione `./cron.nix` à lista `imports` existente em `/etc/nixos/configuration.nix`, preservando os demais módulos:
-
-```nix
-imports = [
-  ./hardware-configuration.nix
-  ./personal.nix
-  ./cron.nix
-];
-```
+**Somente quando desejar habilitar o agendamento**, acrescente `./cron.nix` à lista `imports` já existente em `/etc/nixos/configuration.nix`. Não remova `personal.nix`, `hardware-configuration.nix` ou outros módulos. Consulte o exemplo consolidado na seção de instalação.
 
 Após revisar e validar, o proprietário aplica manualmente a configuração:
 
@@ -209,7 +204,11 @@ Para verificar o timer, iniciar uma execução manual e consultar os logs:
 systemctl list-timers --all david-cron.timer
 sudo systemctl start david-cron.service
 journalctl -u david-cron.service
+systemctl status david-cron.timer david-cron.service
+journalctl -u david-cron.service --since today --no-pager
 ```
+
+O `ConditionPathExists` faz o systemd pular o início do serviço quando o script não existe; isso não equivale a uma execução bem-sucedida nem constitui monitoramento de falhas. Confira o resultado da última execução com `systemctl status` e os registros com `journalctl`. Uma falha do script pode exigir investigação manual; o timer, por si só, não envia alertas.
 
 Mesmo na execução manual, o serviço roda como `david`. Alterações no conteúdo do script privado **não exigem rebuild**; mudanças em `cron.nix` exigem reconstruir e aplicar a configuração. Ao adaptar para outra máquina, ajuste o usuário e os caminhos no módulo e nos comandos acima. O usuário precisa existir e o diretório pessoal deve estar acessível no horário agendado.
 
@@ -225,17 +224,7 @@ A partir da raiz do repositório, crie o link simbólico apenas se o destino ain
 sudo ln -s "$(realpath virtualization.nix)" /etc/nixos/virtualization.nix
 ```
 
-Depois, **somente quando decidir habilitar o recurso**, adicione `./virtualization.nix` à lista de imports existente em `/etc/nixos/configuration.nix`, preservando os outros módulos:
-
-```nix
-imports = [
-  ./hardware-configuration.nix
-  ./personal.nix
-  ./virtualization.nix
-];
-```
-
-O exemplo é ilustrativo: mantenha também `./cron.nix` e quaisquer outros módulos que já estejam importados na sua máquina. Não substitua a lista inteira sem revisá-la.
+Depois, **somente quando decidir habilitar o recurso**, acrescente `./virtualization.nix` à lista de imports já existente em `/etc/nixos/configuration.nix`. Preserve todos os outros módulos, inclusive `./cron.nix` caso esteja habilitado. Consulte o exemplo consolidado na seção de instalação; não substitua a lista inteira.
 
 Valide a configuração importada com `nixos-rebuild dry-build`, sem `sudo`. A aplicação, se desejada, é feita **exclusivamente por David**, executando manualmente `sudo nixos-rebuild switch`. Nenhum agente deve executar comandos de ativação.
 
@@ -247,6 +236,14 @@ ls -l /dev/kvm
 id -nG
 virsh -c qemu:///system list --all
 ```
+
+Checklist para uma eventual ativação, a ser executado pelo proprietário na máquina:
+
+- Conferir suporte de virtualização no processador e no firmware (BIOS/UEFI).
+- Validar `nixos-rebuild dry-build` com o módulo efetivamente importado, sem ativar o sistema.
+- Após aplicação manual por David e nova sessão, verificar `/dev/kvm`, grupos do usuário e conexão `qemu:///system`.
+- Criar uma VM de teste e verificar inicialização, armazenamento, console gráfico e rede virtual.
+- Se necessário, configurar separadamente firmware UEFI/OVMF, TPM virtual e conectividade bridge.
 
 A criação de VMs, a rede virtual NAT ou bridge, o firmware UEFI/OVMF e o TPM virtual podem exigir configuração adicional. O módulo não configura essas opções explicitamente nem garante compatibilidade com todo hardware. O virt-manager pode ser utilizado no KDE Plasma Wayland, normalmente via XWayland.
 
@@ -302,7 +299,7 @@ host all all 127.0.0.1/32 scram-sha-256
 host all all ::1/128      scram-sha-256
 ```
 
-A autenticação por socket Unix pode seguir regras diferentes.
+O módulo declara apenas regras `host` para conexões TCP. **Ele não estabelece explicitamente a autenticação por socket Unix** (`local`); a política efetiva depende das regras geradas pelo módulo NixOS e de sua composição. Não presuma que sockets Unix exigem senha SCRAM. Antes de depender dessa política, consulte o arquivo `pg_hba.conf` efetivo da instância (por exemplo, usando `SHOW hba_file;` no PostgreSQL) e revise as entradas `local`. Alterar a política de autenticação exige decisão separada.
 
 A configuração não disponibiliza conexões TCP para outros computadores da rede.
 
@@ -427,6 +424,21 @@ O objetivo deste repositório é manter configurações reutilizáveis entre ins
 
 Entretanto, o `personal.nix` sozinho não garante versões de pacotes idênticas em máquinas diferentes. Os resultados também dependem da revisão do Nixpkgs utilizada.
 
+Para inspecionar a origem dos canais configurados, utilize:
+
+```bash
+nix-channel --list
+sudo nix-channel --list
+```
+
+Para consultar a revisão do Nixpkgs no contexto do usuário atual, quando o canal estiver acessível:
+
+```bash
+nix-instantiate --eval --strict -E '(import <nixpkgs> {}).lib.version'
+```
+
+Registre também qual canal ou revisão é utilizado pelo `nixos-rebuild` no ambiente de root. Esses comandos ajudam a documentar o ambiente, mas **não fixam** uma revisão e não garantem, isoladamente, uma reprodução exata.
+
 Para reprodução exata, é necessário fixar a revisão das dependências por um mecanismo apropriado.
 
 Este projeto prioriza inicialmente uma configuração simples, baseada nos módulos tradicionais do NixOS.
@@ -437,7 +449,7 @@ Antes de utilizar ou compartilhar qualquer configuração:
 
 - Revise os serviços habilitados e as interfaces de rede expostas.
 - Não armazene senhas, tokens ou outras credenciais diretamente em arquivos Nix públicos.
-- Para alterações no módulo Nix, o agente deve validar com `nixos-rebuild dry-build`, sem `sudo`, e informar o resultado. Para alterações exclusivamente de documentação, basta `git diff --check`. Somente David pode executar manualmente `sudo nixos-rebuild switch`.
+- Para alterações no módulo Nix, o agente deve validar com `nixos-rebuild dry-build`, sem `sudo`, e informar o resultado. Para alterações exclusivamente de documentação, basta `git diff --check`. Somente David pode executar manualmente comandos de ativação (`nixos-rebuild switch`, `boot` ou `test`).
 - Mantenha os arquivos e diretórios importados protegidos contra modificações não autorizadas.
 - Adapte configurações específicas de usuário e hardware.
 
