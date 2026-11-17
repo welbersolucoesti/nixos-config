@@ -47,7 +47,7 @@ nix-configs/
 
 **`cron.nix`** define um serviço e um timer opcionais para um script privado externo ao repositório.
 
-**`virtualization.nix`** disponibiliza opcionalmente QEMU/KVM, libvirt, virt-manager e virt-viewer. O arquivo não é ativado enquanto não for importado na configuração da máquina.
+**`virtualization.nix`** disponibiliza opcionalmente QEMU/KVM, libvirt, virt-manager e virt-viewer, além de Podman, Distrobox e Kontainer (Qt/Kirigami). O arquivo não é ativado enquanto não for importado na configuração da máquina.
 
 **`AGENTS.md`** estabelece orientações para agentes de IA que trabalham neste repositório, incluindo limites de edição e validação.
 
@@ -212,9 +212,9 @@ O `ConditionPathExists` faz o systemd pular o início do serviço quando o scrip
 
 Mesmo na execução manual, o serviço roda como `david`. Alterações no conteúdo do script privado **não exigem rebuild**; mudanças em `cron.nix` exigem reconstruir e aplicar a configuração. Ao adaptar para outra máquina, ajuste o usuário e os caminhos no módulo e nos comandos acima. O usuário precisa existir e o diretório pessoal deve estar acessível no horário agendado.
 
-## Virtualização opcional (QEMU/KVM)
+## Virtualização opcional (QEMU/KVM e Distrobox)
 
-O arquivo `virtualization.nix` configura o serviço libvirt, habilita o virt-manager e disponibiliza o virt-viewer. É um módulo **opcional e inativo por padrão**: sua presença no repositório não instala nem habilita virtualização na máquina.
+O arquivo `virtualization.nix` configura o serviço libvirt, habilita o virt-manager e disponibiliza o virt-viewer. Também habilita o Podman e instala o Distrobox e o Kontainer, uma interface gráfica Qt/Kirigami para gerenciar ambientes Distrobox no KDE Plasma. É um módulo **opcional e inativo por padrão**: sua presença no repositório não instala nem habilita virtualização na máquina.
 
 Para utilizá-lo futuramente, revise o usuário `david` e o grupo `libvirtd` no módulo. Pertencer a esse grupo permite administrar recursos de virtualização e exige confiança no usuário autorizado. Verifique também se a CPU e o firmware oferecem suporte à virtualização de hardware e se `/dev/kvm` está disponível.
 
@@ -247,7 +247,37 @@ Checklist para uma eventual ativação, a ser executado pelo proprietário na m�
 
 A criação de VMs, a rede virtual NAT ou bridge, o firmware UEFI/OVMF e o TPM virtual podem exigir configuração adicional. O módulo não configura essas opções explicitamente nem garante compatibilidade com todo hardware. O virt-manager pode ser utilizado no KDE Plasma Wayland, normalmente via XWayland.
 
-**QEMU/KVM não é Distrobox.** QEMU/KVM executa máquinas virtuais completas; Distrobox integra contêineres Linux ao ambiente do usuário e exige um runtime de contêineres, como Podman ou Docker. Este módulo não instala Distrobox.
+### Contêineres de desenvolvimento (Podman, Distrobox e Kontainer)
+
+**QEMU/KVM não é Distrobox.** QEMU/KVM executa máquinas virtuais completas; Distrobox integra contêineres Linux ao ambiente do usuário, compartilhando o kernel do host. O módulo utiliza **Podman** como runtime e **Kontainer** como interface gráfica para o Distrobox; não instala DistroShelf nem Docker.
+
+Configuração declarativa incluída no módulo:
+
+```nix
+virtualisation.podman.enable = true;
+
+environment.systemPackages = with pkgs; [
+  virt-viewer
+  distrobox
+  kontainer
+];
+```
+
+A presença desses pacotes e do serviço Podman **não cria contêineres automaticamente**. As imagens, os contêineres e os aplicativos exportados pelo Distrobox são gerenciados posteriormente pelo usuário; não são declarados neste arquivo. A compatibilidade do pacote `kontainer` depende da revisão do Nixpkgs utilizada.
+
+Após David importar, validar e aplicar manualmente o módulo, poderá conferir os comandos e criar um ambiente de teste:
+
+```bash
+podman --version
+distrobox --version
+distrobox-list
+# Exemplo opcional: cria um contêiner de desenvolvimento
+# distrobox-create --name dev-fedora --image fedora:latest
+```
+
+O exemplo de criação permanece comentado para evitar alterações involuntárias. O Kontainer poderá ser aberto pelo lançador de aplicativos do KDE quando estiver instalado. O Podman pode funcionar em modo rootless para contêineres do usuário; esse uso depende de permissões e configurações adequadas do sistema. Contêineres Distrobox não oferecem o mesmo isolamento de uma máquina virtual completa.
+
+**Atenção:** importar `virtualization.nix` habilita **tanto** libvirt/QEMU/KVM **quanto** Podman/Distrobox/Kontainer. Não há interruptores independentes dentro do módulo atual. Se futuramente quiser ativar apenas uma das duas tecnologias, será necessário separar ou parametrizar as configurações antes de importar.
 
 ## Memória comprimida (ZRAM)
 
