@@ -57,6 +57,19 @@
   };
 
   # ----------------------------------------------------------------------------
+  # Swap comprimido em memória (ZRAM)
+  # ----------------------------------------------------------------------------
+
+  # Usa RAM comprimida como swap, sem criar partição ou arquivo swap no disco.
+  # O limite lógico de 50% não reserva antecipadamente metade da RAM.
+  # ZRAM não substitui swap em disco para hibernação.
+  zramSwap = {
+    enable = true;
+    algorithm = "zstd";
+    memoryPercent = 50;
+  };
+
+  # ----------------------------------------------------------------------------
   # Serviços e shell
   # ----------------------------------------------------------------------------
 
