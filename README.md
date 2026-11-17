@@ -39,12 +39,15 @@ nix-configs/
 ├── AGENTS.md
 ├── README.md
 ├── personal.nix
-└── cron.nix
+├── cron.nix
+└── virtualization.nix
 ```
 
 **`personal.nix`** contém as configurações pessoais do sistema, incluindo aplicativos, serviços e ajustes de hardware.
 
 **`cron.nix`** define um serviço e um timer opcionais para um script privado externo ao repositório.
+
+**`virtualization.nix`** disponibiliza opcionalmente QEMU/KVM, libvirt, virt-manager e virt-viewer. O arquivo não é ativado enquanto não for importado na configuração da máquina.
 
 **`AGENTS.md`** estabelece orientações para agentes de IA que trabalham neste repositório, incluindo limites de edição e validação.
 
@@ -209,6 +212,45 @@ journalctl -u david-cron.service
 ```
 
 Mesmo na execução manual, o serviço roda como `david`. Alterações no conteúdo do script privado **não exigem rebuild**; mudanças em `cron.nix` exigem reconstruir e aplicar a configuração. Ao adaptar para outra máquina, ajuste o usuário e os caminhos no módulo e nos comandos acima. O usuário precisa existir e o diretório pessoal deve estar acessível no horário agendado.
+
+## Virtualização opcional (QEMU/KVM)
+
+O arquivo `virtualization.nix` configura o serviço libvirt, habilita o virt-manager e disponibiliza o virt-viewer. É um módulo **opcional e inativo por padrão**: sua presença no repositório não instala nem habilita virtualização na máquina.
+
+Para utilizá-lo futuramente, revise o usuário `david` e o grupo `libvirtd` no módulo. Pertencer a esse grupo permite administrar recursos de virtualização e exige confiança no usuário autorizado. Verifique também se a CPU e o firmware oferecem suporte à virtualização de hardware e se `/dev/kvm` está disponível.
+
+A partir da raiz do repositório, crie o link simbólico apenas se o destino ainda não existir (caso exista, revise-o antes):
+
+```bash
+sudo ln -s "$(realpath virtualization.nix)" /etc/nixos/virtualization.nix
+```
+
+Depois, **somente quando decidir habilitar o recurso**, adicione `./virtualization.nix` à lista de imports existente em `/etc/nixos/configuration.nix`, preservando os outros módulos:
+
+```nix
+imports = [
+  ./hardware-configuration.nix
+  ./personal.nix
+  ./virtualization.nix
+];
+```
+
+O exemplo é ilustrativo: mantenha também `./cron.nix` e quaisquer outros módulos que já estejam importados na sua máquina. Não substitua a lista inteira sem revisá-la.
+
+Valide a configuração importada com `nixos-rebuild dry-build`, sem `sudo`. A aplicação, se desejada, é feita **exclusivamente por David**, executando manualmente `sudo nixos-rebuild switch`. Nenhum agente deve executar comandos de ativação.
+
+Após ativar e abrir uma nova sessão, confira:
+
+```bash
+lscpu | grep Virtualization
+ls -l /dev/kvm
+id -nG
+virsh -c qemu:///system list --all
+```
+
+A criação de VMs, a rede virtual NAT ou bridge, o firmware UEFI/OVMF e o TPM virtual podem exigir configuração adicional. O módulo não configura essas opções explicitamente nem garante compatibilidade com todo hardware. O virt-manager pode ser utilizado no KDE Plasma Wayland, normalmente via XWayland.
+
+**QEMU/KVM não é Distrobox.** QEMU/KVM executa máquinas virtuais completas; Distrobox integra contêineres Linux ao ambiente do usuário e exige um runtime de contêineres, como Podman ou Docker. Este módulo não instala Distrobox.
 
 ## Memória comprimida (ZRAM)
 
