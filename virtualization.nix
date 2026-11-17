@@ -1,17 +1,43 @@
+# ==============================================================================
+# Virtualizacao opcional: maquinas virtuais e conteineres de desenvolvimento
+# ==============================================================================
 { pkgs, ... }:
 
-# Modulo opcional de virtualizacao QEMU/KVM via libvirt.
-# Nao e ativado enquanto nao for importado pelo configuration.nix.
 {
+  # ----------------------------------------------------------------------------
+  # Maquinas virtuais: QEMU/KVM com libvirt
+  # ----------------------------------------------------------------------------
+
+  # Habilita o gerenciamento de maquinas virtuais pelo libvirt.
   virtualisation.libvirtd.enable = true;
 
+  # Interface grafica para administrar maquinas virtuais.
   programs.virt-manager.enable = true;
 
-  environment.systemPackages = with pkgs; [
-    virt-viewer
-  ];
-
-  # Acesso a administracao do libvirt para o usuario local.
+  # Permite que o usuario local administre recursos do libvirt.
   # Revise o nome do usuario antes de importar este modulo.
   users.users.david.extraGroups = [ "libvirtd" ];
+
+  # ----------------------------------------------------------------------------
+  # Conteineres de desenvolvimento: Podman e Distrobox
+  # ----------------------------------------------------------------------------
+
+  # Disponibiliza o runtime de conteineres utilizado pelo Distrobox.
+  # Nao cria nem inicia conteineres automaticamente.
+  virtualisation.podman.enable = true;
+
+  # ----------------------------------------------------------------------------
+  # Aplicativos de virtualizacao
+  # ----------------------------------------------------------------------------
+
+  environment.systemPackages = with pkgs; [
+    # Visualizador de consoles de maquinas virtuais.
+    virt-viewer
+
+    # Cria e integra ambientes Linux em conteineres Podman.
+    distrobox
+
+    # Interface grafica Qt/Kirigami para gerenciar o Distrobox no KDE Plasma.
+    kontainer
+  ];
 }
