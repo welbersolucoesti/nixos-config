@@ -26,6 +26,8 @@ As definições incluem:
 | Terminal e utilitários | Zsh, Oh My Zsh, Git, Vim, Htop, wget e usbutils |
 | Banco de dados | PostgreSQL 18 |
 | Hardware | Bluetooth habilitado e ligado no boot; remapeamento de teclado com keyd |
+| Memória | Swap comprimido em RAM (ZRAM), com zstd e tamanho lógico de 50% da RAM |
+| Manutenção Nix | `nix-command` habilitado (sem Flakes); coleta de lixo semanal com retenção de 60 dias |
 
 Alguns recursos dependem de hardware compatível ou da disponibilidade dos pacotes no canal Nixpkgs utilizado.
 
@@ -207,6 +209,37 @@ journalctl -u david-cron.service
 ```
 
 Mesmo na execução manual, o serviço roda como `david`. Alterações no conteúdo do script privado **não exigem rebuild**; mudanças em `cron.nix` exigem reconstruir e aplicar a configuração. Ao adaptar para outra máquina, ajuste o usuário e os caminhos no módulo e nos comandos acima. O usuário precisa existir e o diretório pessoal deve estar acessível no horário agendado.
+
+## Memória comprimida (ZRAM)
+
+O módulo `personal.nix` habilita swap comprimido em memória com `zramSwap.enable = true`, algoritmo `zstd` e `memoryPercent = 50`. Esse percentual define o tamanho lógico do dispositivo, não uma reserva antecipada de metade da RAM física.
+
+A configuração dispensa partição ou arquivo swap em disco para o uso do ZRAM, mas **não fornece hibernação em disco**. Depois de aplicar a configuração manualmente, confira:
+
+```bash
+zramctl
+swapon --show
+```
+
+## Manutenção do Nix Store
+
+O módulo habilita a interface moderna do Nix por meio de `nix.settings.experimental-features = [ "nix-command" ];`. **Flakes continuam desabilitados**; o repositório segue utilizando canais e módulos tradicionais.
+
+A coleta de lixo é agendada semanalmente com `nix.gc.automatic = true`, `dates = "weekly"` e `options = "--delete-older-than 60d"`. Isso torna elegíveis para exclusão gerações com mais de 60 dias. **Gerações excluídas não podem mais ser usadas para rollback**; objetos ainda referenciados por raízes do Nix são preservados.
+
+Para consultar as gerações disponíveis:
+
+```bash
+sudo nix-env --list-generations --profile /nix/var/nix/profiles/system
+```
+
+Para listar objetos atualmente elegíveis à coleta, sem apagá-los:
+
+```bash
+nix-store --gc --print-dead
+```
+
+A aplicação das mudanças continua sendo responsabilidade exclusiva do proprietário da máquina, após validação.
 
 ## PostgreSQL
 
