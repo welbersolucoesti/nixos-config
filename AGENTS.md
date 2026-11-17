@@ -5,17 +5,20 @@
 Este repositório contém configurações pessoais e declarativas do NixOS para uma estação de desenvolvimento com KDE Plasma e Wayland. Utiliza módulos tradicionais do NixOS e Nixpkgs, sem Flakes ou Home Manager.
 
 - `personal.nix` é o módulo principal reutilizável, importado pelo `/etc/nixos/configuration.nix` da máquina.
+- `cron.nix` é opcional: declara um serviço e timer systemd para um script privado externo ao repositório.
+- `virtualization.nix` é opcional: declara libvirt, virt-manager e virt-viewer para QEMU/KVM. Não deve ser importado sem decisão explícita de David.
 - `README.md` documenta o repositório para pessoas que desejem adaptar a configuração aos próprios computadores.
 - `.gitignore` contém as regras de arquivos ignorados pelo Git.
 
 ## Fonte de verdade
 
-Leia os arquivos relevantes do repositório antes de fazer alterações. Considere o código Nix existente como a fonte de verdade. Se o README divergir de `personal.nix`, corrija a documentação em vez de presumir que a implementação funciona como descrito. Não invente configurações, versões de pacotes, resultados de execução ou compatibilidade de hardware.
+Leia os arquivos relevantes do repositório antes de fazer alterações. Considere o código Nix existente como a fonte de verdade. Se o README divergir de `personal.nix`, `cron.nix` ou `virtualization.nix`, corrija a documentação em vez de presumir que a implementação funciona como descrito. Não invente configurações, versões de pacotes, resultados de execução ou compatibilidade de hardware.
 
 ## Regras de edição
 
 - Prefira alterações pequenas, focadas e idiomáticas. Mantenha a configuração simples.
 - Não introduza Flakes, Home Manager, um diretório `shells/`, novas ferramentas ou dependências adicionais sem solicitação explícita.
+- Não importe nem ative `cron.nix` ou `virtualization.nix` automaticamente. O `configuration.nix` da máquina não é gerenciado por este repositório.
 - Em tarefas exclusivamente de documentação, edite apenas os arquivos de documentação solicitados. Não altere `personal.nix`, serviços do sistema ou outros arquivos de configuração.
 - Nunca adicione nem reproduza senhas, tokens, chaves privadas ou outros segredos. Evite repetir endereços de e-mail pessoais na documentação.
 - Não execute `sudo`, atualizações, instalações de pacotes, `git commit` ou `git push` sem solicitação explícita.
@@ -26,7 +29,7 @@ Leia os arquivos relevantes do repositório antes de fazer alterações. Conside
 
 - Escreva em português brasileiro (`pt-BR`), com exemplos práticos e Markdown correto.
 - Organize o README para facilitar a leitura: objetivo, pré-requisitos, estrutura do repositório, instalação, recursos, validação, limitações e segurança.
-- Descreva fielmente os pacotes e serviços existentes em `personal.nix`, incluindo o JDK Java configurado, editores, PostgreSQL, Zsh, Git, Bluetooth, biometria e keyd, quando presentes.
+- Descreva fielmente os pacotes e serviços existentes em `personal.nix`, incluindo o JDK Java configurado, editores, PostgreSQL, Zsh, Git, Bluetooth, biometria e keyd, quando presentes. Documente os módulos opcionais sem pressupor que estejam habilitados.
 - Diferencie configurações globais do sistema (como `/etc/gitconfig`) de configurações específicas do usuário.
 - Explique que as versões dos pacotes dependem da revisão do Nixpkgs e que este repositório não fixa todas as dependências.
 - Destaque pressupostos específicos da máquina e etapas de adaptação; não prometa compatibilidade universal.
