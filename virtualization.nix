@@ -34,6 +34,9 @@
     # Visualizador de consoles de maquinas virtuais.
     virt-viewer
 
+    # Interface grafica para inspecionar conteineres, imagens e pods do Podman.
+    podman-desktop
+
     # Cria e integra ambientes Linux em conteineres Podman.
     distrobox
 
