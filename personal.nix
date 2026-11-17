@@ -70,6 +70,22 @@
   };
 
   # ----------------------------------------------------------------------------
+  # Manutenção do Nix Store e comandos modernos do Nix
+  # ----------------------------------------------------------------------------
+
+  # Habilita a interface 'nix' moderna sem habilitar Flakes.
+  nix.settings.experimental-features = [ "nix-command" ];
+
+  # Executa a coleta de lixo semanalmente, removendo gerações elegíveis
+  # com mais de 60 dias. Gerações removidas não podem ser usadas para rollback.
+  # Não elimina objetos ainda referenciados por perfis ou raízes do Nix.
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 60d";
+  };
+
+  # ----------------------------------------------------------------------------
   # Serviços e shell
   # ----------------------------------------------------------------------------
 
