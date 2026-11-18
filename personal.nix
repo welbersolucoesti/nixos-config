@@ -35,6 +35,7 @@
     jetbrains.idea
     dbeaver-bin
     vscode
+    postman
 
     # Java: Eclipse Temurin JDK 25
     temurin-bin-25
