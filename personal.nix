@@ -7,6 +7,9 @@
     ./modules/system/maintenance.nix
     ./modules/system/postgresql.nix
     ./modules/personal.nix
+    ./modules/optional/cron.nix
+    ./modules/optional/virtualization.nix
+    ./modules/optional/zsh-theme.nix
     ./modules/desktops/kde.nix
     ./modules/desktops/xfce.nix
   ];

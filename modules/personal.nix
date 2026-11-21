@@ -9,11 +9,10 @@
     autosuggestions.enable = true;
     syntaxHighlighting.enable = true;
 
-    # Oh My Zsh com tema bira e plugins git e sudo.
+    # Oh My Zsh com os plugins git e sudo.
     ohMyZsh = {
       enable = true;
       plugins = ["git" "sudo"];
-      theme = "bira";
     };
   };
 

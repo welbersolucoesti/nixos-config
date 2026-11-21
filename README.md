@@ -10,7 +10,7 @@ A proposta é simples: reduzir configurações manuais e manter o ambiente de tr
 
 Em vez de reinstalar aplicativos, reconfigurar serviços e lembrar como resolver particularidades do hardware a cada instalação, essas definições são mantidas em arquivos Nix.
 
-O repositório representa meu ambiente pessoal. Ele pode servir como referência para outros usuários, mas não pretende ser uma configuração universal.
+O repositório mantém a configuração pessoal dos notebooks do David.
 
 ## Ambiente
 
@@ -38,30 +38,69 @@ nixos-config/
 ├── .gitignore
 ├── AGENTS.md
 ├── README.md
-├── cron.nix
+├── install.sh
 ├── modules/
 │   ├── desktops/
 │   │   ├── kde.nix
 │   │   └── xfce.nix
+│   ├── optional/
+│   │   ├── cron.nix
+│   │   ├── virtualization.nix
+│   │   └── zsh-theme.nix
 │   ├── personal.nix
 │   └── system/
 │       ├── hardware.nix
 │       ├── maintenance.nix
 │       ├── packages.nix
 │       └── postgresql.nix
-├── personal.nix
-└── virtualization.nix
+└── personal.nix
 ```
 
 **`personal.nix`** é o ponto de entrada. Os módulos em `modules/system/` declaram pacotes, serviços, hardware e manutenção. `modules/personal.nix` reúne as configurações de Zsh e Git, e `modules/desktops/` contém os perfis gráficos.
 
-**`cron.nix`** define um serviço e um timer opcionais para um script privado externo ao repositório.
-
-**`virtualization.nix`** disponibiliza opcionalmente QEMU/KVM, libvirt, virt-manager e virt-viewer, além de Podman, Podman Desktop, Distrobox e Kontainer (Qt/Kirigami). O arquivo não é ativado enquanto não for importado na configuração da máquina.
+**`modules/optional/`** contém os módulos de agendamento, virtualização e tema do Zsh. As escolhas ficam na configuração local da máquina.
 
 **`AGENTS.md`** estabelece orientações para agentes de IA que trabalham neste repositório, incluindo limites de edição e validação.
 
 **`.gitignore`** define os padrões de arquivos que não serão rastreados pelo Git.
+
+## Preparação de uma instalação mínima do NixOS
+
+Entre no TTY com sua conta local após concluir a instalação oficial do NixOS. O `install.sh` pressupõe um NixOS já instalado e publica a configuração deste repositório. A instalação do sistema, incluindo discos e bootloader, é feita pelo instalador oficial. [Manual do NixOS](https://nixos.org/manual/nixos/stable/#ch-installation)
+
+### Conectividade Wi-Fi pelo TTY
+
+Este procedimento pressupõe que o NetworkManager esteja instalado, ativo e gerenciando a interface Wi-Fi. No TTY, confira o estado da interface, liste as redes e substitua `NOME_DA_REDE` pelo nome da rede escolhida. O último comando verifica a conectividade.
+
+```bash
+nmcli device status
+nmcli device wifi list
+nmcli --ask device wifi connect "NOME_DA_REDE"
+ping -c 3 nixos.org
+```
+
+O `--ask` solicita a senha interativamente, mantendo-a fora da linha de comando e do histórico do shell. [Referência do nmcli](https://networkmanager.dev/docs/api/latest/nmcli.html)
+
+Se o NetworkManager estiver indisponível, use Ethernet para o bootstrap ou consulte o [manual oficial do NixOS sobre redes](https://nixos.org/manual/nixos/stable/#sec-networking).
+
+A conexão de bootstrap permite baixar o Git e clonar o repositório. Para manter a rede após reinicializações, preserve as definições persistentes em `/etc/nixos/configuration.nix`. O NetworkManager pode salvar perfis localmente. Mantenha nomes de rede e credenciais fora do repositório e as credenciais fora do Nix Store.
+
+### Git temporário e checkout
+
+Depois de confirmar a conexão no TTY, abra um ambiente temporário com Git. `nix-shell -p git` disponibiliza o comando nessa sessão e deixa a configuração declarativa intacta. [Referência do nix-shell](https://nix.dev/manual/nix/latest/command-ref/nix-shell.html)
+
+```bash
+nix-shell -p git
+```
+
+Dentro desse ambiente, clone o repositório e entre no diretório:
+
+```bash
+git clone https://github.com/welbersolucoesti/nixos-config.git
+cd nixos-config
+```
+
+Em seguida, [prepare a cópia revisada de `configuration.nix` e execute a primeira instalação](#3-preparar-e-avaliar-a-configuração-da-máquina). Depois da publicação, [ajuste a configuração real da máquina](#4-aplicar-os-ajustes-à-configuração-da-máquina) e [valide e aplique manualmente](#5-validar-a-configuração-e-aplicar-manualmente).
 
 ## Instalação
 
@@ -76,7 +115,7 @@ Esta configuração é um módulo complementar. Ela **não substitui** os arquiv
 
 ### 2. Obter os arquivos
 
-Clone este repositório para um diretório de sua preferência ou copie a árvore completa de arquivos, incluindo `modules/`.
+Use o checkout obtido na preparação. O instalador publica os módulos de um commit do checkout local. Por padrão, usa `HEAD`. Para escolher outro commit revisado, passe `--revision HASH`. A publicação exige todos os módulos da estrutura atual.
 
 Os exemplos abaixo consideram o repositório localizado em:
 
@@ -84,45 +123,65 @@ Os exemplos abaixo consideram o repositório localizado em:
 ~/nixos-config/
 ```
 
-### 3. Importar o módulo pessoal
+### 3. Preparar e avaliar a configuração da máquina
 
-No arquivo `/etc/nixos/configuration.nix`, **preserve a lista `imports` existente** e acrescente somente `./personal.nix`, caso ainda não esteja presente. O exemplo consolidado abaixo é apenas uma referência: **não copie a lista inteira sobre a sua configuração**.
+Na primeira instalação, ou se a máquina ainda importa `personal.nix` pelo checkout, prepare uma cópia revisada de `configuration.nix`. Preserve seus argumentos e capture o conjunto inteiro com `args@`. Antes do corpo do módulo, introduza a referência à implantação. O trecho abaixo mostra as alterações na estrutura, com o destino protegido padrão:
 
 ```nix
-imports = [
-  ./hardware-configuration.nix
-  ./personal.nix
-  # ./cron.nix           # opcional, somente quando David decidir habilitar
-  # ./virtualization.nix # opcional, somente quando David decidir habilitar
-  # ... outros módulos já utilizados pela máquina ...
-];
+args@{ config, pkgs, ... }:
+let
+  deployment = (args.nixosConfigDeployment or (path: path)) /etc/nixos/nixos-config;
+in
+{
+  imports = [
+    ./hardware-configuration.nix
+    (deployment + "/current/personal.nix")
+    (deployment + "/local.nix")
+    # Preserve os demais imports da máquina.
+  ];
+  # Preserve o restante da configuração.
+}
 ```
 
-As linhas comentadas são opcionais e não ativam os módulos. Preserve também todos os imports não exibidos no exemplo. Para usar caminhos relativos como `./personal.nix`, crie um link simbólico apontando para o arquivo versionado.
+Mantenha os imports relativos acessíveis na cópia, incluindo o módulo de hardware. Nos notebooks existentes, retire da lista os imports antigos de cron e virtualização que apontem para a raiz do checkout ou da revisão publicada. Para manter esses recursos, use as opções em `local.nix`. Para XFCE, remova da cópia as declarações que habilitam `services.desktopManager.plasma6.enable` e `services.displayManager.sddm.enable`.
 
-A partir da raiz do repositório:
+Depois de preparar a cópia revisada e conferir seus imports relativos, execute a primeira instalação na raiz do checkout com sua conta normal:
 
 ```bash
-sudo ln -s "$(realpath personal.nix)" /etc/nixos/personal.nix
+bash install.sh --configuration /caminho/para/configuration.nix
 ```
 
-**Atenção:** se `/etc/nixos/personal.nix` já existir, faça um backup e remova ou renomeie o arquivo antigo antes de criar o link.
+Na primeira execução, escolha KDE Plasma ou XFCE. O instalador avalia a cópia revisada com o Nixpkgs local e a árvore candidata. Os imports da cópia são avaliados como estão, com a referência à implantação resolvida para o diretório temporário. Pressione Enter no menu ou responda `n` na confirmação para cancelar. A chamada a `sudo` ocorre após a confirmação.
 
-Alternativamente, o `configuration.nix` pode importar diretamente o caminho absoluto do módulo.
+Use `bash install.sh` sem argumentos apenas quando `/etc/nixos/configuration.nix` já estiver migrado e contiver os imports da implantação. Nas execuções seguintes, o instalador preserva `local.nix`.
 
-### 4. Adaptar a configuração
+Para testar a publicação sem privilégios, use `--destination` com um caminho em um diretório temporário gravável, fora do checkout. Use esse mesmo caminho como destino na cópia da configuração.
 
-Antes de aplicar o arquivo, revise os pontos abaixo.
+### 4. Aplicar os ajustes à configuração da máquina
+
+Depois da publicação, compare a cópia avaliada com `/etc/nixos/configuration.nix` e faça os ajustes manualmente. Nos notebooks existentes, retire também do arquivo real os imports antigos de cron e virtualização. Preserve `hardware-configuration.nix`, `system.stateVersion` e os demais ajustes. O link antigo de `personal.nix` pode permanecer enquanto você valida a migração.
 
 **Perfil gráfico**
 
-Para selecionar um perfil, acrescente à configuração local da máquina, por exemplo em `/etc/nixos/configuration.nix`:
+O instalador grava a escolha em `/etc/nixos/nixos-config/local.nix`. Para trocar de perfil depois da instalação, o proprietário pode editar esse arquivo:
 
 ```nix
 personalConfig.desktop = "xfce";
 ```
 
-Use `"kde"` para KDE Plasma com SDDM. Ao migrar do Plasma para o XFCE, remova as declarações locais que habilitam `services.desktopManager.plasma6.enable` e `services.displayManager.sddm.enable`. Preserve os imports da máquina e as configurações de áudio, teclado e hardware. Se houver sessão padrão ou login automático configurado, revise essas opções para a nova sessão.
+Use `"kde"` para KDE Plasma com SDDM. Antes de ativar XFCE, retire também da configuração efetiva da máquina as declarações que habilitam Plasma e SDDM, mesmo que já tenha removido essas linhas na cópia usada pelo instalador. Preserve os ajustes de áudio, teclado e hardware. Revise a sessão padrão e o login automático, se configurados.
+
+**Opções locais**
+
+Acrescente ao `local.nix` somente as escolhas que deseja aplicar:
+
+```nix
+personalConfig.cron.enable = true;
+personalConfig.virtualization.enable = true;
+personalConfig.zsh.theme = null;
+```
+
+Cron e virtualização ficam desativados por padrão, e o tema padrão é `"bira"`. O instalador preserva o conteúdo do arquivo local nas execuções seguintes.
 
 **Nome do usuário**
 
@@ -190,15 +249,9 @@ sudo nixos-rebuild switch
 
 ## Agendamento diário opcional
 
-O módulo `cron.nix` executa `/home/david/.local/share/nixos-cron/cron.sh` como usuário `david`, diariamente às **03h00 no horário local**. O serviço é `oneshot` e termina ao concluir o script. Se o arquivo não existir, a execução é ignorada; `Persistent=false` impede recuperar tarefas perdidas enquanto o computador estava desligado.
+O módulo `modules/optional/cron.nix` executa `/home/david/.local/share/nixos-cron/cron.sh` como usuário `david`, diariamente às **03h00 no horário local**. O serviço é `oneshot` e termina ao concluir o script. Se o arquivo não existir, a execução é ignorada. `Persistent=false` impede recuperar tarefas perdidas enquanto o computador estava desligado.
 
-A partir da raiz do repositório, crie o link (se o destino já existir, revise-o antes):
-
-```bash
-sudo ln -s "$(realpath cron.nix)" /etc/nixos/cron.nix
-```
-
-**Somente quando desejar habilitar o agendamento**, acrescente `./cron.nix` à lista `imports` já existente em `/etc/nixos/configuration.nix`. Não remova `personal.nix`, `hardware-configuration.nix` ou outros módulos. Consulte o exemplo consolidado na seção de instalação.
+Para habilitar o agendamento, defina `personalConfig.cron.enable = true;` no `local.nix`.
 
 Após revisar e validar, o proprietário aplica manualmente a configuração:
 
@@ -230,21 +283,15 @@ journalctl -u david-cron.service --since today --no-pager
 
 O `ConditionPathExists` faz o systemd pular o início do serviço quando o script não existe; isso não equivale a uma execução bem-sucedida nem constitui monitoramento de falhas. Confira o resultado da última execução com `systemctl status` e os registros com `journalctl`. Uma falha do script pode exigir investigação manual; o timer, por si só, não envia alertas.
 
-Mesmo na execução manual, o serviço roda como `david`. Alterações no conteúdo do script privado **não exigem rebuild**; mudanças em `cron.nix` exigem reconstruir e aplicar a configuração. Ao adaptar para outra máquina, ajuste o usuário e os caminhos no módulo e nos comandos acima. O usuário precisa existir e o diretório pessoal deve estar acessível no horário agendado.
+Mesmo na execução manual, o serviço roda como `david`. Alterações no script privado dispensam rebuild. Mudanças no módulo `modules/optional/cron.nix` exigem reconstruir e aplicar a configuração. Ao adaptar para outra máquina, ajuste o usuário e os caminhos no módulo e nos comandos acima. O usuário precisa existir e o diretório pessoal deve estar acessível no horário agendado.
 
 ## Virtualização opcional (QEMU/KVM e Distrobox)
 
-O arquivo `virtualization.nix` configura o serviço libvirt, habilita o virt-manager e disponibiliza o virt-viewer. Também habilita o Podman e instala o Podman Desktop (interface gráfica para contêineres, imagens e pods), o Distrobox e o Kontainer (interface Qt/Kirigami para gerenciar ambientes Distrobox no KDE Plasma). É um módulo **opcional e inativo por padrão**: sua presença no repositório não instala nem habilita virtualização na máquina.
+O módulo `modules/optional/virtualization.nix` configura o serviço libvirt, habilita o virt-manager e disponibiliza o virt-viewer. Também habilita o Podman e instala o Podman Desktop (interface gráfica para contêineres, imagens e pods), o Distrobox e o Kontainer (interface Qt/Kirigami para gerenciar ambientes Distrobox no KDE Plasma). Por padrão, a virtualização fica desativada.
 
 Para utilizá-lo futuramente, revise o usuário `david` e o grupo `libvirtd` no módulo. Pertencer a esse grupo permite administrar recursos de virtualização e exige confiança no usuário autorizado. Verifique também se a CPU e o firmware oferecem suporte à virtualização de hardware e se `/dev/kvm` está disponível.
 
-A partir da raiz do repositório, crie o link simbólico apenas se o destino ainda não existir (caso exista, revise-o antes):
-
-```bash
-sudo ln -s "$(realpath virtualization.nix)" /etc/nixos/virtualization.nix
-```
-
-Depois, **somente quando decidir habilitar o recurso**, acrescente `./virtualization.nix` à lista de imports já existente em `/etc/nixos/configuration.nix`. Preserve todos os outros módulos, inclusive `./cron.nix` caso esteja habilitado. Consulte o exemplo consolidado na seção de instalação; não substitua a lista inteira.
+Para habilitar o recurso, defina `personalConfig.virtualization.enable = true;` no `local.nix`.
 
 Valide a configuração importada com `nixos-rebuild dry-build`, sem `sudo`. A aplicação, se desejada, é feita **exclusivamente por David**, executando manualmente `sudo nixos-rebuild switch`. Nenhum agente deve executar comandos de ativação.
 
@@ -298,7 +345,7 @@ distrobox-list
 
 O exemplo de criação permanece comentado para evitar alterações involuntárias. O Kontainer e o Podman Desktop poderão ser abertos pelo lançador de aplicativos do KDE quando estiverem instalados. A conexão do Podman Desktop com o runtime deve ser verificada na sessão do usuário; a instalação do pacote, por si só, não garante a detecção automática do socket rootless. O Podman pode funcionar em modo rootless para contêineres do usuário; esse uso depende de permissões e configurações adequadas do sistema. Contêineres Distrobox não oferecem o mesmo isolamento de uma máquina virtual completa.
 
-**Atenção:** importar `virtualization.nix` habilita **tanto** libvirt/QEMU/KVM **quanto** Podman/Podman Desktop/Distrobox/Kontainer. Não há interruptores independentes dentro do módulo atual. Se futuramente quiser ativar apenas uma das duas tecnologias, será necessário separar ou parametrizar as configurações antes de importar.
+A opção de virtualização habilita em conjunto libvirt/QEMU/KVM e Podman/Podman Desktop/Distrobox/Kontainer.
 
 ## Memória comprimida (ZRAM)
 
@@ -383,11 +430,10 @@ O módulo habilita:
 
 - Zsh como shell do usuário configurado.
 - Oh My Zsh.
-- Tema `bira`.
 - Plugins `git` e `sudo`.
 - Autocompletar, sugestões automáticas e destaque de sintaxe.
 
-As configurações são administradas pelo módulo do NixOS.
+O tema do Oh My Zsh é configurado separadamente por `personalConfig.zsh.theme`. O padrão é `"bira"`. Use o nome de outro tema disponível ou defina `null` para usar o Zsh com Oh My Zsh e sem tema.
 
 ### Atalhos de manutenção
 
@@ -494,9 +540,28 @@ Para reprodução exata, é necessário fixar a revisão das dependências por u
 
 Este projeto prioriza inicialmente uma configuração simples, baseada nos módulos tradicionais do NixOS.
 
-### Implantação futura
+### Implantação e recuperação
 
-O plano é manter o checkout de desenvolvimento na conta do usuário, a seleção de desktop e os ajustes da máquina em um módulo local persistente, e as revisões implantadas em um diretório protegido. A configuração da máquina importará o módulo local e a revisão publicada por caminhos estáveis. A revisão anterior poderá ser recuperada sem trocar o arquivo local.
+- O checkout da conta do usuário serve para desenvolvimento. O instalador copia apenas os módulos do commit selecionado e verifica seus hashes antes de publicar.
+- `local.nix` guarda a seleção e os ajustes da máquina em um arquivo separado das revisões. Mantenha credenciais em arquivos protegidos fora do Nix Store. Quando um serviço aceitar um caminho de leitura em tempo de execução, passe esse caminho como string e deixe o serviço abrir o arquivo.
+- A implantação protegida fica em `/etc/nixos/nixos-config`, sob propriedade de root. O publicador recebe o conteúdo por entrada padrão e confere os hashes após gravá-lo em uma área privada dentro do destino protegido ou em seu diretório pai. O link `current` só muda após a revisão estar completa em `revisions/HASH`. A revisão anterior continua disponível mesmo após a troca.
+
+Para recuperar uma revisão, use o hash completo informado pelo instalador. Primeiro, no checkout, avalie a revisão preservada com o `local.nix` e a configuração da máquina atuais:
+
+```bash
+bash install.sh --check-rollback HASH_ANTERIOR
+```
+
+Se a avaliação falhar, mantenha `current` e revise a incompatibilidade. Uma revisão anterior pode desconhecer opções presentes em `local.nix` ou oferecer serviços incompatíveis com os imports da máquina.
+
+`--check-rollback` verifica a compatibilidade em uma operação separada e não torna atômica a troca manual posterior de `current`. No exemplo abaixo, o último comando substitui o link atomicamente por renomeação no mesmo diretório. A avaliação e a renomeação podem ocorrer sobre estados diferentes se a configuração mudar nesse intervalo. Execute os comandos a partir de `/etc/nixos/nixos-config`:
+
+```bash
+sudo ln -s -- revisions/HASH_ANTERIOR .current-recovery &&
+  sudo mv -Tf -- .current-recovery current
+```
+
+Valide novamente com `nixos-rebuild dry-build`. Essa troca recupera os módulos publicados e preserva `local.nix`; qualquer alteração no sistema em execução depende da aplicação manual pelo proprietário.
 
 ## Segurança
 
