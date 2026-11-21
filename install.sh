@@ -82,17 +82,26 @@ prepare_ui() {
      "ui_use_$backend" "$candidate"; then
     return
   fi
-  if [[ $backend == dialog ]]; then
-    die "Dialog indisponível. Abra uma sessão com nix-shell -p dialog ou execute com --plain."
+  if ! command -v nix-shell >/dev/null; then
+    [[ $backend == gum ]] || die "Dialog e nix-shell indisponíveis. Execute com --plain para usar o modo texto."
+    return 0
   fi
-  command -v nix-shell >/dev/null || return 0
-  ui_info "Modo visual opcional · ${backend^} via nix-shell"
-  if ui_confirm "Carregar ${backend^}?"; then
+  if [[ $backend == gum ]]; then
+    ui_info 'Modo visual opcional · Gum via nix-shell'
+  fi
+  if [[ $backend == dialog ]] || ui_confirm 'Carregar Gum?'; then
     ui_progress "Carregando ${backend^}"
+    # Use só o executável da sessão Nix. O configurador continua no processo original.
     candidate=$(nix-shell -p "$backend" --run "type -P $backend") || status=$?
-    if (( status >= 128 )); then cancel "$status"; fi
+    if (( status == 130 || status == 143 )) || [[ $backend == gum && $status -ge 128 ]]; then
+      cancel "$status"
+    fi
     if (( status == 0 )) && "ui_use_$backend" "$candidate"; then return; fi
-    ui_warning "${backend^} indisponível. Modo texto."
+    if [[ $backend == dialog ]]; then
+      ui_error "Não foi possível carregar o Dialog pelo nix-shell. Execute com --plain para usar o modo texto."
+      exit "$((status == 0 ? 1 : status))"
+    fi
+    ui_warning 'Gum indisponível. Modo texto.'
   else
     status=$?
     if (( status >= 128 )); then cancel "$status"; fi

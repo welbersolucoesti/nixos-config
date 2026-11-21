@@ -2,8 +2,11 @@
 
 ui_dialog_dir=''
 ui_dialog_theme=''
-ui_dialog_width=68
+ui_dialog_width=56
+ui_dialog_report_width=76
 ui_dialog_report_height=18
+ui_dialog_form_rows=3
+ui_dialog_backtitle='Noir · NixOS'
 ui_dialog_cancelled=''
 
 ui_use_dialog() {
@@ -25,8 +28,15 @@ ui_dialog_open() {
       --msgbox 'Use 40×12 ou --plain.' 7 0 && return 2
     return 1
   fi
-  ui_dialog_width=$((columns - 4 < 68 ? columns - 4 : 68))
-  ui_dialog_report_height=$((rows - 2 < 18 ? rows - 2 : 18))
+  ui_dialog_width=$((columns - 4 < 56 ? columns - 4 : 56))
+  ui_dialog_report_width=$((columns - 4 < 88 ? columns - 4 : 88))
+  if (( rows < 16 )); then
+    ui_dialog_backtitle=''
+    ui_dialog_form_rows=2
+    ui_dialog_report_height=$((rows - 1))
+  else
+    ui_dialog_report_height=$((rows - 4 < 24 ? rows - 4 : 24))
+  fi
   ui_dialog_dir=$(mktemp -d) || return 1
   exec {ui_dialog_stderr}>&2
   exec >"$ui_dialog_dir/log" 2>&1
@@ -34,6 +44,7 @@ ui_dialog_open() {
 
 ui_dialog_run() (
   local status=0 argument escaped=false
+  local -a header=()
   # -- protege o próximo argumento, mas versões do Dialog examinam certas opções
   # antes de abrir o widget, inclusive quando aparecem como texto escapado.
   for argument; do
@@ -50,7 +61,8 @@ ui_dialog_run() (
   # O código 1 também pode vir do shell ou do ncurses antes de abrir o widget.
   export DIALOG_CANCEL=10 DIALOG_ESC=11 DIALOG_ERROR=2 DIALOG_EXTRA=3
   if [[ -n $ui_dialog_theme ]]; then export DIALOGRC=$ui_dialog_theme; fi
-  "$ui_dialog" --backtitle 'Noir  /  NixOS' --no-shadow --output-fd 3 "$@" \
+  if [[ -n $ui_dialog_backtitle ]]; then header=(--backtitle "$ui_dialog_backtitle"); fi
+  "$ui_dialog" "${header[@]}" --no-shadow --output-fd 3 "$@" \
     3>&1 >/dev/tty </dev/tty || status=$?
   case $status in
     0|3|130|143) return "$status" ;;
@@ -60,12 +72,12 @@ ui_dialog_run() (
 )
 
 ui_dialog_start() {
-  local prompt='Escolha a operação.' revision=$1 limit=$((ui_dialog_width - 15)) selection
+  local prompt='Configuração do NixOS' revision=$1 limit=$((ui_dialog_width - 15)) selection
   if [[ -n $revision ]]; then
     if (( ${#revision} > limit )); then revision="${revision:0:limit}…"; fi
     prompt="Checkout: $revision"
   fi
-  selection=$(ui_dialog_run --title 'Configuração do sistema' \
+  selection=$(ui_dialog_run --title 'Noir · Instalação' \
     --ok-label 'Continuar' --cancel-label 'Sair' --no-tags \
     --menu "$prompt" 0 "$ui_dialog_width" 1 install 'Instalar ou atualizar') || return "$?"
   [[ $selection == install ]] || return 2
@@ -77,12 +89,12 @@ ui_dialog_input() {
 }
 
 ui_dialog_git_identity() {
-  local field_width=$((ui_dialog_width - 13))
+  local field_width=$((ui_dialog_width - 15))
   ui_dialog_run --title 'Identidade Git' --ok-label 'Continuar' --cancel-label 'Cancelar' \
-    --hline 'Tab: botões · Esc: sair' \
-    --form 'Autoria dos commits (↑ ↓)' 0 "$ui_dialog_width" 2 \
-    'Nome'   1 1 '' 1 9 "$field_width" 2048 \
-    'E-mail' 2 1 '' 2 9 "$field_width" 2048
+    --hline '↑↓: campos · Tab: botões' \
+    --form 'Autoria dos commits' 0 "$ui_dialog_width" "$ui_dialog_form_rows" \
+    'Nome'   1 2 '' 1 10 "$field_width" 2048 \
+    'E-mail' "$ui_dialog_form_rows" 2 '' "$ui_dialog_form_rows" 10 "$field_width" 2048
 }
 
 ui_dialog_choose() {
@@ -93,7 +105,7 @@ ui_dialog_choose() {
     items+=("$index" -- "$option")
   done
   ui_dialog_run --title -- "$ui_section_title" --ok-label 'Continuar' --cancel-label 'Cancelar' \
-    --no-tags --menu 'Escolha o ambiente gráfico.' 0 "$ui_dialog_width" "$#" "${items[@]}"
+    --no-tags --menu 'Selecione uma sessão.' 0 "$ui_dialog_width" "$#" "${items[@]}"
 }
 
 ui_dialog_confirm() {
@@ -108,7 +120,7 @@ ui_dialog_textbox() {
   height=$((height + 4))
   if (( height < 7 )); then height=7; fi
   if (( height > ui_dialog_report_height )); then height=$ui_dialog_report_height; fi
-  ui_dialog_run --title -- "$title" "$@" --textbox -- "$file" "$height" "$ui_dialog_width"
+  ui_dialog_run --title -- "$title" "$@" --textbox -- "$file" "$height" "$ui_dialog_report_width"
 }
 
 ui_dialog_review() (
@@ -117,7 +129,7 @@ ui_dialog_review() (
   shift
   report=$(mktemp) || return 2
   trap 'rm -f -- "$report"' EXIT
-  "$@" | fold -s -w "$((ui_dialog_width - 5))" > "$report" || return 2
+  "$@" | fold -s -w "$((ui_dialog_report_width - 5))" > "$report" || return 2
   ui_dialog_textbox "$title" "$report" --exit-label 'Continuar'
 )
 
@@ -145,7 +157,7 @@ ui_dialog_finish() {
   {
     printf '%s\n' "$message"
     if "$wizard_started"; then show_result; fi
-  } | fold -s -w "$((ui_dialog_width - 5))" > "$ui_dialog_dir/result" || action=2
+  } | fold -s -w "$((ui_dialog_report_width - 5))" > "$ui_dialog_dir/result" || action=2
   while (( action == 0 )); do
     ui_dialog_textbox "$title" "$ui_dialog_dir/result" --ok-label 'Fechar' \
       --extra-button --extra-label 'Registros' --erase-on-exit || action=$?
