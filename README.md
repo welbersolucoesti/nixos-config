@@ -175,9 +175,28 @@ nixos-config/
 | Navegadores | Google Chrome instalado. O módulo de Firefox do NixOS fica desabilitado. O projeto permite pacotes proprietários em todo o sistema, com prioridade sobre configurações comuns de outros módulos. |
 | Desenvolvimento | IntelliJ IDEA, VS Code, DBeaver, Postman e Eclipse Temurin JDK 25. |
 | Uso geral | Bitwarden, WPS Office, Vim, wget, usbutils, Git, htop e pv. |
-| Biometria e Bluetooth | O serviço fprintd depende do leitor. Cadastre as digitais separadamente. O adaptador Bluetooth começa ligado, e o pareamento fica a cargo do usuário. |
+| Biometria | O fprintd é compartilhado entre os perfis e depende de um leitor compatível e de digitais cadastradas. |
+| Bluetooth | O adaptador começa ligado, e o pareamento fica a cargo do usuário. |
 | Terminal | A conta escolhida passa a usar Zsh, com Oh My Zsh e os plugins de Git e sudo. |
 | Teclado | O keyd transforma `leftshift+leftmeta+f23` em reproduzir ou pausar. Em alguns notebooks, essa combinação é emitida pela tecla Copilot. A regra vale para todos os teclados gerenciados. Teste no seu teclado, pois o evento pode variar. |
+
+### Impressões digitais
+
+Na sessão gráfica da conta que vai usar o leitor, cadastre uma digital, consulte os cadastros e verifique a leitura.
+
+```bash
+fprintd-enroll -f right-index-finger
+fprintd-list "$USER"
+fprintd-verify
+```
+
+Para apagar todas as digitais cadastradas para essa conta no fprintd, use `fprintd-delete "$USER"`.
+
+No XFCE, o LightDM GTK Greeter autentica a conta pela pilha PAM `lightdm`, que delega a autenticação à pilha `login` do NixOS. Selecione a conta e use o leitor assim que a leitura for solicitada. Se a autenticação terminar e o greeter continuar na tela, clique em **Entrar** ou pressione **Enter**. Se a digital falhar ou o tempo expirar, aguarde o campo de senha. [Código do LightDM GTK Greeter](https://github.com/Xubuntu/lightdm-gtk-greeter/blob/lightdm-gtk-greeter-2.0.9/src/lightdm-gtk-greeter.c)
+
+O bloqueador padrão `xfce4-screensaver` e as ações do Polkit que pedem autenticação pelo agente da sessão também têm uma regra PAM para o leitor. Com o perfil XFCE selecionado, essas duas pilhas dão uma tentativa à digital, com prazo de 10 segundos para a leitura, e pedem a senha se a verificação falhar. A pilha `polkit-1` é usada pelo sistema para essas autenticações. A digital precisa pertencer à conta indicada no diálogo. [Manual de pam_fprintd](https://manpages.debian.org/unstable/libpam-fprintd/pam_fprintd.8.en.html)
+
+A avaliação Nix confere as regras PAM. O teste com o leitor físico deve confirmar a digital e a alternativa por senha no login, no desbloqueio e em uma ação do Polkit que exija autenticação.
 
 ### Java
 
