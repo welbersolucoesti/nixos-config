@@ -30,6 +30,9 @@ cancel() {
     ui_warning "Operação interrompida."
     exit "$status"
   fi
+  if (( status == 2 )) && [[ -n ${ui_dialog:-} ]]; then
+    die "Falha na interface Dialog ou na preparação da revisão. Execute novamente com --plain."
+  fi
   ui_warning "$message"
   exit 0
 }
@@ -52,20 +55,20 @@ finish() {
 }
 
 prepare_ui() {
-  local candidate status=0
+  local backend=$1 candidate status=0
   ui_interactive || return 0
-  if candidate=$(type -P gum) && candidate=$(realpath -e -- "$candidate") &&
-     ui_use_gum "$candidate"; then
+  if candidate=$(type -P "$backend") && candidate=$(realpath -e -- "$candidate") &&
+     "ui_use_$backend" "$candidate"; then
     return
   fi
   command -v nix-shell >/dev/null || return 0
-  ui_info 'Modo visual opcional · Gum via nix-shell'
-  if ui_confirm 'Carregar Gum?'; then
-    ui_progress 'Carregando Gum'
-    candidate=$(nix-shell -p gum --run 'type -P gum') || status=$?
+  ui_info "Modo visual opcional · ${backend^} via nix-shell"
+  if ui_confirm "Carregar ${backend^}?"; then
+    ui_progress "Carregando ${backend^}"
+    candidate=$(nix-shell -p "$backend" --run "type -P $backend") || status=$?
     if (( status >= 128 )); then cancel "$status"; fi
-    if (( status == 0 )) && ui_use_gum "$candidate"; then return; fi
-    ui_warning 'Gum indisponível. Modo texto.'
+    if (( status == 0 )) && "ui_use_$backend" "$candidate"; then return; fi
+    ui_warning "${backend^} indisponível. Modo texto."
   else
     status=$?
     if (( status >= 128 )); then cancel "$status"; fi
@@ -113,8 +116,19 @@ read_identity() {
     die "Informe um e-mail Git com um único @ e sem espaços."
 }
 
+show_remote_changes() {
+  local base=$1 commit=$2
+  shift 2
+  ui_fields "$@"
+  ui_info $'\nCommits no remoto'
+  git --no-pager log --oneline "$base..$commit" || return
+  ui_info $'\nArquivos modificados no remoto'
+  git --no-pager diff --name-status "$base" "$commit"
+}
+
 sync_checkout() {
   local branch remote upstream status head base address count
+  local -a summary
   branch=$(git symbolic-ref --quiet --short HEAD) || die "Abra uma branch local antes de instalar."
   remote=$(git config --get "branch.$branch.remote") && [[ -n $remote && $remote != . ]] ||
     die "Configure uma branch remota correspondente para $branch."
@@ -140,18 +154,21 @@ sync_checkout() {
     die "A branch remota de $branch não está disponível."
   status=$(git status --porcelain=v1 --untracked-files=all) || die "Falha ao consultar o checkout."
   count=$(git rev-list --count "$head..$source_commit")
-  ui_fields 'Branch' "$branch" 'Remoto' "$address (${upstream#refs/remotes/})" \
-    'Commit local' "$head" 'Commit remoto' "$source_commit" 'Commits disponíveis' "$count"
-  if [[ -n $status ]]; then
-    ui_warning 'Alterações locais não commitadas'
-    ui_info "$status"
-  fi
+  summary=('Branch' "$branch" 'Remoto' "$address (${upstream#refs/remotes/})"
+    'Commit local' "$head" 'Commit remoto' "$source_commit" 'Commits disponíveis' "$count")
   base=$(git merge-base "$head" "$source_commit") || die "As branches não têm histórico em comum."
-  if [[ $source_commit != "$base" ]]; then
-    ui_info $'\nCommits no remoto'
-    git --no-pager log --oneline "$base..$source_commit"
-    ui_info $'\nArquivos modificados no remoto'
-    git --no-pager diff --name-status "$base" "$source_commit"
+  if [[ -n ${ui_dialog:-} && -z $status && $head == "$base" && $source_commit != "$base" ]]; then
+    ui_review 'Atualizações do remoto' show_remote_changes "$base" "$source_commit" "${summary[@]}" ||
+      cancel "$?" 'Atualização do checkout cancelada.'
+  else
+    ui_fields "${summary[@]}"
+    if [[ -n $status ]]; then
+      ui_warning 'Alterações locais não commitadas'
+      ui_info "$status"
+    fi
+    if [[ $source_commit != "$base" ]]; then
+      show_remote_changes "$base" "$source_commit"
+    fi
   fi
   if [[ $head != "$base" ]]; then
     ui_info $'\nCommits apenas locais'
@@ -476,12 +493,36 @@ configure_git() {
   check_git_identity "$git_target" true || return 1
 }
 
+show_publication() {
+  local account=$1 profile=$2 checkout=$3 commit=$4 destination=$5 previous=$6 backup=$7
+  shift 7
+  ui_section 'CONTA'
+  ui_fields 'Usuário' "$account" 'Ambiente gráfico' "$profile"
+  if (( $# )); then
+    ui_section 'GIT'
+    ui_fields 'Nome' "$1" 'E-mail' "$2"
+  fi
+  ui_section 'IMPLANTAÇÃO'
+  ui_fields 'Origem' "$checkout ($commit)" 'Destino' "$destination" \
+    'Instalação anterior' "$previous" 'Backup' "$backup"
+  printf '\n'
+  if [[ $destination == "$default_destination" ]]; then
+    ui_info 'Autenticação via sudo necessária.'
+  fi
+}
+
 main() {
+  local backend=$1 entrypoint
+  shift
   local destination=$default_destination checkout parent expected=absent source_commit plain=false
   local username git_name git_email git_target tree entry mode file checkout_local root_script
   local revision local_info account profile previous backup status
-  local -a identity_args=() nix_files=()
-  local usage='Uso: bash install.sh [--plain] [--destination DIRETÓRIO]'
+  local -a identity_args=() nix_files=() identity_summary=()
+  case $backend in
+    dialog) entrypoint=config.sh ;;
+    gum) entrypoint=install.sh ;;
+  esac
+  local usage="Uso: bash $entrypoint [--plain] [--destination DIRETÓRIO]"
   while (( $# )); do
     case $1 in
       --help|-h) printf '%s\n' "$usage"; return ;;
@@ -505,7 +546,13 @@ main() {
   ui_progress 'Pré-requisitos'
   check_requirements
   ui_success 'Pré-requisitos'
-  if ! "$plain"; then prepare_ui; fi
+  if ! "$plain"; then
+    if [[ $backend == dialog ]]; then
+      [[ -r $checkout/lib/ui-dialog.sh ]] || die "Módulo de interface ausente: $checkout/lib/ui-dialog.sh."
+      source "$checkout/lib/ui-dialog.sh"
+    fi
+    prepare_ui "$backend"
+  fi
   cd -- "$checkout"
   if [[ $destination != "$default_destination" ]]; then
     destination=$(realpath -ms -- "$destination") || die "Destino alternativo inválido."
@@ -523,8 +570,7 @@ main() {
     if [[ $revision =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]; then revision=${revision:0:12}; fi
   fi
   [[ $revision =~ ^[a-zA-Z0-9._/-]+$ ]] || revision=''
-  ui_header "$revision"
-  ui_confirm 'Iniciar?' || cancel "$?"
+  ui_start "$revision" || cancel "$?"
   wizard_started=true
   backup=$destination.previous
   if [[ -d $backup && ! -L $backup ]]; then backup_result=(ok "$backup"); fi
@@ -612,23 +658,16 @@ main() {
   esac
   ui_success 'Configuração local'
 
-  ui_section 'CONTA'
-  ui_fields 'Usuário' "$account" 'Ambiente gráfico' "$profile"
   previous='Nenhuma'
   if [[ $expected == absent ]]; then
-    ui_section 'GIT'
-    ui_fields 'Nome' "$git_name" 'E-mail' "$git_email"
+    identity_summary=("$git_name" "$git_email")
     backup='Não se aplica'
   else
     previous='Substituída se houver mudanças'
   fi
-  ui_section 'IMPLANTAÇÃO'
-  ui_fields 'Origem' "$checkout ($source_commit)" 'Destino' "$destination" \
-    'Instalação anterior' "$previous" 'Backup' "$backup"
-  printf '\n'
-  if [[ $destination == "$default_destination" ]]; then
-    ui_info 'Autenticação via sudo necessária.'
-  fi
+  ui_review 'Revisar publicação' show_publication "$account" "$profile" "$checkout" "$source_commit" \
+    "$destination" "$previous" "$backup" "${identity_summary[@]}" ||
+    cancel "$?" 'Publicação cancelada.'
   ui_confirm 'Publicar configuração?' || cancel "$?" 'Publicação cancelada.'
   if [[ ! -e $checkout_local && ! -L $checkout_local ]]; then
     new_local=$(mktemp -- "$checkout/config/.local.nix.XXXXXXXX")
@@ -670,4 +709,6 @@ main() {
   if [[ $expected == absent ]]; then identity_result=(ok 'Aplicada'); fi
 }
 
-main "$@"
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main gum "$@"
+fi

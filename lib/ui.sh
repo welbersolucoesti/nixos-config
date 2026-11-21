@@ -1,6 +1,8 @@
 # Interface do instalador. Entradas retornam pela saída padrão; avisos vão para stderr.
 
 ui_gum=''
+ui_dialog=''
+ui_section_title=''
 ui_foreground=255
 ui_muted=249
 ui_background=234
@@ -30,6 +32,24 @@ ui_header() {
   printf '\n'
 }
 
+ui_start() {
+  if [[ -n ${ui_dialog:-} ]]; then
+    ui_dialog_start "$1"
+  else
+    ui_header "$1"
+    ui_confirm 'Iniciar?'
+  fi
+}
+
+ui_review() {
+  if [[ -n ${ui_dialog:-} ]]; then
+    ui_dialog_review "$@"
+  else
+    shift
+    "$@"
+  fi
+}
+
 ui_info() {
   printf '%s\n' "$*"
 }
@@ -51,7 +71,10 @@ ui_progress() { ui_message "$ui_accent" '›' "$@"; }
 
 ui_input() {
   local label=$1 default=${2:-} answer
-  if [[ -n $ui_gum ]]; then
+  if [[ -n ${ui_dialog:-} ]]; then
+    answer=$(ui_dialog_input "$label" "$default") || return "$?"
+    printf '  %s: %s\n' "$label" "${answer:-$default}" >&2
+  elif [[ -n $ui_gum ]]; then
     answer=$("$ui_gum" input --prompt "  $label: " --value "$default" --placeholder '' --char-limit 0 \
       --cursor.mode static --prompt.foreground "$ui_foreground" --cursor.foreground "$ui_accent") || return "$?"
     printf '  %s: %s\n' "$label" "${answer:-$default}" >&2
@@ -67,6 +90,10 @@ ui_input() {
 ui_choose() {
   local option answer index=0
   local -a options=()
+  if [[ -n ${ui_dialog:-} ]]; then
+    ui_dialog_choose "$@"
+    return "$?"
+  fi
   for option; do
     index=$((index + 1))
     options+=("$option|$index")
@@ -91,7 +118,9 @@ ui_choose() {
 
 ui_confirm() {
   local answer
-  if [[ -n $ui_gum ]]; then
+  if [[ -n ${ui_dialog:-} ]]; then
+    ui_dialog_confirm "$1"
+  elif [[ -n $ui_gum ]]; then
     "$ui_gum" confirm --default=false --affirmative Sim --negative Não \
       --prompt.foreground "$ui_foreground" --selected.foreground "$ui_foreground" \
       --selected.background 238 --unselected.foreground "$ui_muted" \
@@ -117,6 +146,7 @@ ui_run() {
 }
 
 ui_section() {
+  ui_section_title=$1
   printf '\n'
   if [[ -n $ui_gum ]]; then
     "$ui_gum" style --bold --foreground "$ui_accent" -- "$1" || printf '%s\n' "$1"

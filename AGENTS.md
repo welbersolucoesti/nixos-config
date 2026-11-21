@@ -5,6 +5,8 @@
 Este repositório contém configurações pessoais e declarativas do NixOS para uma estação de desenvolvimento com KDE Plasma e Wayland. Utiliza módulos tradicionais do NixOS e Nixpkgs, sem Flakes ou Home Manager.
 
 - `personal.nix` é o ponto de entrada da máquina e importa diretamente `config/local.nix`. O `configuration.nix` importa `./nixos-config/personal.nix`.
+- `config.sh` é a entrada do configurador com Dialog. Durante a migração, `install.sh` mantém o fluxo compartilhado de instalação e atualização e também funciona como entrada compatível com Gum. As duas entradas aceitam `--plain`.
+- `lib/ui.sh` reúne a interface comum, o modo texto e Gum. `lib/ui-dialog.sh` contém os widgets do Dialog. Mantenha as verificações e as operações de publicação no fluxo compartilhado e exiba no menu apenas as operações implementadas.
 - `config/options.nix` declara o perfil e a identidade. `config/local.example.nix` é o modelo versionado. O instalador mantém uma cópia dos arquivos versionados em `/etc/nixos/nixos-config` e preserva `config/local.nix` na implantação.
 - `modules/applications/`, `modules/services/` e `modules/desktops/` organizam aplicativos, serviços e perfis gráficos. Mantenha os imports explícitos. O instalador copia os arquivos versionados, sem um inventário manual.
 - `modules/optional/cron.nix` declara o serviço e o timer systemd para um script privado externo ao repositório. O recurso é habilitado por `personalConfig.cron.enable`.
@@ -71,6 +73,8 @@ solicite autorização para executar fora do sandbox.
 
 Para alterações exclusivamente de documentação,
 execute as verificações Git aplicáveis.
+
+Para alterações no configurador, execute `bash -n` nos scripts Bash alterados e teste as interações com comandos simulados ou lógica isolada. Mantenha a publicação e a ativação fora desses testes.
 
 Informe os resultados reais, inclusive eventuais falhas.
 

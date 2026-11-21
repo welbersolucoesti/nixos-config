@@ -48,14 +48,14 @@ O GitHub é a fonte de verdade. A pasta obtida com `git clone` é o **checkout d
 Execute pela conta Linux que receberá a identidade Git. Use `sudo` apenas quando solicitado na publicação.
 
 ```bash
-bash install.sh
+bash config.sh
 ```
 
-O assistente Noir usa Gum para apresentar as etapas e receber as escolhas pelo teclado. Funciona no console TTY e nos terminais do KDE e do XFCE. Use as setas e Enter nos menus. Em confirmações, a opção inicial é **Não**. A tela inicial mostra a branch ou o commit local quando disponível. [Documentação do Gum](https://github.com/charmbracelet/gum)
+O configurador Noir usa Dialog no console TTY e nos terminais do KDE e do XFCE. A tela inicial mostra a branch ou o commit local quando disponível e oferece **Instalar ou atualizar**. Use as setas e Enter nos menus. As telas de revisão mostram os detalhes do fast-forward e da publicação antes de cada confirmação. Nas confirmações, a opção inicial é **Não**. Os diagnósticos dos comandos e o resultado final aparecem no terminal. [Manual do Dialog](https://invisible-island.net/dialog/manpage/dialog.html)
 
-Se o Gum estiver no `PATH`, o instalador o utiliza. Caso contrário, oferece uma sessão temporária com `nix-shell -p gum`. Se você recusar, a preparação falhar ou a sessão não estiver em um terminal interativo, as perguntas usam o terminal tradicional. Para escolher esse modo diretamente, execute `bash install.sh --plain`.
+Se o Dialog estiver no `PATH`, o configurador o utiliza. Caso contrário, oferece uma sessão temporária com `nix-shell -p dialog` quando disponível. Se você recusar, o carregamento falhar ou a sessão estiver fora de um terminal interativo, as perguntas usam o modo texto. Para escolher esse modo diretamente, execute `bash config.sh --plain`. Durante a migração, `bash install.sh` continua disponível com Gum e aceita `--plain` e `--destination`.
 
-O assistente pede confirmação para começar, consultar o remoto, aplicar o fast-forward ao checkout quando houver atualizações e publicar a cópia. A publicação no destino padrão avisa quando será necessária autenticação via `sudo`.
+Depois de selecionar **Instalar ou atualizar** no Dialog ou confirmar o início no modo texto ou Gum, o assistente pede confirmação para consultar o remoto, aplicar o fast-forward quando houver atualizações e publicar a cópia. A publicação no destino padrão avisa quando será necessária autenticação via `sudo`.
 
 1. Na primeira instalação, preencha **CONTA LINUX** e **INFORMAÇÕES GIT**. Confira os dados no resumo antes de publicar. Nas atualizações, o instalador reutiliza a identidade da cópia implantada.
 2. O instalador executa `git fetch` para o remoto configurado na branch e apresenta os commits e arquivos alterados. Se você autorizar, `git merge --ff-only` avança o checkout até o commit apresentado usando o objeto já buscado. Recusar encerra a instalação. Alterações não commitadas, commits apenas locais e branches divergentes exigem que você resolva o estado do checkout.
@@ -157,9 +157,11 @@ Os padrões de ambos os terminais ficam em `modules/applications/terminal.nix`. 
 
 ```text
 nixos-config/
-├── install.sh
+├── config.sh          Entrada do configurador com Dialog
+├── install.sh         Fluxo compartilhado e entrada compatível com Gum
 ├── lib/
-│   └── ui.sh          Interface Gum e modo texto
+│   ├── ui-dialog.sh   Widgets do Dialog
+│   └── ui.sh          Interface comum, Gum e modo texto
 ├── personal.nix
 ├── config/
 │   ├── local.example.nix
