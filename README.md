@@ -116,6 +116,10 @@ O tema padrão do Oh My Zsh é `"bira"`. Em `zsh.theme`, você pode indicar outr
 | KDE | KDE Plasma da configuração padrão do NixOS | SDDM |
 | XFCE | XFCE em X11 | LightDM |
 
+O Plasma abre uma sessão vazia a cada login. A configuração do sistema fixa apenas `General/loginMode` no `ksmserverrc`, inclusive para contas que já restauravam sessões. Aplicativos configurados para iniciar automaticamente continuam abrindo.
+
+A rolagem natural é o padrão para touchpads compatíveis. Em Wayland, o KWin lê o padrão por tipo de dispositivo no `kcminputrc`. No XFCE em X11, o Xorg aplica a opção do libinput aos dispositivos classificados como touchpad. Preferências de rolagem já gravadas para um dispositivo têm precedência nos dois perfis. Mouses externos conservam sua configuração de rolagem.
+
 O NumLock é ativado no início da sessão. No XFCE, o `xfsettingsd` lê os valores `Numlock` e `RestoreNumlock` do canal `keyboards`, que o perfil fixa como verdadeiros. A tecla NumLock continua disponível durante a sessão. No Plasma, a opção nativa também funciona em Wayland e uma configuração de NumLock já gravada pela conta tem precedência.
 
 Kickoff e Whisker usam o nome de ícone `nix-snowflake`. Ao iniciar a sessão Plasma, o perfil repõe esse ícone em cada Kickoff do painel, inclusive se a conta tiver escolhido outro. No XFCE, esse nome aponta para `distributor-logo-nixos.svg` no Tela-dark. O tema `hicolor` também oferece o floco oficial pelo pacote `nixos-icons`. Novas instâncias do Whisker recebem o ícone por padrão. Na abertura de uma sessão XFCE, as instâncias existentes têm somente a propriedade `button-icon` atualizada. [Arte oficial do NixOS](https://github.com/NixOS/nixos-artwork)

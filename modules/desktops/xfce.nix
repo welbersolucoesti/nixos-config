@@ -18,6 +18,9 @@
     services.xserver.displayManager.lightdm.enable = true;
     services.xserver.desktopManager.xfce.enable = true;
 
+    # O Xorg aplica o padrão aos touchpads. O xfsettingsd restaura escolhas por dispositivo.
+    services.libinput.touchpad.naturalScrolling = lib.mkDefault true;
+
     assertions = [
       {
         assertion = !config.services.desktopManager.plasma6.enable;

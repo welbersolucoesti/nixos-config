@@ -7,6 +7,20 @@
     services.displayManager.sddm.enable = true;
     services.desktopManager.plasma6.enable = true;
 
+    # O KConfig bloqueia somente a restauração da sessão, inclusive em contas existentes.
+    environment.etc."xdg/ksmserverrc".text = ''
+      [General]
+      loginMode[$i]=emptySession
+    '';
+
+    environment.etc."xdg/kcminputrc".text = ''
+      [Keyboard]
+      NumLock=0
+
+      [Libinput][Defaults][Touchpad]
+      NaturalScroll=true
+    '';
+
     assertions = [
       {
         assertion = !config.services.xserver.desktopManager.xfce.enable;
