@@ -1,8 +1,7 @@
 { config, lib, ... }:
 
 let
-  inherit (config.personalConfig) username git;
-  matches = pattern: value: builtins.match pattern value != null;
+  inherit (config.personalConfig) username;
 in
 {
   # O arquivo local fornece a identidade e as escolhas da estação.
@@ -30,13 +29,13 @@ in
 
     # A autoria é validada na avaliação. O instalador a aplica ao Git da conta na primeira publicação.
     git.userName = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
+      type = lib.types.nullOr (lib.types.strMatching "[^[:cntrl:]<>]*[^[:space:][:cntrl:]<>][^[:cntrl:]<>]*");
       default = null;
       description = "Nome de autoria dos commits Git.";
     };
 
     git.userEmail = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
+      type = lib.types.nullOr (lib.types.strMatching "[^[:space:][:cntrl:]<>@]+@[^[:space:][:cntrl:]<>@]+");
       default = null;
       description = "Endereço de autoria dos commits Git.";
     };
@@ -50,16 +49,6 @@ in
     {
       assertion = username == null || (config.users.users.${username}.isNormalUser or false);
       message = "personalConfig.username deve indicar uma conta normal existente em users.users na configuração da máquina.";
-    }
-    {
-      assertion = git.userName == null
-        || matches "[^[:cntrl:]<>]*[^[:space:][:cntrl:]<>][^[:cntrl:]<>]*" git.userName;
-      message = "personalConfig.git.userName deve ter conteúdo e ficar em uma linha, sem caracteres de controle ou sinais de menor e maior.";
-    }
-    {
-      assertion = git.userEmail == null
-        || matches "[^[:space:][:cntrl:]<>@]+@[^[:space:][:cntrl:]<>@]+" git.userEmail;
-      message = "personalConfig.git.userEmail deve conter um único @ entre duas partes não vazias, sem espaços ou caracteres de controle.";
     }
   ];
 }

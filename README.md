@@ -2,7 +2,7 @@
 
 Este repositório reúne os aplicativos, serviços e perfis gráficos **KDE Plasma** e **XFCE** dos notebooks do David. Usa módulos tradicionais do NixOS, sem Flakes ou Home Manager.
 
-Para usar o projeto, você precisa de um **NixOS já instalado**, uma conta Linux normal declarada na configuração da máquina e acesso a `sudo` para publicar os arquivos. Prepare uma cópia da configuração da máquina, publique os arquivos do projeto e depois aplique a configuração. Para instalar o NixOS do zero, siga o [manual do NixOS](https://nixos.org/manual/nixos/stable/#ch-installation).
+Para usar o projeto, você precisa de um **NixOS já instalado**, uma conta Linux normal declarada na configuração da máquina e acesso a `sudo` para publicar os arquivos. Clone o projeto, publique a cópia de implantação e depois ajuste os imports da máquina. Para instalar o NixOS do zero, siga o [manual do NixOS](https://nixos.org/manual/nixos/stable/#ch-installation).
 
 ## Preparar o sistema pelo terminal
 
@@ -41,80 +41,59 @@ nix-instantiate --eval --strict -E '(import <nixpkgs> {}).lib.version'
 
 O projeto usa a revisão do Nixpkgs disponível na máquina. As versões dos pacotes podem variar entre instalações. Se um pacote ou opção estiver disponível na avaliação, mas faltar na hora de aplicar, confira qual revisão cada ambiente está usando. Se a máquina usa canais, compare as listas de `nix-channel --list` e `sudo nix-channel --list`.
 
-## Publicar a primeira revisão
+## Instalar ou atualizar
 
-### Preparar uma cópia da configuração da máquina
+O GitHub é a fonte de verdade. A pasta obtida com `git clone` é o **checkout de desenvolvimento**, onde você usa Git e mantém suas alterações. `/etc/nixos/nixos-config/` é a **cópia implantada**, que o NixOS importa e o instalador atualiza com os arquivos versionados. O arquivo `config/local.nix` fica fora do Git em ambas as cópias. Após a primeira instalação, edite as escolhas da máquina no arquivo implantado.
 
-O instalador avalia suas mudanças antes de você editar a configuração em uso. Se sua instalação usa os dois arquivos padrão em `/etc/nixos`, faça uma cópia fora do repositório:
-
-```bash
-copia=$(mktemp -d)
-cp /etc/nixos/configuration.nix /etc/nixos/hardware-configuration.nix "$copia/" &&
-  printf '%s\n' "$copia/configuration.nix"
-```
-
-Abra no editor o `configuration.nix` do caminho exibido. Se a configuração importar outros arquivos por caminhos relativos, mantenha esses arquivos na mesma posição em relação à cópia. Preserve a conta Linux normal, `system.stateVersion` e as definições de inicialização, rede, áudio, energia e hardware da máquina.
-
-Adapte o cabeçalho e os imports da cópia com o padrão abaixo. Preserve os demais argumentos e o corpo do seu módulo.
-
-```nix
-args@{ config, pkgs, ... }:
-let
-  deployment = (args.nixosConfigDeployment or (path: path)) /etc/nixos/nixos-config;
-in
-{
-  imports = [
-    ./hardware-configuration.nix
-    (deployment + "/current/personal.nix")
-  ];
-
-  # Preserve a conta Linux, os demais imports e as configurações da máquina.
-}
-```
-
-Use `current/personal.nix` como único import deste repositório. Ele já carrega os módulos do projeto e as escolhas da máquina. O trecho `args@` permite que o instalador teste os arquivos que pretende publicar. Retire imports antigos feitos diretamente do repositório, de `local.nix` e dos módulos avulsos de cron ou virtualização.
-
-- Para usar **XFCE**, retire da cópia as declarações da máquina que ativam KDE Plasma (`services.desktopManager.plasma6.enable`) ou SDDM (`services.displayManager.sddm.enable`).
-- Para usar **KDE**, retire as que ativam XFCE (`services.xserver.desktopManager.xfce.enable`) ou LightDM (`services.xserver.displayManager.lightdm.enable`).
-
-### Executar o instalador
-
-Na pasta do repositório, execute o comando pela própria conta Linux que receberá a identidade Git, sem colocar `sudo` antes de `bash`. Rode no mesmo terminal em que criou a variável `copia` ou substitua `"$copia/configuration.nix"` pelo caminho exibido na etapa anterior. O instalador pede `sudo` na hora da publicação protegida.
+Execute pela conta Linux que receberá a identidade Git. Use `sudo` apenas quando solicitado na publicação.
 
 ```bash
-bash install.sh --configuration "$copia/configuration.nix"
+bash install.sh
 ```
 
-1. Escolha KDE ou XFCE. Na pergunta sobre a conta Linux, pressione Enter para aceitar a conta sugerida. Informe o nome e o e-mail que devem aparecer como autor dos seus commits.
-2. Aguarde a avaliação da cópia. Se houver erro, corrija a cópia e execute o comando novamente.
-3. Confira o destino e a revisão apresentados. Digite `s` para publicar. Enter no menu de ambientes gráficos ou `n` na confirmação cancela.
-4. Na primeira publicação protegida, o instalador grava a identidade Git depois de publicar os arquivos. Se aparecer `Revisão publicada` e depois um erro do Git, veja [Identidade Git e falhas parciais](#identidade-git-e-falhas-parciais).
+1. Na primeira instalação, informe a conta Linux, o nome e o e-mail de autoria. Confira o resumo e confirme. Nas atualizações, o instalador reutiliza a identidade da cópia implantada.
+2. O instalador executa `git fetch` para o remoto configurado na branch e apresenta os commits e arquivos alterados. Se você autorizar, `git merge --ff-only` avança o checkout até o commit apresentado usando o objeto já buscado. Recusar encerra a instalação. Alterações não commitadas, commits apenas locais e branches divergentes exigem que você resolva o estado do checkout.
+3. Na primeira instalação, se o checkout ainda estiver sem `config/local.nix`, escolha KDE ou XFCE para preencher o modelo versionado. Se já houver um arquivo, a identidade precisa coincidir exatamente com a informada. O instalador confere os tipos das opções locais e os campos obrigatórios. O `dry-build` manual avalia a configuração completa da máquina, incluindo as asserções do NixOS.
+4. Confirme o destino. O instalador publica os arquivos regulares versionados e o módulo local, sem `.git`. Ao substituir uma implantação, guarda a cópia anterior em `/etc/nixos/nixos-config.previous`. A troca atômica de diretórios usa `mv --exchange --no-copy` do GNU Coreutils e exige suporte do sistema de arquivos. Guarde ajustes avulsos fora da pasta de implantação para preservá-los por mais de uma atualização.
+5. Na primeira instalação, o instalador configura o Git global pela conta selecionada depois da publicação.
 
-Por padrão, o instalador lê os arquivos gravados no commit atual (`HEAD`). Edições em andamento só entram na publicação depois de registradas em um commit. Se aparecer `Arquivo regular ausente no commit`, use uma revisão que contenha todos os arquivos esperados pelo instalador. Para escolher outro commit, acrescente `--revision HASH` ao comando. Se a revisão já foi publicada nesta máquina, consulte [Recuperar uma revisão](#recuperar-uma-revisão).
-
-Para ensaiar sem `sudo`, acrescente `--destination /CAMINHO/DESTINO` ao comando. Escolha um caminho sem espaços, fora do repositório, cujo diretório pai já exista e permita escrita pela sua conta. Use esse mesmo caminho, sem aspas, no lugar de `/etc/nixos/nixos-config` na cópia de `configuration.nix`. Deixe o instalador criar o diretório de destino. Nesse modo, a identidade Git fica registrada apenas no arquivo local do ensaio. Para a publicação protegida, restaure o caminho padrão na cópia e retire `--destination` do comando.
+Para ensaiar, acrescente `--destination /CAMINHO/DESTINO`. Use um diretório separado do checkout, fora de `/etc/nixos`, com um diretório pai gravável. A primeira instalação do ensaio também configura o Git global. Para preservar suas preferências durante o ensaio, use uma conta Linux de teste.
 
 ### Verificar e aplicar
 
-Depois da publicação protegida, abra o arquivo em uso com `sudoedit /etc/nixos/configuration.nix` e repita as mudanças da cópia avaliada. Depois, confira os caminhos e valide a configuração:
+Depois de publicar, abra `/etc/nixos/configuration.nix` com `sudoedit` e adicione `./nixos-config/personal.nix` à lista de imports. Remova imports anteriores do projeto, incluindo imports diretos de `local.nix` e de módulos avulsos. Se o módulo da máquina usava um redirecionamento de imports para a implantação antiga, remova também a declaração que fazia esse redirecionamento. Preserve os imports de hardware e os demais ajustes da máquina, incluindo a conta Linux, a inicialização, a rede e `system.stateVersion`.
 
-```bash
-readlink /etc/nixos/nixos-config/current
-readlink /etc/nixos/nixos-config/current/config/local.nix
-nixos-rebuild dry-build
+```nix
+imports = [
+  ./hardware-configuration.nix
+  ./nixos-config/personal.nix
+];
 ```
 
-O primeiro `readlink` deve mostrar `revisions/` seguido do hash publicado. O segundo deve mostrar `/etc/nixos/nixos-config/config/local.nix`. O `dry-build` avalia os arquivos importados pela configuração da máquina e mostra o que seria construído, sem ativar o sistema. Rode-o depois de ajustar os imports, mesmo que já esteja na pasta do repositório. Se houver erro, corrija a configuração antes de aplicar. Confira o funcionamento dos serviços e a sessão gráfica depois da ativação.
+- Para usar **XFCE**, remova as declarações da máquina que ativam KDE Plasma (`services.desktopManager.plasma6.enable`) ou SDDM (`services.displayManager.sddm.enable`).
+- Para usar **KDE**, remova as que ativam XFCE (`services.xserver.desktopManager.xfce.enable`) ou LightDM (`services.xserver.displayManager.lightdm.enable`).
 
-Depois de revisar o resultado, somente o proprietário aplica manualmente a configuração com `sudo nixos-rebuild switch`. Quando o arquivo da máquina já estiver migrado, use `bash install.sh` para publicar novas revisões. As escolhas da máquina ficam no arquivo local.
+Valide os imports e o restante da configuração da máquina:
+
+```bash
+sudo nixos-rebuild dry-build
+```
+
+Se houver erro, corrija a configuração antes de continuar. Depois de conferir o resultado, somente o proprietário aplica manualmente a configuração:
+
+```bash
+sudo nixos-rebuild switch
+```
+
+Confira a sessão gráfica e os serviços depois da ativação. Repita a instalação e a validação para atualizar a cópia implantada.
 
 ## Configuração local
 
-O instalador cria `/etc/nixos/nixos-config/config/local.nix` na primeira publicação. Todas as revisões publicadas usam o mesmo arquivo, fora do repositório. Para mudar suas escolhas depois da instalação, abra o arquivo com `sudoedit /etc/nixos/nixos-config/config/local.nix`. Veja a estrutura em [config/local.example.nix](config/local.example.nix).
+`personal.nix` já importa `config/local.nix`. Para mudar as escolhas da estação, use `sudoedit /etc/nixos/nixos-config/config/local.nix`. Veja a estrutura em [config/local.example.nix](config/local.example.nix).
 
-No módulo local, `personalConfig.desktop` aceita `"kde"` ou `"xfce"`. `personalConfig.username` deve identificar uma conta normal válida já declarada na máquina. Os campos de autoria Git registram as escolhas da primeira instalação.
+`personalConfig.desktop` aceita `"kde"`, `"xfce"` ou `null` para delegar o desktop à configuração da máquina. `personalConfig.username` deve identificar uma conta normal já declarada na máquina. Os campos de autoria registram as escolhas locais. Se o instalador indicar que o arquivo está incompleto ou incompatível, corrija-o no caminho indicado antes de repetir a instalação. Se uma implantação mais antiga guardava as escolhas em `/etc/nixos/nixos-config/local.nix`, guarde o original e transfira as opções para `/etc/nixos/nixos-config/config/local.nix` conforme o modelo.
 
-Cron e virtualização começam desativados. Se quiser habilitá-los ou retirar o tema do Zsh, adicione apenas as linhas que desejar **dentro do bloco `personalConfig = { ... };`** criado pelo instalador:
+Cron e virtualização começam desativados. Para habilitá-los ou retirar o tema do Zsh, adicione as linhas desejadas **dentro do bloco `personalConfig = { ... };`**:
 
 ```nix
 cron.enable = true;
@@ -122,9 +101,7 @@ virtualization.enable = true;
 zsh.theme = null;
 ```
 
-O tema padrão do Oh My Zsh é `"bira"`. Em `zsh.theme`, você pode indicar outro tema disponível. Com `null`, os plugins, o autocompletar, as sugestões e o destaque de sintaxe continuam disponíveis. Salve e siga os passos de [verificação e aplicação](#verificar-e-aplicar), começando pelo `dry-build`. Se trocar de ambiente gráfico, confira também as declarações da máquina conforme a seção [Publicar a primeira revisão](#publicar-a-primeira-revisão). Se houver sessão padrão ou login automático configurado, revise essas escolhas.
-
-Se uma implantação anterior guardava o arquivo em `/etc/nixos/nixos-config/local.nix`, preserve o original e transfira os ajustes para `/etc/nixos/nixos-config/config/local.nix` manualmente. Complete a identidade usando o modelo versionado. Retire o import direto do arquivo local na cópia da máquina antes da publicação.
+O tema padrão do Oh My Zsh é `"bira"`. Em `zsh.theme`, você pode indicar outro tema disponível. Com `null`, os plugins, o autocompletar, as sugestões e o destaque de sintaxe continuam disponíveis. Depois de editar, siga [Verificar e aplicar](#verificar-e-aplicar). Se trocar de ambiente gráfico, revise também a sessão padrão, o login automático e as declarações gráficas da máquina.
 
 ## Perfis gráficos
 
@@ -163,7 +140,7 @@ nixos-config/
     └── system/        Pacotes gerais, manutenção do Nix e ZRAM
 ```
 
-`personal.nix` declara os imports explicitamente. `modules/optional/virtualization.nix` reúne os imports do conjunto opcional, incluindo seus aplicativos e os módulos de serviço libvirt e Podman. O inventário no começo de `install.sh` lista o que a implantação recebe, incluindo o modelo do painel. Ao adicionar um arquivo necessário, atualize o import correspondente e o inventário.
+`personal.nix` declara os imports explicitamente. `modules/optional/virtualization.nix` reúne os imports do conjunto opcional, incluindo seus aplicativos e os módulos de serviço libvirt e Podman. O instalador inclui os arquivos versionados, inclusive o modelo XML do painel. Ao adicionar um módulo, declare seu import na configuração.
 
 | Recurso | Configuração |
 | --- | --- |
@@ -210,7 +187,7 @@ swapon --show
 
 A coleta semanal pode remover gerações elegíveis com mais de 60 dias e liberar espaço ao apagar objetos do Nix Store que ficaram sem referências. Perfis e outras raízes do Nix mantêm vivos os objetos que ainda referenciam. Use `nix-generations` para ver quais gerações continuam disponíveis para voltar a uma configuração já construída. `nix-store --gc --print-dead` lista objetos elegíveis à coleta sem apagá-los.
 
-Recuperar uma **revisão publicada** aponta `current` para arquivos Nix antigos que serão usados na próxima construção. Uma geração excluída deixa de estar disponível para rollback, mesmo se a revisão com seus módulos ainda estiver em `revisions/`. Veja [Recuperar uma revisão](#recuperar-uma-revisão).
+A cópia de segurança recupera os arquivos Nix usados na próxima construção. As gerações do NixOS permitem iniciar um sistema já construído enquanto a geração estiver disponível. Veja [Diagnóstico e recuperação](#diagnóstico-e-recuperação).
 
 Em `modules/system/maintenance.nix`, `nix-update` atualiza os canais de root. `nix-check` planeja a construção, `nix-system-build` constrói sem ativar e `nix-switch` aplica a configuração. `nix-diff` compara dois caminhos existentes, na ordem origem e destino. Por exemplo, para comparar a geração 10, se ainda existir, com o sistema em execução:
 
@@ -265,15 +242,15 @@ A criação dos ambientes e a escolha das imagens ficam a cargo do usuário. Se 
 
 Depois da primeira publicação protegida, o instalador usa `git config --global` pela própria conta selecionada para definir o nome do autor (`user.name`), o e-mail (`user.email`) e o nome `main` para a primeira branch de novos repositórios (`init.defaultBranch`). O Git guarda essas preferências em `~/.gitconfig` ou, se esse arquivo estiver ausente, em um arquivo de configuração global XDG já existente, normalmente `~/.config/git/config`. Aliases, assinatura e demais preferências são preservados.
 
-Se o instalador parar **antes de publicar** por causa do Git, confira a mensagem. Os caminhos globais precisam ficar dentro do diretório pessoal da conta, com propriedade e permissões adequadas e sem links simbólicos. O instalador também verifica variáveis que redirecionam a configuração ou a autoria e chaves duplicadas ou definidas em arquivos incluídos. Resolva o problema indicado antes de tentar novamente.
+Antes de buscar atualizações na primeira instalação, o instalador confere o diretório pessoal da conta e os caminhos de configuração global. Use o caminho físico da conta em `HOME` e, se configurar `XDG_CONFIG_HOME`, mantenha-o dentro de `HOME`. Remova redirecionamentos como `GIT_CONFIG_GLOBAL` e resolva definições duplicadas ou incluídas das três chaves que o instalador grava.
 
-Se aparecer **`Revisão publicada`** e depois um erro do Git, os arquivos do NixOS já foram publicados. O instalador informa quais valores confirmou e onde parou. Pela própria conta, veja o valor e o arquivo de origem de cada preferência:
+Se a instalação for concluída e o Git falhar em seguida, a cópia do NixOS permanece implantada. Pela conta selecionada, verifique o valor e a origem das entradas de escopo `global`.
 
 ```bash
-git config --global --includes --show-origin --get-regexp '^(user\.(name|email)|init\.defaultbranch)$'
+git config --includes --show-origin --show-scope --get-regexp '^(user\.(name|email)|init\.defaultbranch)$'
 ```
 
-Execute somente os comandos correspondentes aos ajustes que faltarem, substituindo os exemplos pelos seus dados:
+Confira as permissões de escrita do arquivo global. Se houver chaves duplicadas ou valores herdados de um arquivo incluído, ajuste essas definições no arquivo de origem. Depois, execute os comandos correspondentes aos ajustes pendentes, usando os dados da sua conta:
 
 ```bash
 git config --global user.name "NOVO_NOME"
@@ -281,30 +258,22 @@ git config --global user.email "NOVO_EMAIL"
 git config --global init.defaultBranch main
 ```
 
-`config/local.nix` registra as escolhas. Depois da primeira publicação, altere a autoria diretamente no Git quando precisar. Reconstruir o sistema ou executar novamente o instalador preserva as preferências Git existentes. A configuração de um repositório específico tem precedência sobre a global.
+`config/local.nix` registra as escolhas. Depois da primeira publicação, altere a autoria diretamente no Git quando precisar. A configuração de um repositório específico tem precedência sobre a global.
 
-## Recuperar uma revisão
+## Diagnóstico e recuperação
 
-O instalador mantém as versões publicadas em `/etc/nixos/nixos-config/revisions/` e verifica a integridade dos arquivos antes de trocar `current`. O link indica qual versão será usada na próxima construção. Todas usam as escolhas atuais de `config/local.nix`. Com os imports da máquina migrados, a configuração publicada funciona independentemente da cópia do repositório.
+Se o instalador indicar mudanças locais, use `git status` e `git diff` no checkout para revisar os arquivos. Em caso de divergência, `git log --oneline --left-right HEAD...@{upstream}` mostra os commits exclusivos de cada lado. Resolva o estado da branch antes de repetir a instalação.
 
-Na pasta do repositório, substitua `HASH_ANTERIOR` pelo código completo exibido pelo instalador ao preservar a revisão anterior. Valide a revisão com a configuração atual da máquina:
+Depois de uma troca bem-sucedida, `nixos-config.previous` guarda a cópia que estava em uso e substitui o backup mais antigo, se houver. Se a troca atômica falhar, a implantação e seu backup existente ficam intactos. Se falhar apenas a gravação do backup, a nova cópia fica em uso, a cópia que estava em uso fica no caminho temporário informado e qualquer backup existente é preservado. Use o caminho temporário informado para recuperar a cópia que estava em uso.
 
-```bash
-bash install.sh --check-rollback HASH_ANTERIOR
-```
-
-A verificação pode recusar revisões antigas sem o vínculo para o arquivo local ou incompatíveis com a configuração atual. Se houver erro, mantenha a revisão atual.
-
-A avaliação e a troca manual são operações separadas. O `mv` abaixo substitui o link `current` de forma atômica, por renomeação no mesmo diretório. Entre a avaliação e a troca, porém, outra publicação ou uma edição da configuração pode mudar o estado que foi validado. Evite fazer essas mudanças em paralelo e, se algo mudou, rode a verificação novamente antes da troca. Use o mesmo hash nos dois passos:
+Para voltar à cópia anterior, confira se `/etc/nixos/nixos-config.previous/personal.nix` e `/etc/nixos/nixos-config.previous/config/local.nix` correspondem à configuração que você quer recuperar. Preserve edições locais feitas desde a publicação. Sem executar o instalador em paralelo, troque os diretórios e valide os imports da máquina:
 
 ```bash
-cd /etc/nixos/nixos-config &&
-  sudo ln -s -- revisions/HASH_ANTERIOR .current-recovery &&
-  sudo mv -Tf -- .current-recovery current &&
-  nixos-rebuild dry-build
+sudo mv -T --exchange --no-copy -- /etc/nixos/nixos-config.previous /etc/nixos/nixos-config
+sudo nixos-rebuild dry-build
 ```
 
-Se o `dry-build` passar e você quiser colocar a revisão recuperada em uso, siga a etapa de ativação em [Verificar e aplicar](#verificar-e-aplicar).
+Se o backup veio da implantação anterior à mudança de layout, restaure também o import da máquina que correspondia àquela cópia. Para aplicar após a validação, siga [Verificar e aplicar](#verificar-e-aplicar). Para iniciar um sistema já construído, escolha uma geração disponível no menu de inicialização do NixOS.
 
 ## Cuidados com credenciais e permissões
 

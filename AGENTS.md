@@ -4,9 +4,9 @@
 
 Este repositório contém configurações pessoais e declarativas do NixOS para uma estação de desenvolvimento com KDE Plasma e Wayland. Utiliza módulos tradicionais do NixOS e Nixpkgs, sem Flakes ou Home Manager.
 
-- `personal.nix` é o ponto de entrada da máquina e inclui `config/local.nix` quando disponível. O `configuration.nix` importa o ponto de entrada da revisão ativa.
-- `config/options.nix` declara o perfil e a identidade. `config/local.example.nix` é o modelo versionado. O instalador publica a identidade em `/etc/nixos/nixos-config/config/local.nix`, fora da revisão, e as revisões apontam para ela por link.
-- `modules/applications/`, `modules/services/` e `modules/desktops/` organizam aplicativos, serviços e perfis gráficos. Mantenha os imports explícitos e atualize o inventário de `install.sh` ao mover ou adicionar arquivos necessários à revisão.
+- `personal.nix` é o ponto de entrada da máquina e importa diretamente `config/local.nix`. O `configuration.nix` importa `./nixos-config/personal.nix`.
+- `config/options.nix` declara o perfil e a identidade. `config/local.example.nix` é o modelo versionado. O instalador mantém uma cópia dos arquivos versionados em `/etc/nixos/nixos-config` e preserva `config/local.nix` na implantação.
+- `modules/applications/`, `modules/services/` e `modules/desktops/` organizam aplicativos, serviços e perfis gráficos. Mantenha os imports explícitos. O instalador copia os arquivos versionados, sem um inventário manual.
 - `modules/optional/cron.nix` declara o serviço e o timer systemd para um script privado externo ao repositório. O recurso é habilitado por `personalConfig.cron.enable`.
 - `modules/optional/virtualization.nix` declara o suporte a QEMU/KVM e as ferramentas de contêineres. O recurso é habilitado por `personalConfig.virtualization.enable`.
 - `modules/optional/zsh-theme.nix` define `personalConfig.zsh.theme`, cuja configuração padrão é `"bira"`. O valor `null` desativa o tema.

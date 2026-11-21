@@ -1,14 +1,12 @@
-{ config, lib, ... }:
+{ config, ... }:
 
 let
-  # Nas revisões publicadas, este caminho aponta para o módulo persistente da máquina.
-  localConfig = ./config/local.nix;
-  hasLocalConfig = builtins.pathExists localConfig;
   inherit (config) personalConfig;
 in
 {
   imports = [
     ./config/options.nix
+    ./config/local.nix
     ./modules/applications/firefox.nix
     # A ordem destes imports mantém a precedência anterior na lista de pacotes do sistema.
     ./modules/applications/temurin.nix
@@ -33,12 +31,14 @@ in
     ./modules/optional/zsh-theme.nix
     ./modules/desktops/kde.nix
     ./modules/desktops/xfce.nix
-  ] ++ lib.optional hasLocalConfig localConfig;
+  ];
 
-  assertions = lib.optional hasLocalConfig {
-    assertion = personalConfig.username != null
-      && personalConfig.git.userName != null
-      && personalConfig.git.userEmail != null;
-    message = "Complete personalConfig.username, personalConfig.git.userName e personalConfig.git.userEmail em config/local.nix.";
-  };
+  assertions = [
+    {
+      assertion = personalConfig.username != null
+        && personalConfig.git.userName != null
+        && personalConfig.git.userEmail != null;
+      message = "Complete personalConfig.username, personalConfig.git.userName e personalConfig.git.userEmail em config/local.nix.";
+    }
+  ];
 }
