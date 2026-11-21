@@ -116,18 +116,25 @@ O tema padrão do Oh My Zsh é `"bira"`. Em `zsh.theme`, você pode indicar outr
 | KDE | KDE Plasma da configuração padrão do NixOS | SDDM |
 | XFCE | XFCE em X11 | LightDM |
 
-### Complementos do XFCE
+### XFCE Noir
 
-Estes complementos fazem parte do perfil XFCE.
+O perfil usa `Orchis-Dark` no GTK e no Xfwm4, `Tela-dark` para os ícones e `Bibata-Modern-Ice` para o cursor. Thunar, painel e menus usam o tema GTK da sessão. Preferências já gravadas no xfconf têm precedência sobre os padrões do sistema.
 
 | Complemento | Função | Quando entra em uso |
 | --- | --- | --- |
-| Whisker Menu | Menu de aplicativos pesquisável | Presente no modelo inicial. Em painéis existentes, adicione manualmente. |
+| Whisker Menu | Menu de aplicativos pesquisável | Abra pelo painel ou toque e solte a tecla Super esquerda. Em painéis existentes, adicione o Whisker pelo editor do painel, se necessário. |
 | Docklike | Barra de tarefas com ícones e janelas agrupadas | Presente no modelo inicial. Em painéis existentes, adicione manualmente. |
+| Blueman | Gerenciador e applet Bluetooth | Use o menu de aplicativos ou a bandeja para parear, conectar e desconectar dispositivos. |
+| Áudio | Volume no painel e entradas, saídas e microfone no Pavucontrol | O NixOS disponibiliza os dois com a camada Pulse do PipeWire ou com PulseAudio. |
+| Mugshot | Editor de perfil pessoal | Abra pelo item de perfil no menu. Os campos disponíveis dependem do AccountsService e das permissões da conta. |
 | Clipman | Histórico da área de transferência | Adicione manualmente se quiser guardar o histórico. |
 | Thunar com Xarchiver | Compactação e extração no gerenciador de arquivos | Use o menu do botão direito. Se for solicitado um gerenciador de arquivos compactados, escolha Xarchiver. |
 
-Na primeira abertura do painel, o XFCE pode carregar o modelo do projeto, que inclui menu, barra de tarefas, seletor de áreas de trabalho, bandeja, relógio e ações da sessão. Se você já tem um painel configurado ou se um complemento não aparecer, abra **Painel → Preferências do painel → Itens** para adicioná-lo. Confira o resultado em uma sessão XFCE depois de aplicar a configuração. [Preferências do painel](https://docs.xfce.org/xfce/xfce4-panel/preferences)
+O XFCE carrega o modelo do projeto quando ainda não há um painel configurado. O modelo inclui Whisker, Docklike, seletor de áreas de trabalho, bandeja, áudio quando disponível, relógio e ações da sessão. A bandeja recebe o Blueman e o applet do NetworkManager quando este estiver habilitado. Em painéis personalizados, os complementos podem ser adicionados em **Painel → Preferências do painel → Itens**. [Preferências do painel](https://docs.xfce.org/xfce/xfce4-panel/preferences)
+
+Ao iniciar a sessão X11, o atalho usa `Shift+Alt+F11` para abrir o Whisker. Se a combinação ou a própria Super esquerda já estiver atribuída a outra ação no XFCE, a atribuição pessoal tem precedência.
+
+O XFCE Terminal continua disponível pelo menu e pelo atalho padrão `Ctrl+Alt+T` quando preservada a associação padrão do XFCE. A paleta Noir usa DejaVu Sans Mono 11 e fundo com opacidade inicial de 90%, definida em `modules/applications/terminal.nix`. A composição nativa do Xfwm4 fornece sombras e transparência; a aparência deve ser conferida na sessão X11 da máquina. O Foot exige Wayland. [Compositor do Xfwm4](https://github.com/xfce-mirror/xfwm4/blob/master/COMPOSITOR) · [Foot](https://codeberg.org/dnkl/foot)
 
 ## Aplicativos e serviços
 
@@ -141,8 +148,8 @@ nixos-config/
 │   ├── local.example.nix
 │   └── options.nix
 └── modules/
-    ├── applications/  Navegadores, senhas, desenvolvimento, escritório, JDK e Zsh
-    ├── desktops/      Perfis KDE e XFCE, com painel e Thunar em xfce/
+    ├── applications/  Navegadores, senhas, desenvolvimento, escritório, JDK, Zsh e terminal
+    ├── desktops/      Perfis KDE e XFCE, com complementos do Noir em xfce/
     ├── optional/      Cron, virtualização e tema do Zsh
     ├── services/      Bluetooth, fprintd, keyd, Polkit e PostgreSQL
     └── system/        Pacotes gerais, manutenção do Nix e ZRAM

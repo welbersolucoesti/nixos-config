@@ -1,7 +1,16 @@
 { config, lib, ... }:
 
 {
-  imports = [ ./xfce/panel.nix ./xfce/thunar.nix ];
+  imports = [
+    ../applications/terminal.nix
+    ./xfce/appearance.nix
+    ./xfce/bluetooth.nix
+    ./xfce/compositor.nix
+    ./xfce/mugshot.nix
+    ./xfce/panel.nix
+    ./xfce/shortcuts.nix
+    ./xfce/thunar.nix
+  ];
 
   # O perfil seleciona a sessão X11 e deixa áudio, rede e energia a cargo da máquina e do NixOS.
   config = lib.mkIf (config.personalConfig.desktop == "xfce") {

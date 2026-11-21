@@ -8,12 +8,16 @@ let
     if [[ -e "$zshrc" || -L "$zshrc" ]]; then exit 0; fi
 
     umask 077
-    temp=$(${pkgs.coreutils}/bin/mktemp -- "$1/.zshrc.XXXXXXXX")
+    if ! temp=$(${pkgs.coreutils}/bin/mktemp -- "$1/.zshrc.XXXXXXXX"); then
+      printf 'Zsh: criação de %s adiada até que o diretório pessoal esteja disponível para escrita.\n' "$zshrc" >&2
+      exit 0
+    fi
     trap '${pkgs.coreutils}/bin/rm -f -- "$temp"' EXIT
 
     # Publica o arquivo vazio sem substituir um caminho criado em paralelo.
-    if ! ${pkgs.coreutils}/bin/ln -T -- "$temp" "$zshrc"; then
-      [[ -e "$zshrc" || -L "$zshrc" ]]
+    if ! ${pkgs.coreutils}/bin/ln -T -- "$temp" "$zshrc" 2>/dev/null \
+      && [[ ! -e "$zshrc" && ! -L "$zshrc" ]]; then
+      printf 'Zsh: não foi possível publicar %s. A próxima ativação tentará novamente.\n' "$zshrc" >&2
     fi
   '';
 in
