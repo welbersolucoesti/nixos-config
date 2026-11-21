@@ -61,7 +61,7 @@ nixos-config/
 
 **`personal.nix`** importa os módulos e a configuração local quando ela existe. `config/options.nix` declara o perfil, a identidade e as opções dos módulos. `config/local.example.nix` é o modelo versionado. A configuração particular fica na implantação, em `/etc/nixos/nixos-config/config/local.nix`.
 
-Os módulos em `modules/system/` declaram pacotes, serviços, hardware e manutenção. `modules/personal.nix` reúne as configurações de Zsh e Git, e `modules/desktops/` contém os perfis gráficos.
+Os módulos em `modules/system/` declaram pacotes, serviços, hardware e manutenção. `modules/personal.nix` configura o Zsh da conta selecionada, e `modules/desktops/` contém os perfis gráficos. O instalador aplica a identidade Git na primeira publicação protegida.
 
 **`modules/optional/`** contém os módulos de agendamento, virtualização e tema do Zsh. As escolhas ficam na configuração local da máquina.
 
@@ -531,7 +531,7 @@ Este projeto prioriza inicialmente uma configuração simples, baseada nos módu
 
 ### Implantação e recuperação
 
-- O checkout da conta do usuário serve para desenvolvimento. O instalador copia apenas os módulos do commit selecionado e verifica seus hashes antes de publicar.
+- O checkout da conta do usuário fornece os arquivos para publicação. O instalador copia os módulos do commit selecionado e verifica seus hashes. Depois da migração dos imports da máquina, a configuração publicada pode ser avaliada mesmo sem o checkout de origem.
 - `/etc/nixos/nixos-config/config/local.nix` guarda a identidade, o perfil e os ajustes da máquina fora das revisões. Cada revisão aponta `config/local.nix` para esse arquivo por um link absoluto. O checkout e os arquivos versionados da revisão contêm apenas o modelo `config/local.example.nix` e as opções. Mantenha credenciais em arquivos protegidos fora do Nix Store.
 - A implantação protegida fica em `/etc/nixos/nixos-config`, sob propriedade de root. O publicador recebe o conteúdo por entrada padrão e confere os hashes após gravá-lo em uma área privada dentro do destino protegido ou em seu diretório pai. O link `current` só muda após a revisão estar completa em `revisions/HASH`. A revisão anterior continua disponível mesmo após a troca.
 

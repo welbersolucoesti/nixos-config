@@ -392,7 +392,7 @@ publish_protected() {
 main() {
   local cmd repo revision file entry mode local_hash manifest use_sudo=false
   local checkout previous local_config desktop username git_name git_email evaluated_desktop revision_directory
-  local include_local=no configuration_hash git_home git_xdg git_target configure_git=false
+  local include_local=no configuration_hash git_home git_xdg git_target configure_git=false physical_destination
 
   while (( $# > 0 )); do
     case $1 in
@@ -437,6 +437,9 @@ main() {
      -d ${destination%/*} &&
      $destination =~ ^/[a-zA-Z0-9._/-]+$ ]] ||
     die "Use um destino fora do checkout, com diretório pai existente e caminho sem espaços."
+  physical_destination=$(realpath -m -- "$destination") || die "Não foi possível resolver o destino de publicação."
+  [[ $physical_destination != "$checkout" && $physical_destination != "$checkout/"* ]] ||
+    die "O destino resolve para dentro do checkout. Escolha um caminho fora dele."
   if [[ -n $rollback_revision ]]; then
     revision=$rollback_revision
   elif [[ $destination == "$default_destination" ]]; then
