@@ -66,8 +66,15 @@ ui_message() {
 
 ui_success() { ui_message 114 'OK' "$@"; }
 ui_warning() { ui_message 221 'Aviso:' "$@" >&2; }
-ui_error() { ui_message 203 'Erro:' "$@" >&2; }
-ui_progress() { ui_message "$ui_accent" '›' "$@"; }
+ui_error() {
+  if [[ -n ${ui_dialog_dir:-} ]]; then printf '%s\n' "$*" > "$ui_dialog_dir/error"; fi
+  ui_message 203 'Erro:' "$@" >&2
+}
+
+ui_progress() {
+  ui_message "$ui_accent" '›' "$@"
+  if [[ -n $ui_dialog ]]; then ui_dialog_progress "$*"; fi
+}
 
 ui_input() {
   local label=$1 default=${2:-} answer
@@ -136,7 +143,10 @@ ui_confirm() {
 ui_run() {
   local title=$1
   shift
-  if [[ -n $ui_gum ]]; then
+  if [[ -n $ui_dialog ]]; then
+    ui_progress "$title" >&2 || return "$?"
+    "$@"
+  elif [[ -n $ui_gum ]]; then
     "$ui_gum" spin --title "$title" --spinner line --spinner.foreground "$ui_accent" \
       --title.foreground "$ui_foreground" --show-stderr -- "$@"
   else

@@ -27,31 +27,52 @@ die() {
 cancel() {
   local status=$1 message=${2:-Operação cancelada.}
   if (( status >= 128 )); then
+    ui_dialog_cancelled='Operação interrompida.'
     ui_warning "Operação interrompida."
     exit "$status"
   fi
   if (( status == 2 )) && [[ -n ${ui_dialog:-} ]]; then
     die "Falha na interface Dialog ou na preparação da revisão. Execute novamente com --plain."
   fi
+  ui_dialog_cancelled=$message
   ui_warning "$message"
   exit 0
 }
 
+fail_command() {
+  local status=$1
+  shift
+  if (( status >= 128 )); then cancel "$status"; fi
+  if [[ -n ${ui_dialog:-} ]]; then
+    ui_error "$*"
+    exit "$status"
+  fi
+  die "$*"
+}
+
+show_result() {
+  ui_section 'Resumo'
+  ui_outcome 'Sincronização' "${git_result[@]}"
+  ui_outcome 'Configuração local' "${local_result[@]}"
+  if [[ -n $published_destination ]]; then
+    ui_fields 'Arquivo local' "$published_destination/config/local.nix"
+  fi
+  ui_outcome 'Publicação' "${publication_result[@]}"
+  ui_outcome 'Backup' "${backup_result[@]}"
+  ui_outcome 'Identidade Git' "${identity_result[@]}"
+  if [[ -n $published_destination ]]; then show_next_steps "$published_destination"; fi
+}
+
 finish() {
+  local status=$1
   if [[ -n $prepared ]]; then rm -rf -- "$prepared"; fi
   if [[ -n $new_local ]]; then rm -f -- "$new_local"; fi
-  if "$wizard_started"; then
-    ui_section 'RESULTADO'
-    ui_outcome 'SINCRONIZAÇÃO' "${git_result[@]}"
-    ui_outcome 'CONFIGURAÇÃO LOCAL' "${local_result[@]}"
-    if [[ -n $published_destination ]]; then
-      ui_fields 'Arquivo local' "$published_destination/config/local.nix"
-    fi
-    ui_outcome 'PUBLICAÇÃO' "${publication_result[@]}"
-    ui_outcome 'BACKUP' "${backup_result[@]}"
-    ui_outcome 'IDENTIDADE GIT' "${identity_result[@]}"
-    if [[ -n $published_destination ]]; then show_next_steps "$published_destination"; fi
+  if [[ -n ${ui_dialog_dir:-} ]]; then
+    ui_dialog_finish "$status"
+  elif "$wizard_started"; then
+    show_result
   fi
+  return "$status"
 }
 
 prepare_ui() {
@@ -60,6 +81,9 @@ prepare_ui() {
   if candidate=$(type -P "$backend") && candidate=$(realpath -e -- "$candidate") &&
      "ui_use_$backend" "$candidate"; then
     return
+  fi
+  if [[ $backend == dialog ]]; then
+    die "Dialog indisponível. Abra uma sessão com nix-shell -p dialog ou execute com --plain."
   fi
   command -v nix-shell >/dev/null || return 0
   ui_info "Modo visual opcional · ${backend^} via nix-shell"
@@ -89,6 +113,10 @@ check_requirements() {
       PATH=$system_path command -v "$cmd" >/dev/null ||
         die "Comando necessário no ambiente da publicação protegida: $cmd."
     done
+    if [[ -n $ui_dialog ]]; then
+      PATH=$system_path command -v setpriv >/dev/null ||
+        die "Comando necessário na publicação pelo Dialog: setpriv."
+    fi
     publication_path=$system_path
   fi
   mv_help=$(PATH=$publication_path mv --help) || die "Não foi possível consultar os recursos de mv."
@@ -99,17 +127,25 @@ check_requirements() {
 }
 
 read_identity() {
-  local account uid
+  local account uid identity
   account=$(id -un)
-  ui_section 'CONTA LINUX'
-  username=$(ui_input 'Nome' "$account") || cancel "$?"
+  ui_section 'Conta Linux'
+  username=$(ui_input 'Conta para esta configuração' "$account") || cancel "$?"
   username=${username:-$account}
   [[ $username =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "Nome de conta Linux inválido."
   uid=$(id -u -- "$username") && [[ $uid != 0 ]] || die "Escolha uma conta Linux existente sem UID 0."
 
-  ui_section 'INFORMAÇÕES GIT'
-  git_name=$(ui_input 'Nome') || cancel "$?"
-  git_email=$(ui_input 'E-mail') || cancel "$?"
+  ui_section 'Identidade Git'
+  if [[ -n $ui_dialog ]]; then
+    identity=$(ui_dialog_git_identity) || cancel "$?"
+    # A primeira quebra separa os campos. As validações abaixo rejeitam campos vazios.
+    git_name=${identity%%$'\n'*}
+    git_email=''
+    if [[ $identity == *$'\n'* ]]; then git_email=${identity#*$'\n'}; fi
+  else
+    git_name=$(ui_input 'Nome') || cancel "$?"
+    git_email=$(ui_input 'E-mail') || cancel "$?"
+  fi
   [[ $git_name =~ ^[^[:cntrl:]\<\>]*[^[:space:][:cntrl:]\<\>][^[:cntrl:]\<\>]*$ ]] ||
     die "Informe um nome para o Git sem caracteres de controle ou sinais de menor e maior."
   [[ $git_email =~ ^[^[:space:][:cntrl:]\<\>@]+@[^[:space:][:cntrl:]\<\>@]+$ ]] ||
@@ -144,7 +180,7 @@ sync_checkout() {
   fi
   git_result=(error 'Consulta interrompida ou com falha')
   ui_progress "Consultando $remote"
-  git fetch --prune -- "$remote" || die "Falha ao buscar atualizações de $remote."
+  git fetch --prune -- "$remote" || fail_command "$?" "Falha ao buscar atualizações de $remote."
   git_result=(warning 'Checkout mantido')
   upstream=$(git rev-parse --symbolic-full-name '@{upstream}') ||
     die "A branch remota de $branch não está disponível. Confira o upstream configurado."
@@ -216,7 +252,7 @@ sync_checkout() {
   git_result=(error 'Fast-forward interrompido ou com falha')
   ui_progress 'Aplicando fast-forward'
   git merge --ff-only --no-autostash --no-overwrite-ignore -- "$source_commit" ||
-    die "O fast-forward falhou. Verifique o diagnóstico do Git e o estado do checkout."
+    fail_command "$?" "O fast-forward falhou. Verifique o diagnóstico do Git e o estado do checkout."
   [[ $(git rev-parse HEAD) == "$source_commit" ]] || die "O checkout mudou durante o fast-forward."
   git_result=(ok 'Fast-forward concluído')
   ui_success 'Checkout atualizado'
@@ -233,7 +269,7 @@ nix_string() {
 generate_local() {
   local model=$1 output=$2 desktop line value
   local assignment='^([[:blank:]]*)(desktop|username|userName|userEmail)[[:blank:]]*='
-  ui_section 'AMBIENTE GRÁFICO'
+  ui_section 'Ambiente gráfico'
   desktop=$(ui_choose 'KDE Plasma' 'XFCE') || cancel "$?"
   case $desktop in
     ''|1) desktop=kde ;;
@@ -279,7 +315,7 @@ validate_local() {
       cfg.username == username && cfg.git.userName == gitName && cfg.git.userEmail == gitEmail
     )) "A identidade do arquivo difere da informada. Confira username, git.userName e git.userEmail.";
     builtins.deepSeq cfg "${cfg.username} ${if cfg.desktop == null then "machine" else cfg.desktop}"
-  ' || die "Revise $file conforme config/local.example.nix e execute novamente."
+  ' || fail_command "$?" "Revise $file conforme config/local.example.nix e execute novamente."
 }
 
 publish() (
@@ -288,6 +324,8 @@ publish() (
   unset TAR_OPTIONS
   local target=$1 expected=$2 parent stage tree keep_stage=false
   local previous="$1.previous"
+  local archive archive_size end_block end_offset trailer_size
+  local tar_end='^block ([0-9]+): \*\* Block of NULs \*\*$'
   parent=${target%/*}
 
   [[ -d $parent && ! -L $parent ]] || die "Diretório pai de publicação inválido: $parent."
@@ -323,10 +361,24 @@ publish() (
         fi' EXIT
   trap 'exit 130' INT
   trap 'exit 143' TERM
+  archive=$stage/deployment.tar
+  cat > "$archive" || die "Falha ao receber o TAR de implantação."
   tree=$stage/tree
   mkdir -- "$tree"
-  tar --extract --file=- --directory="$tree" --no-same-owner --no-same-permissions ||
+  if ! end_block=$(LC_ALL=C tar --extract --block-number --warning=none --warning=missing-zero-blocks \
+      --warning=alone-zero-block --file="$archive" --directory="$tree" \
+      --no-same-owner --no-same-permissions 2> "$stage/tar.log") || [[ -s $stage/tar.log ]]; then
+    cat -- "$stage/tar.log" >&2
     die "Falha ao receber a árvore preparada."
+  fi
+  # O GNU tar pode aceitar EOF entre membros e ignorar dados após o primeiro fim.
+  [[ $end_block =~ $tar_end ]] || die "Fim do TAR de implantação inválido."
+  end_offset=$((BASH_REMATCH[1] * 512))
+  archive_size=$(stat -c %s -- "$archive") || die "Falha ao conferir o tamanho do TAR de implantação."
+  trailer_size=$((archive_size - end_offset))
+  (( trailer_size >= 1024 && archive_size % 512 == 0 )) &&
+    cmp -s -n "$trailer_size" -- "$archive" /dev/zero "$end_offset" ||
+    die "Fim do TAR de implantação inválido."
   [[ -z $(find "$tree" ! -type d ! -type f -print -quit) &&
      -f $tree/personal.nix && -f $tree/config/options.nix && -f $tree/config/local.nix &&
      ! -e $tree/.git ]] || die "Árvore de publicação inválida."
@@ -369,6 +421,73 @@ publish() (
   fi
   keep_stage=false
   printf 'Cópia anterior para recuperação: %s\n' "$previous"
+)
+
+relay_sudo_dialog() {
+  local prompt=$1 started=$2 line
+  while IFS= read -r line || [[ -n $line ]]; do
+    case $line in
+      "$prompt"|"$started")
+        # NOPASSWD fecha o canal sem enviar a senha ao comando ou ao log de E/S.
+        if [[ -v password ]]; then
+          if [[ $line == "$prompt" ]]; then printf '%s\n' "$password" || return "$?"; fi
+          exec 1>&-
+          unset -v password
+        fi
+        ;;
+      *) printf '%s\n' "$line" >&2 || return "$?" ;;
+    esac
+  done
+}
+
+publish_dialog() (
+  local archive=$1 root_script=$2 target=$3 expected=$4
+  local relay='' input='' diagnostics='' status relay_status
+  local prompt="Noir autenticação ${prepared##*/}" started="Noir publicação ${prepared##*/}"
+
+  if [[ $archive != /* ]]; then archive=$PWD/$archive; fi
+  [[ -f $archive && -r $archive ]] || {
+    printf 'TAR de implantação indisponível: %s\n' "$archive" >&2
+    return 1
+  }
+  root_script+=$'\n'
+  root_script+=$(cat <<'ROOT'
+set -o pipefail
+exec </dev/null
+printf '%s\n' "$4" >&2
+[[ ${SUDO_UID:-} =~ ^[1-9][0-9]*$ && ${SUDO_GID:-} =~ ^[0-9]+$ ]] ||
+  die "Identidade do usuário de publicação indisponível."
+# O leitor abre o TAR como usuário. O publicador herda a entrada pelo pipe.
+setpriv --reuid "$SUDO_UID" --regid "$SUDO_GID" --clear-groups --no-new-privs -- \
+  cat -- "$3" | publish "$1" "$2"
+ROOT
+  )
+
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap '
+    status=$?
+    # Feche as duas pontas do sudo antes de esperar o auxiliar.
+    if [[ -n $diagnostics ]]; then exec {diagnostics}>&-; fi
+    if [[ -n $input ]]; then exec {input}<&-; fi
+    if [[ -n $relay ]]; then
+      wait "$relay" || {
+        relay_status=$?
+        printf "Falha no auxiliar de autenticação (código %s).\n" "$relay_status" >&2
+        if (( status == 0 )); then status=$relay_status; fi
+      }
+    fi
+    exit "$status"
+  ' EXIT
+
+  coproc NOIR_RELAY { relay_sudo_dialog "$prompt" "$started"; } || return 1
+  relay=$! input=${NOIR_RELAY[0]:-} diagnostics=${NOIR_RELAY[1]:-}
+  [[ -n $input && -n $diagnostics ]] || return 1
+
+  # O sudo permanece em primeiro plano para receber a interrupção do terminal.
+  sudo -k -S -p $'\n'"$prompt"$'\n' -- /run/current-system/sw/bin/bash -p -c "$root_script" \
+    -- "$target" "$expected" "$archive" "$started" \
+    <&"$input" 2>&"$diagnostics"
 )
 
 show_next_steps() {
@@ -516,7 +635,8 @@ main() {
   shift
   local destination=$default_destination checkout parent expected=absent source_commit plain=false
   local username git_name git_email git_target tree entry mode file checkout_local root_script
-  local revision local_info account profile previous backup status
+  local revision local_info account profile previous backup status argument_error='' shell_options=$-
+  local +x password
   local -a identity_args=() nix_files=() identity_summary=()
   case $backend in
     dialog) entrypoint=config.sh ;;
@@ -528,11 +648,14 @@ main() {
       --help|-h) printf '%s\n' "$usage"; return ;;
       --plain) plain=true; shift ;;
       --destination)
-        [[ $# -ge 2 && -n $2 && $2 != --* ]] || die "Informe o destino alternativo."
+        if [[ $# -lt 2 || -z $2 || $2 == --* ]]; then
+          argument_error='Informe o destino alternativo.'
+          break
+        fi
         destination=$2
         shift 2
         ;;
-      *) die "$usage" ;;
+      *) argument_error=$usage; break ;;
     esac
   done
   (( EUID != 0 )) || die "Execute o instalador pela sua conta normal, sem sudo."
@@ -540,19 +663,26 @@ main() {
   checkout=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
   [[ -r $checkout/lib/ui.sh ]] || die "Módulo de interface ausente: $checkout/lib/ui.sh."
   source "$checkout/lib/ui.sh"
-  trap 'finish' EXIT
+  trap 'finish "$?"' EXIT
   trap 'cancel 130' INT
   trap 'cancel 143' TERM
-  ui_progress 'Pré-requisitos'
+  if ! "$plain" && [[ $backend == dialog ]]; then
+    [[ -r $checkout/lib/ui-dialog.sh ]] || die "Módulo de interface ausente: $checkout/lib/ui-dialog.sh."
+    source "$checkout/lib/ui-dialog.sh"
+    prepare_ui dialog
+    if [[ -n $ui_dialog ]]; then
+      ui_dialog_open "$checkout/lib/noir.dialogrc" || {
+        if (( $? == 2 )); then exit 1; fi
+        die "Não foi possível iniciar o Dialog. Use --plain."
+      }
+      export GIT_TERMINAL_PROMPT=0
+    fi
+  fi
+  [[ -z $argument_error ]] || die "$argument_error"
+  ui_progress 'Verificando pré-requisitos'
   check_requirements
   ui_success 'Pré-requisitos'
-  if ! "$plain"; then
-    if [[ $backend == dialog ]]; then
-      [[ -r $checkout/lib/ui-dialog.sh ]] || die "Módulo de interface ausente: $checkout/lib/ui-dialog.sh."
-      source "$checkout/lib/ui-dialog.sh"
-    fi
-    prepare_ui "$backend"
-  fi
+  if ! "$plain" && [[ $backend == gum ]]; then prepare_ui gum; fi
   cd -- "$checkout"
   if [[ $destination != "$default_destination" ]]; then
     destination=$(realpath -ms -- "$destination") || die "Destino alternativo inválido."
@@ -594,7 +724,7 @@ main() {
   fi
   if [[ $expected == absent ]]; then check_git_identity "$git_target"; fi
   [[ $(git rev-parse --show-toplevel) == "$checkout" ]] || die "Execute o script a partir de um checkout Git."
-  ui_section 'SINCRONIZAÇÃO GIT'
+  ui_section 'Sincronização Git'
   ui_confirm 'Consultar remoto?' || cancel "$?"
   sync_checkout
   git check-ignore --quiet -- config/local.nix ||
@@ -623,9 +753,7 @@ main() {
   [[ -f $tree/personal.nix && -f $tree/config/options.nix && -f $tree/config/local.example.nix ]] ||
     die "O checkout atualizado está incompleto."
   ui_run 'Validando arquivos Nix' nix-instantiate --parse "${nix_files[@]}" >/dev/null || {
-    status=$?
-    if (( status >= 128 )); then cancel "$status"; fi
-    die "A validação dos arquivos Nix falhou."
+    fail_command "$?" "A validação dos arquivos Nix falhou."
   }
   ui_success 'Arquivos Nix'
 
@@ -668,7 +796,12 @@ main() {
   ui_review 'Revisar publicação' show_publication "$account" "$profile" "$checkout" "$source_commit" \
     "$destination" "$previous" "$backup" "${identity_summary[@]}" ||
     cancel "$?" 'Publicação cancelada.'
-  ui_confirm 'Publicar configuração?' || cancel "$?" 'Publicação cancelada.'
+  ui_section 'Publicação'
+  ui_confirm 'Publicar a configuração revisada?' || cancel "$?" 'Publicação cancelada.'
+  if [[ -n $ui_dialog && $destination == "$default_destination" ]]; then
+    set +x +a
+    password=$(ui_dialog_password) || cancel "$?" 'Autenticação cancelada.'
+  fi
   if [[ ! -e $checkout_local && ! -L $checkout_local ]]; then
     new_local=$(mktemp -- "$checkout/config/.local.nix.XXXXXXXX")
     cat -- "$tree/config/local.nix" > "$new_local"
@@ -683,13 +816,19 @@ main() {
   if [[ $destination == "$default_destination" ]]; then
     root_script="PATH=$system_path"$'\n'
     root_script+=$(declare -f die publish)
-    root_script+=$'\npublish "$@"'
-    sudo -- /run/current-system/sw/bin/bash -p -c "$root_script" -- "$destination" "$expected" \
-      < "$prepared/deployment.tar" || {
-        status=$?
-        if (( status >= 128 )); then cancel "$status"; fi
-        die "Falha na publicação. Confira a mensagem acima."
-      }
+    if [[ -n $ui_dialog ]]; then
+      status=0
+      publish_dialog "$prepared/deployment.tar" "$root_script" "$destination" "$expected" || status=$?
+      unset -v password
+      if [[ $shell_options == *a* ]]; then set -a; fi
+      if [[ $shell_options == *x* ]]; then set -x; fi
+      if (( status != 0 )); then fail_command "$status" "Falha na publicação. Consulte os diagnósticos."; fi
+    else
+      root_script+=$'\npublish "$@"'
+      sudo -- /run/current-system/sw/bin/bash -p -c "$root_script" -- "$destination" "$expected" \
+        < "$prepared/deployment.tar" ||
+        fail_command "$?" "Falha na publicação. Consulte os diagnósticos."
+    fi
   else
     publish "$destination" "$expected" < "$prepared/deployment.tar"
   fi

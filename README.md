@@ -45,19 +45,19 @@ O projeto usa a revisão do Nixpkgs disponível na máquina. As versões dos pac
 
 O GitHub é a fonte de verdade. A pasta obtida com `git clone` é o **checkout de desenvolvimento**, onde você usa Git e mantém suas alterações. `/etc/nixos/nixos-config/` é a **cópia implantada**, que o NixOS importa e o instalador atualiza com os arquivos versionados. O arquivo `config/local.nix` fica fora do Git em ambas as cópias. Após a primeira instalação, edite as escolhas da máquina no arquivo implantado.
 
-Execute pela conta Linux que receberá a identidade Git. Use `sudo` apenas quando solicitado na publicação.
+Execute o configurador pela conta Linux que receberá a identidade Git. A autenticação administrativa acontece após a confirmação da publicação no destino padrão.
 
 ```bash
 bash config.sh
 ```
 
-O configurador Noir usa Dialog no console TTY e nos terminais do KDE e do XFCE. A tela inicial mostra a branch ou o commit local quando disponível e oferece **Instalar ou atualizar**. Use as setas e Enter nos menus. As telas de revisão mostram os detalhes do fast-forward e da publicação antes de cada confirmação. Nas confirmações, a opção inicial é **Não**. Os diagnósticos dos comandos e o resultado final aparecem no terminal. [Manual do Dialog](https://invisible-island.net/dialog/manpage/dialog.html)
+O configurador Noir usa Dialog no console TTY e nos terminais do KDE e do XFCE, a partir de 40 colunas por 12 linhas. A tela inicial mostra a branch ou o commit local quando disponível. Use as setas nos menus e para percorrer os campos de identidade Git. Tab muda o foco entre o formulário e os botões, Enter aciona a opção em foco e Esc cancela a etapa. Nas confirmações, a opção inicial é **Não**. Durante um comando em andamento, use Ctrl+C para interromper. As telas de revisão mostram os detalhes do fast-forward e da publicação. Use **Registros** no resultado para consultar os diagnósticos da execução. [Manual do Dialog](https://invisible-island.net/dialog/manpage/dialog.html)
 
-Se o Dialog estiver no `PATH`, o configurador o utiliza. Caso contrário, oferece uma sessão temporária com `nix-shell -p dialog` quando disponível. Se você recusar, o carregamento falhar ou a sessão estiver fora de um terminal interativo, as perguntas usam o modo texto. Para escolher esse modo diretamente, execute `bash config.sh --plain`. Durante a migração, `bash install.sh` continua disponível com Gum e aceita `--plain` e `--destination`.
+Em um terminal interativo, o configurador precisa encontrar o Dialog no `PATH`. Você pode obtê-lo em uma sessão temporária com `nix-shell -p dialog`. Para usar o modo texto, execute `bash config.sh --plain`. Fora de um terminal interativo, o configurador também usa o modo texto. `bash install.sh` continua disponível com Gum e aceita `--plain` e `--destination`.
 
-Depois de selecionar **Instalar ou atualizar** no Dialog ou confirmar o início no modo texto ou Gum, o assistente pede confirmação para consultar o remoto, aplicar o fast-forward quando houver atualizações e publicar a cópia. A publicação no destino padrão avisa quando será necessária autenticação via `sudo`.
+Depois de selecionar **Instalar ou atualizar** no Dialog ou confirmar o início no modo texto ou Gum, o assistente pede confirmação para consultar o remoto, aplicar o fast-forward quando houver atualizações e publicar a cópia. Na publicação protegida, o Dialog abre um campo oculto e entrega a senha ao `sudo` somente se ele pedir autenticação para aquele comando. A implantação chega por um descritor separado, lido com as permissões da conta que a preparou. Se sua configuração de PAM usar uma pergunta de autenticação personalizada, use `--plain`. Prepare as credenciais do remoto antes de iniciar a sincronização no Dialog.
 
-1. Na primeira instalação, preencha **CONTA LINUX** e **INFORMAÇÕES GIT**. Confira os dados no resumo antes de publicar. Nas atualizações, o instalador reutiliza a identidade da cópia implantada.
+1. Na primeira instalação, preencha **Conta Linux** e **Identidade Git**. Confira os dados no resumo antes de publicar. Nas atualizações, o instalador reutiliza a identidade da cópia implantada.
 2. O instalador executa `git fetch` para o remoto configurado na branch e apresenta os commits e arquivos alterados. Se você autorizar, `git merge --ff-only` avança o checkout até o commit apresentado usando o objeto já buscado. Recusar encerra a instalação. Alterações não commitadas, commits apenas locais e branches divergentes exigem que você resolva o estado do checkout.
 3. Na primeira instalação, se o checkout ainda estiver sem `config/local.nix`, escolha KDE ou XFCE para preencher o modelo versionado. Se já houver um arquivo, a identidade precisa coincidir exatamente com a informada. O instalador confere os tipos das opções locais e os campos obrigatórios. O `dry-build` manual avalia a configuração completa da máquina, incluindo as asserções do NixOS.
 4. Confirme o destino. O instalador publica os arquivos regulares versionados e o módulo local, sem `.git`. Ao substituir uma implantação, guarda a cópia anterior em `/etc/nixos/nixos-config.previous`. A troca atômica de diretórios usa `mv --exchange --no-copy` do GNU Coreutils e exige suporte do sistema de arquivos. Guarde ajustes avulsos fora da pasta de implantação para preservá-los por mais de uma atualização.
@@ -160,6 +160,7 @@ nixos-config/
 ├── config.sh          Entrada do configurador com Dialog
 ├── install.sh         Fluxo compartilhado e entrada compatível com Gum
 ├── lib/
+│   ├── noir.dialogrc  Tema do configurador
 │   ├── ui-dialog.sh   Widgets do Dialog
 │   └── ui.sh          Interface comum, Gum e modo texto
 ├── personal.nix
