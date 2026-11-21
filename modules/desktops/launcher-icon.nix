@@ -13,8 +13,7 @@ let
         }
 
         widget.currentConfigGroup = ["General"];
-        const currentIcon = widget.readConfig("icon", "start-here-kde-symbolic");
-        if (currentIcon === "start-here-kde-symbolic" || currentIcon === "start-here-kde") {
+        if (widget.readConfig("icon", "") !== "${icon}") {
           widget.writeConfig("icon", "${icon}");
         }
       }
