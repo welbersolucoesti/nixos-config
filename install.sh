@@ -7,15 +7,69 @@ default_destination=/etc/nixos/nixos-config
 system_path=/run/current-system/sw/bin:/run/wrappers/bin
 prepared=''
 new_local=''
+wizard_started=false
+git_result=(neutral 'Não consultado')
+local_result=(neutral 'Não preparada')
+publication_result=(neutral 'Não iniciada')
+backup_result=(neutral 'Não criado')
+identity_result=(neutral 'Não aplicada')
+published_destination=''
 
 die() {
-  printf 'Erro: %s\n' "$*" >&2
+  if declare -F ui_error >/dev/null; then
+    ui_error "$*"
+  else
+    printf 'Erro: %s\n' "$*" >&2
+  fi
   exit 1
 }
 
-confirm() {
-  local answer
-  IFS= read -r -p "$1 [s/N] " answer && [[ $answer == [sS] ]]
+cancel() {
+  local status=$1 message=${2:-Operação cancelada.}
+  if (( status >= 128 )); then
+    ui_warning "Operação interrompida."
+    exit "$status"
+  fi
+  ui_warning "$message"
+  exit 0
+}
+
+finish() {
+  if [[ -n $prepared ]]; then rm -rf -- "$prepared"; fi
+  if [[ -n $new_local ]]; then rm -f -- "$new_local"; fi
+  if "$wizard_started"; then
+    ui_section 'RESULTADO'
+    ui_outcome 'SINCRONIZAÇÃO' "${git_result[@]}"
+    ui_outcome 'CONFIGURAÇÃO LOCAL' "${local_result[@]}"
+    if [[ -n $published_destination ]]; then
+      ui_fields 'Arquivo local' "$published_destination/config/local.nix"
+    fi
+    ui_outcome 'PUBLICAÇÃO' "${publication_result[@]}"
+    ui_outcome 'BACKUP' "${backup_result[@]}"
+    ui_outcome 'IDENTIDADE GIT' "${identity_result[@]}"
+    if [[ -n $published_destination ]]; then show_next_steps "$published_destination"; fi
+  fi
+}
+
+prepare_ui() {
+  local candidate status=0
+  ui_interactive || return 0
+  if candidate=$(type -P gum) && candidate=$(realpath -e -- "$candidate") &&
+     ui_use_gum "$candidate"; then
+    return
+  fi
+  command -v nix-shell >/dev/null || return 0
+  ui_info 'Modo visual opcional · Gum via nix-shell'
+  if ui_confirm 'Carregar Gum?'; then
+    ui_progress 'Carregando Gum'
+    candidate=$(nix-shell -p gum --run 'type -P gum') || status=$?
+    if (( status >= 128 )); then cancel "$status"; fi
+    if (( status == 0 )) && ui_use_gum "$candidate"; then return; fi
+    ui_warning 'Gum indisponível. Modo texto.'
+  else
+    status=$?
+    if (( status >= 128 )); then cancel "$status"; fi
+  fi
 }
 
 check_requirements() {
@@ -44,26 +98,40 @@ check_requirements() {
 read_identity() {
   local account uid
   account=$(id -un)
-  IFS= read -r -p "Conta Linux [$account]: " username || die "Entrada interrompida."
+  ui_section 'CONTA LINUX'
+  username=$(ui_input 'Nome' "$account") || cancel "$?"
   username=${username:-$account}
   [[ $username =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "Nome de conta Linux inválido."
   uid=$(id -u -- "$username") && [[ $uid != 0 ]] || die "Escolha uma conta Linux existente sem UID 0."
 
-  IFS= read -r -p 'Nome para autoria Git: ' git_name || die "Entrada interrompida."
-  IFS= read -r -p 'E-mail para autoria Git: ' git_email || die "Entrada interrompida."
+  ui_section 'INFORMAÇÕES GIT'
+  git_name=$(ui_input 'Nome') || cancel "$?"
+  git_email=$(ui_input 'E-mail') || cancel "$?"
   [[ $git_name =~ ^[^[:cntrl:]\<\>]*[^[:space:][:cntrl:]\<\>][^[:cntrl:]\<\>]*$ ]] ||
     die "Informe um nome para o Git sem caracteres de controle ou sinais de menor e maior."
   [[ $git_email =~ ^[^[:space:][:cntrl:]\<\>@]+@[^[:space:][:cntrl:]\<\>@]+$ ]] ||
     die "Informe um e-mail Git com um único @ e sem espaços."
-  printf '\nConta Linux: %s\nNome Git: %s\nE-mail Git: %s\n\n' "$username" "$git_name" "$git_email"
 }
 
 sync_checkout() {
-  local branch remote upstream status head base
+  local branch remote upstream status head base address count
   branch=$(git symbolic-ref --quiet --short HEAD) || die "Abra uma branch local antes de instalar."
   remote=$(git config --get "branch.$branch.remote") && [[ -n $remote && $remote != . ]] ||
     die "Configure uma branch remota correspondente para $branch."
+  # Use o endereço do fetch sem informações de autenticação nem parâmetros.
+  address=$(git remote get-url "$remote") || die "Não foi possível consultar o remoto $remote."
+  address=${address%%[?#]*}
+  if [[ $address =~ ^(https?://|ssh://|git://)([^/]+)(/.*)?$ ]]; then
+    address="${BASH_REMATCH[1]}${BASH_REMATCH[2]##*@}${BASH_REMATCH[3]:-}"
+  elif [[ $address =~ ^[^[:space:]@:]+@([^[:space:]:]+:.+)$ ]]; then
+    address=${BASH_REMATCH[1]}
+  elif [[ $address != /* ]]; then
+    address=$remote
+  fi
+  git_result=(error 'Consulta interrompida ou com falha')
+  ui_progress "Consultando $remote"
   git fetch --prune -- "$remote" || die "Falha ao buscar atualizações de $remote."
+  git_result=(warning 'Checkout mantido')
   upstream=$(git rev-parse --symbolic-full-name '@{upstream}') ||
     die "A branch remota de $branch não está disponível. Confira o upstream configurado."
 
@@ -71,21 +139,24 @@ sync_checkout() {
   source_commit=$(git rev-parse --verify "$upstream^{commit}") ||
     die "A branch remota de $branch não está disponível."
   status=$(git status --porcelain=v1 --untracked-files=all) || die "Falha ao consultar o checkout."
-  printf '\nComparando %s com %s.\n' "$branch" "${upstream#refs/remotes/}"
+  count=$(git rev-list --count "$head..$source_commit")
+  ui_fields 'Branch' "$branch" 'Remoto' "$address (${upstream#refs/remotes/})" \
+    'Commit local' "$head" 'Commit remoto' "$source_commit" 'Commits disponíveis' "$count"
   if [[ -n $status ]]; then
-    printf '\nAlterações locais não commitadas:\n%s\n' "$status"
+    ui_warning 'Alterações locais não commitadas'
+    ui_info "$status"
   fi
   base=$(git merge-base "$head" "$source_commit") || die "As branches não têm histórico em comum."
   if [[ $source_commit != "$base" ]]; then
-    printf '\nCommits novos no remoto:\n'
+    ui_info $'\nCommits no remoto'
     git --no-pager log --oneline "$base..$source_commit"
-    printf '\nArquivos alterados no remoto:\n'
+    ui_info $'\nArquivos modificados no remoto'
     git --no-pager diff --name-status "$base" "$source_commit"
   fi
   if [[ $head != "$base" ]]; then
-    printf '\nCommits apenas locais:\n'
+    ui_info $'\nCommits apenas locais'
     git --no-pager log --oneline "$base..$head"
-    printf '\nArquivos alterados nos commits locais:\n'
+    ui_info $'\nArquivos modificados nos commits locais'
     git --no-pager diff --name-status "$base" "$head"
   fi
 
@@ -100,14 +171,14 @@ sync_checkout() {
     die "config/local.nix aparece no histórico a usar. Preserve suas escolhas e retire o arquivo do controle de versão antes de instalar."
   fi
   if [[ $head == "$source_commit" ]]; then
-    printf 'O checkout já está atualizado.\n'
+    git_result=(ok 'Já atualizado')
+    ui_fields 'Arquivos modificados' 'Nenhum'
     return
   fi
 
-  if ! confirm "Aplicar o fast-forward até o commit $source_commit?"; then
-    update_cancelled=true
-    return
-  fi
+  ui_info $'\nFast-forward do checkout local.'
+  ui_confirm 'Aplicar atualização?' ||
+    cancel "$?" 'Atualização do checkout cancelada.'
   status=$(git status --porcelain=v1 --untracked-files=all) || die "Falha ao consultar o checkout."
   [[ $(git symbolic-ref --quiet --short HEAD) == "$branch" && $(git rev-parse HEAD) == "$head" &&
      -z $status ]] ||
@@ -125,9 +196,13 @@ sync_checkout() {
       done
     done
   # Use o objeto já obtido pelo fetch e aprovado pelo usuário.
+  git_result=(error 'Fast-forward interrompido ou com falha')
+  ui_progress 'Aplicando fast-forward'
   git merge --ff-only --no-autostash --no-overwrite-ignore -- "$source_commit" ||
     die "O fast-forward falhou. Verifique o diagnóstico do Git e o estado do checkout."
   [[ $(git rev-parse HEAD) == "$source_commit" ]] || die "O checkout mudou durante o fast-forward."
+  git_result=(ok 'Fast-forward concluído')
+  ui_success 'Checkout atualizado'
 }
 
 nix_string() {
@@ -141,8 +216,8 @@ nix_string() {
 generate_local() {
   local model=$1 output=$2 desktop line value
   local assignment='^([[:blank:]]*)(desktop|username|userName|userEmail)[[:blank:]]*='
-  printf 'Ambiente gráfico\n  1) KDE Plasma\n  2) XFCE\n'
-  IFS= read -r -p 'Desktop [1/2, padrão 1]: ' desktop || die "Entrada interrompida."
+  ui_section 'AMBIENTE GRÁFICO'
+  desktop=$(ui_choose 'KDE Plasma' 'XFCE') || cancel "$?"
   case $desktop in
     ''|1) desktop=kde ;;
     2) desktop=xfce ;;
@@ -169,7 +244,7 @@ validate_local() {
   # Avalia o módulo local com as declarações de personalConfig para conferir
   # tipos, campos obrigatórios e, na primeira instalação, a identidade coletada.
   # Os módulos e as asserções da máquina são avaliados no dry-build manual.
-  nix-instantiate --eval --strict --argstr options "$options" --argstr file "$file" "$@" --expr '
+  nix-instantiate --eval --strict --json --argstr options "$options" --argstr file "$file" "$@" --expr '
     { options, file, username ? null, gitName ? null, gitEmail ? null }:
     let
       inherit (import <nixpkgs> { }) lib;
@@ -186,8 +261,8 @@ validate_local() {
     assert lib.assertMsg (username == null || (
       cfg.username == username && cfg.git.userName == gitName && cfg.git.userEmail == gitEmail
     )) "A identidade do arquivo difere da informada. Confira username, git.userName e git.userEmail.";
-    builtins.deepSeq cfg true
-  ' >/dev/null || die "Revise $file conforme config/local.example.nix e execute novamente."
+    builtins.deepSeq cfg "${cfg.username} ${if cfg.desktop == null then "machine" else cfg.desktop}"
+  ' || die "Revise $file conforme config/local.example.nix e execute novamente."
 }
 
 publish() (
@@ -222,7 +297,13 @@ publish() (
   fi
 
   stage=$(mktemp -d -- "$parent/.nixos-config.XXXXXXXX") || die "Falha ao criar a área de publicação."
-  trap 'if ! $keep_stage; then rm -rf -- "$stage"; fi' EXIT
+  trap 'if $keep_stage; then
+          if [[ -d $tree && $(stat -c "%d:%i" -- "$tree") == "$expected" ]]; then
+            printf "Cópia anterior preservada para recuperação: %s\n" "$tree" >&2
+          fi
+        else
+          rm -rf -- "$stage"
+        fi' EXIT
   trap 'exit 130' INT
   trap 'exit 143' TERM
   tree=$stage/tree
@@ -255,6 +336,7 @@ publish() (
       die "O caminho de backup $previous está ocupado. Verifique-o antes de continuar."
   fi
   # Antes e depois da troca, target aponta para uma árvore completa.
+  printf 'Substituindo a implantação e preparando o backup anterior.\n'
   keep_stage=true
   if ! mv -T --exchange --no-copy -- "$tree" "$target"; then
     keep_stage=false
@@ -273,18 +355,18 @@ publish() (
 )
 
 show_next_steps() {
-  printf '\nInstalação: %s\nConfiguração local: %s/config/local.nix\n' "$destination" "$destination"
+  local destination=$1
   if [[ $destination == "$default_destination" ]]; then
+    ui_section 'MIGRAÇÃO'
     cat <<'INSTRUCTIONS'
 
-Edite /etc/nixos/configuration.nix e inclua ./nixos-config/personal.nix na lista imports.
-Remova os imports antigos deste projeto para evitar duplicações. Preserve os imports
-de hardware e os demais ajustes da máquina.
+Em /etc/nixos/configuration.nix, adicione ./nixos-config/personal.nix a imports.
+Remova os imports antigos do projeto. Preserve os imports de hardware e os ajustes da máquina.
 
-Valide com:
+Valide:
   sudo nixos-rebuild dry-build
 
-Somente depois de conferir o resultado, aplique manualmente com:
+Após conferir o resultado, aplique manualmente:
   sudo nixos-rebuild switch
 INSTRUCTIONS
   fi
@@ -392,22 +474,38 @@ configure_git() {
   done
   trusted_git_path "$git_target" || { printf 'O caminho do Git global se tornou inseguro.\n' >&2; return 1; }
   check_git_identity "$git_target" true || return 1
-  printf 'Identidade Git configurada para %s.\n' "$username"
 }
 
 main() {
-  local destination=$default_destination checkout parent expected=absent source_commit update_cancelled=false
+  local destination=$default_destination checkout parent expected=absent source_commit plain=false
   local username git_name git_email git_target tree entry mode file checkout_local root_script
-  local identity_args=()
-  case ${1:-} in
-    '') [[ $# == 0 ]] || die "Uso: bash install.sh [--destination DIRETÓRIO]" ;;
-    --help|-h) printf 'Uso: bash install.sh [--destination DIRETÓRIO]\n'; return ;;
-    --destination) [[ $# == 2 && -n $2 ]] || die "Informe o destino alternativo."; destination=$2 ;;
-    *) die "Uso: bash install.sh [--destination DIRETÓRIO]" ;;
-  esac
+  local revision local_info account profile previous backup status
+  local -a identity_args=() nix_files=()
+  local usage='Uso: bash install.sh [--plain] [--destination DIRETÓRIO]'
+  while (( $# )); do
+    case $1 in
+      --help|-h) printf '%s\n' "$usage"; return ;;
+      --plain) plain=true; shift ;;
+      --destination)
+        [[ $# -ge 2 && -n $2 && $2 != --* ]] || die "Informe o destino alternativo."
+        destination=$2
+        shift 2
+        ;;
+      *) die "$usage" ;;
+    esac
+  done
   (( EUID != 0 )) || die "Execute o instalador pela sua conta normal, sem sudo."
-  check_requirements
+  command -v dirname >/dev/null || die "Comando necessário ausente: dirname."
   checkout=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+  [[ -r $checkout/lib/ui.sh ]] || die "Módulo de interface ausente: $checkout/lib/ui.sh."
+  source "$checkout/lib/ui.sh"
+  trap 'finish' EXIT
+  trap 'cancel 130' INT
+  trap 'cancel 143' TERM
+  ui_progress 'Pré-requisitos'
+  check_requirements
+  ui_success 'Pré-requisitos'
+  if ! "$plain"; then prepare_ui; fi
   cd -- "$checkout"
   if [[ $destination != "$default_destination" ]]; then
     destination=$(realpath -ms -- "$destination") || die "Destino alternativo inválido."
@@ -418,6 +516,18 @@ main() {
   fi
   [[ $destination != "$checkout" && $destination != "$checkout/"* && $checkout != "$destination/"* ]] ||
     die "Escolha um destino separado do checkout."
+  # Identificação visual sem carregar configurações Git antes das verificações.
+  revision=''
+  if [[ -f .git/HEAD ]] && IFS= read -r revision < .git/HEAD; then
+    revision=${revision#ref: refs/heads/}
+    if [[ $revision =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]; then revision=${revision:0:12}; fi
+  fi
+  [[ $revision =~ ^[a-zA-Z0-9._/-]+$ ]] || revision=''
+  ui_header "$revision"
+  ui_confirm 'Iniciar?' || cancel "$?"
+  wizard_started=true
+  backup=$destination.previous
+  if [[ -d $backup && ! -L $backup ]]; then backup_result=(ok "$backup"); fi
   if [[ -e $destination || -L $destination ]]; then
     [[ -d $destination && ! -L $destination && -d $destination/config && ! -L $destination/config &&
        -f $destination/config/local.nix && ! -L $destination/config/local.nix ]] ||
@@ -426,29 +536,26 @@ main() {
   fi
 
   if [[ $expected == absent ]]; then
+    identity_result=(warning 'Pendente')
     read_identity
     [[ $(id -u -- "$username") == "$EUID" ]] ||
       die "Execute a primeira instalação pela própria conta Linux selecionada."
     git_target=$(git_config_target)
     identity_args=(--argstr username "$username" --argstr gitName "$git_name" --argstr gitEmail "$git_email")
   else
-    printf 'A instalação existente preservará seu config/local.nix e a configuração global do Git.\n'
+    identity_result=(ok 'Preservada')
+    ui_info 'Identidade e escolhas locais serão preservadas.'
   fi
   if [[ $expected == absent ]]; then check_git_identity "$git_target"; fi
   [[ $(git rev-parse --show-toplevel) == "$checkout" ]] || die "Execute o script a partir de um checkout Git."
-  confirm "Prosseguir com a verificação do repositório?" || { printf 'Instalação cancelada.\n'; return; }
+  ui_section 'SINCRONIZAÇÃO GIT'
+  ui_confirm 'Consultar remoto?' || cancel "$?"
   sync_checkout
-  if "$update_cancelled"; then
-    printf 'Atualização do checkout cancelada. Nenhuma cópia foi publicada.\n'
-    return
-  fi
   git check-ignore --quiet -- config/local.nix ||
     die "Inclua config/local.nix nas regras de exclusão do Git antes de continuar."
 
+  ui_progress 'Preparando arquivos'
   prepared=$(mktemp -d)
-  trap 'rm -rf -- "$prepared"; if [[ -n $new_local ]]; then rm -f -- "$new_local"; fi' EXIT
-  trap 'exit 130' INT
-  trap 'exit 143' TERM
   tree=$prepared/tree
   mkdir -- "$tree"
   git ls-tree -rz "$source_commit" > "$prepared/files"
@@ -464,30 +571,65 @@ main() {
     file=${entry#*$'\t'}
     [[ -f $tree/$file && ! -L $tree/$file ]] || die "Arquivo versionado ausente na cópia: $file."
     if [[ $file == *.nix ]]; then
-      nix-instantiate --parse "$tree/$file" >/dev/null || die "Arquivo Nix inválido: $file."
+      nix_files+=("$tree/$file")
     fi
   done < "$prepared/files"
   [[ -f $tree/personal.nix && -f $tree/config/options.nix && -f $tree/config/local.example.nix ]] ||
     die "O checkout atualizado está incompleto."
+  ui_run 'Validando arquivos Nix' nix-instantiate --parse "${nix_files[@]}" >/dev/null || {
+    status=$?
+    if (( status >= 128 )); then cancel "$status"; fi
+    die "A validação dos arquivos Nix falhou."
+  }
+  ui_success 'Arquivos Nix'
 
+  ui_progress 'Preparando configuração local'
   checkout_local=$checkout/config/local.nix
   if [[ -e $checkout_local || -L $checkout_local ]]; then
     [[ -f $checkout_local && ! -L $checkout_local ]] || die "Use um arquivo regular em $checkout_local."
-    validate_local "$tree/config/options.nix" "$checkout_local" "${identity_args[@]}"
+    validate_local "$tree/config/options.nix" "$checkout_local" "${identity_args[@]}" >/dev/null
   fi
   if [[ $expected != absent ]]; then
-    validate_local "$tree/config/options.nix" "$destination/config/local.nix"
+    validate_local "$tree/config/options.nix" "$destination/config/local.nix" >/dev/null
     cp -- "$destination/config/local.nix" "$tree/config/local.nix"
+    local_result=(ok 'Preservada da implantação')
   else
     if [[ -f $checkout_local ]]; then
       cp -- "$checkout_local" "$tree/config/local.nix"
+      local_result=(ok 'Preservada do checkout')
     else
       generate_local "$tree/config/local.example.nix" "$tree/config/local.nix"
+      local_result=(warning 'Gerada na área de preparação')
     fi
   fi
-  validate_local "$tree/config/options.nix" "$tree/config/local.nix" "${identity_args[@]}"
+  local_info=$(validate_local "$tree/config/options.nix" "$tree/config/local.nix" "${identity_args[@]}")
+  # A saída é composta apenas pelo nome de conta validado e pelo enum do perfil.
+  read -r account profile <<< "${local_info:1:-1}"
+  case $profile in
+    kde) profile='KDE Plasma' ;;
+    xfce) profile='XFCE' ;;
+    machine) profile='Definido pela máquina' ;;
+  esac
+  ui_success 'Configuração local'
 
-  confirm "Publicar a cópia em $destination?" || { printf 'Instalação cancelada.\n'; return; }
+  ui_section 'CONTA'
+  ui_fields 'Usuário' "$account" 'Ambiente gráfico' "$profile"
+  previous='Nenhuma'
+  if [[ $expected == absent ]]; then
+    ui_section 'GIT'
+    ui_fields 'Nome' "$git_name" 'E-mail' "$git_email"
+    backup='Não se aplica'
+  else
+    previous='Substituída se houver mudanças'
+  fi
+  ui_section 'IMPLANTAÇÃO'
+  ui_fields 'Origem' "$checkout ($source_commit)" 'Destino' "$destination" \
+    'Instalação anterior' "$previous" 'Backup' "$backup"
+  printf '\n'
+  if [[ $destination == "$default_destination" ]]; then
+    ui_info 'Autenticação via sudo necessária.'
+  fi
+  ui_confirm 'Publicar configuração?' || cancel "$?" 'Publicação cancelada.'
   if [[ ! -e $checkout_local && ! -L $checkout_local ]]; then
     new_local=$(mktemp -- "$checkout/config/.local.nix.XXXXXXXX")
     cat -- "$tree/config/local.nix" > "$new_local"
@@ -497,24 +639,35 @@ main() {
   fi
 
   tar -cf "$prepared/deployment.tar" -C "$tree" . || die "Falha ao preparar a cópia para publicação."
+  publication_result=(error 'Interrompida ou com falha')
+  ui_progress 'Publicando configuração'
   if [[ $destination == "$default_destination" ]]; then
     root_script="PATH=$system_path"$'\n'
     root_script+=$(declare -f die publish)
     root_script+=$'\npublish "$@"'
     sudo -- /run/current-system/sw/bin/bash -p -c "$root_script" -- "$destination" "$expected" \
-      < "$prepared/deployment.tar" || die "Falha na publicação. Confira a mensagem acima."
+      < "$prepared/deployment.tar" || {
+        status=$?
+        if (( status >= 128 )); then cancel "$status"; fi
+        die "Falha na publicação. Confira a mensagem acima."
+      }
   else
     publish "$destination" "$expected" < "$prepared/deployment.tar"
   fi
 
-  show_next_steps
+  published_destination=$destination
+  publication_result=(ok "Concluída em $destination")
+  if [[ ${local_result[0]} == warning ]]; then local_result=(ok 'Gerada e publicada'); fi
+  if [[ $expected != absent && -d $backup ]]; then backup_result=(ok "$backup"); fi
   if [[ $expected == absent ]] && ! configure_git; then
-    printf '\nA cópia foi instalada em %s. A configuração Git falhou.\n' "$destination" >&2
-    printf 'Pela conta %s, confira os valores e execute somente os comandos pendentes:\n' "$username" >&2
+    identity_result=(error 'Ajuste manual pendente')
+    ui_section 'AJUSTE MANUAL DO GIT' >&2
+    ui_info "Conta $username. Execute os comandos pendentes." >&2
     printf '  git config --global user.name %q\n  git config --global user.email %q\n  git config --global init.defaultBranch main\n' \
       "$git_name" "$git_email" >&2
     return 1
   fi
+  if [[ $expected == absent ]]; then identity_result=(ok 'Aplicada'); fi
 }
 
 main "$@"

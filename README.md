@@ -51,7 +51,13 @@ Execute pela conta Linux que receberá a identidade Git. Use `sudo` apenas quand
 bash install.sh
 ```
 
-1. Na primeira instalação, informe a conta Linux, o nome e o e-mail de autoria. Confira o resumo e confirme. Nas atualizações, o instalador reutiliza a identidade da cópia implantada.
+O assistente Noir usa Gum para apresentar as etapas e receber as escolhas pelo teclado. Funciona no console TTY e nos terminais do KDE e do XFCE. Use as setas e Enter nos menus. Em confirmações, a opção inicial é **Não**. A tela inicial mostra a branch ou o commit local quando disponível. [Documentação do Gum](https://github.com/charmbracelet/gum)
+
+Se o Gum estiver no `PATH`, o instalador o utiliza. Caso contrário, oferece uma sessão temporária com `nix-shell -p gum`. Se você recusar, a preparação falhar ou a sessão não estiver em um terminal interativo, as perguntas usam o terminal tradicional. Para escolher esse modo diretamente, execute `bash install.sh --plain`.
+
+O assistente pede confirmação para começar, consultar o remoto, aplicar o fast-forward ao checkout quando houver atualizações e publicar a cópia. A publicação no destino padrão avisa quando será necessária autenticação via `sudo`.
+
+1. Na primeira instalação, preencha **CONTA LINUX** e **INFORMAÇÕES GIT**. Confira os dados no resumo antes de publicar. Nas atualizações, o instalador reutiliza a identidade da cópia implantada.
 2. O instalador executa `git fetch` para o remoto configurado na branch e apresenta os commits e arquivos alterados. Se você autorizar, `git merge --ff-only` avança o checkout até o commit apresentado usando o objeto já buscado. Recusar encerra a instalação. Alterações não commitadas, commits apenas locais e branches divergentes exigem que você resolva o estado do checkout.
 3. Na primeira instalação, se o checkout ainda estiver sem `config/local.nix`, escolha KDE ou XFCE para preencher o modelo versionado. Se já houver um arquivo, a identidade precisa coincidir exatamente com a informada. O instalador confere os tipos das opções locais e os campos obrigatórios. O `dry-build` manual avalia a configuração completa da máquina, incluindo as asserções do NixOS.
 4. Confirme o destino. O instalador publica os arquivos regulares versionados e o módulo local, sem `.git`. Ao substituir uma implantação, guarda a cópia anterior em `/etc/nixos/nixos-config.previous`. A troca atômica de diretórios usa `mv --exchange --no-copy` do GNU Coreutils e exige suporte do sistema de arquivos. Guarde ajustes avulsos fora da pasta de implantação para preservá-los por mais de uma atualização.
@@ -128,6 +134,8 @@ Na primeira abertura do painel, o XFCE pode carregar o modelo do projeto, que in
 ```text
 nixos-config/
 ├── install.sh
+├── lib/
+│   └── ui.sh          Interface Gum e modo texto
 ├── personal.nix
 ├── config/
 │   ├── local.example.nix
