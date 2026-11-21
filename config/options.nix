@@ -5,6 +5,7 @@ let
   matches = pattern: value: builtins.match pattern value != null;
 in
 {
+  # O arquivo local fornece a identidade e as escolhas da estação.
   options.personalConfig = {
     desktop = lib.mkOption {
       type = lib.types.nullOr (lib.types.enum [ "kde" "xfce" ]);
@@ -27,6 +28,7 @@ in
       description = "Nome de uma conta normal já declarada na configuração da máquina.";
     };
 
+    # A autoria é validada na avaliação. O instalador a aplica ao Git da conta na primeira publicação.
     git.userName = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;

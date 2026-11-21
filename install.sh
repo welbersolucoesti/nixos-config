@@ -8,13 +8,23 @@ configuration=/etc/nixos/configuration.nix
 revision_ref=''
 rollback_revision=''
 
+# Lista explícita da revisão. Entram os módulos importados, o modelo local e o XML do painel.
 source_files=(
   personal.nix
   config/options.nix config/local.example.nix
-  modules/personal.nix
+  modules/applications/firefox.nix modules/applications/chrome.nix
+  modules/applications/bitwarden.nix modules/applications/intellij.nix
+  modules/applications/dbeaver.nix modules/applications/vscode.nix
+  modules/applications/postman.nix modules/applications/wps-office.nix
+  modules/applications/temurin.nix modules/applications/zsh.nix
+  modules/applications/virt-manager.nix modules/applications/virt-viewer.nix
+  modules/applications/podman-desktop.nix modules/applications/distrobox.nix modules/applications/kontainer.nix
   modules/desktops/kde.nix modules/desktops/xfce.nix
-  modules/system/hardware.nix modules/system/maintenance.nix
-  modules/system/packages.nix modules/system/postgresql.nix
+  modules/desktops/xfce/panel.nix modules/desktops/xfce/panel-default.xml modules/desktops/xfce/thunar.nix
+  modules/services/bluetooth.nix modules/services/fprintd.nix modules/services/keyd.nix
+  modules/services/polkit.nix modules/services/postgresql.nix
+  modules/services/libvirtd.nix modules/services/podman.nix
+  modules/system/maintenance.nix modules/system/packages.nix modules/system/zram.nix
   modules/optional/cron.nix modules/optional/virtualization.nix modules/optional/zsh-theme.nix
 )
 
@@ -225,6 +235,7 @@ send_payload() {
   if [[ $include_local == yes ]]; then
     write_new_local | base64 -w0 && printf '\n' || return 1
   fi
+  # A publicação recebe os blobs do commit, sem depender de ler arquivos mutáveis do checkout como root.
   for file; do
     git -C "$checkout" cat-file blob "$revision:$file" | base64 -w0 && printf '\n' || return 1
   done
@@ -299,6 +310,7 @@ publish() (
   if IFS= read -r extra || [[ -n $extra ]]; then
     die "Foram recebidos dados além dos arquivos aprovados."
   fi
+  # A revisão só sai da área privada depois de conferir todos os arquivos recebidos.
   verify_release "$revision_stage" "$manifest" "$@"
 
   if [[ -e $release || -L $release ]]; then
@@ -313,6 +325,7 @@ publish() (
       done
     fi
   else
+    # Todas as revisões compartilham o mesmo módulo local, que fica fora delas.
     ln -s -- "$target/config/local.nix" "$revision_stage/config/local.nix" ||
       die "Não foi possível apontar a revisão para a configuração persistente."
     chmod 0755 -- "$revision_stage" || die "Não foi possível ajustar as permissões da revisão."
@@ -335,6 +348,7 @@ publish() (
 )
 
 evaluate_candidate() {
+  # Redireciona a mesma árvore de imports da máquina para o candidato temporário.
   nix-instantiate --eval --strict --json \
     --argstr host "$configuration" --argstr deployment "$prepared" --argstr target "$destination" \
     --expr '
@@ -459,6 +473,7 @@ main() {
   mkdir -- "$prepared/revisions" || die "Não foi possível preparar o diretório de revisões."
   if [[ -n $rollback_revision ]]; then
     [[ -n $previous ]] || die "Não há instalação em $destination."
+    # Avalia a cópia já preservada com o módulo local atual, sem preparar uma nova publicação.
     revision_directory=$destination/revisions/$revision
     [[ -d $revision_directory && ! -L $revision_directory &&
        -f $revision_directory/personal.nix && ! -L $revision_directory/personal.nix ]] ||
@@ -567,6 +582,7 @@ main() {
         die "Publicação interrompida. Confira a revisão ativa em $destination/current."
     fi
     printf 'Revisão publicada: %s\n' "$revision"
+    # O Git roda pela conta executora, depois da publicação confirmada.
     if "$configure_git"; then
       apply_git_config || { show_migration; exit 1; }
       printf 'Identidade Git configurada.\n'

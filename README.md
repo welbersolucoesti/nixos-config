@@ -1,81 +1,14 @@
-# NixOS Personal Configurations
+# Configuração declarativa dos notebooks NixOS
 
-Configurações pessoais para NixOS, utilizando **Nixpkgs**, sem dependência de Flakes ou Home Manager.
+Este repositório reúne os aplicativos, serviços e perfis gráficos **KDE Plasma** e **XFCE** dos notebooks do David. Usa módulos tradicionais do NixOS, sem Flakes ou Home Manager.
 
-Este repositório reúne configurações declarativas utilizadas no meu ambiente Linux, com foco em desenvolvimento de software, produtividade e facilidade de reprodução entre instalações.
+Para usar o projeto, você precisa de um **NixOS já instalado**, uma conta Linux normal declarada na configuração da máquina e acesso a `sudo` para publicar os arquivos. Prepare uma cópia da configuração da máquina, publique os arquivos do projeto e depois aplique a configuração. Para instalar o NixOS do zero, siga o [manual do NixOS](https://nixos.org/manual/nixos/stable/#ch-installation).
 
-## Objetivo
+## Preparar o sistema pelo terminal
 
-A proposta é simples: reduzir configurações manuais e manter o ambiente de trabalho documentado, versionado e reproduzível.
+Você pode usar um terminal gráfico ou o console de texto (TTY). Se a rede já estiver funcionando, vá direto para a etapa do Git.
 
-Em vez de reinstalar aplicativos, reconfigurar serviços e lembrar como resolver particularidades do hardware a cada instalação, essas definições são mantidas em arquivos Nix.
-
-O repositório mantém a configuração pessoal dos notebooks do David.
-
-## Ambiente
-
-A configuração foi desenvolvida para NixOS com KDE Plasma e Wayland. Com `personalConfig.desktop` ausente, a configuração da máquina continua responsável pelo ambiente gráfico. Os perfis opcionais são KDE Plasma com SDDM e XFCE com LightDM em X11.
-
-As definições incluem:
-
-| Categoria | Recursos |
-|---|---|
-| Desenvolvimento | Eclipse Temurin JDK 25, IntelliJ IDEA, Visual Studio Code, DBeaver |
-| Navegadores | Google Chrome; Firefox desabilitado com `lib.mkForce false` |
-| Segurança | Bitwarden, fprintd e Polkit |
-| Terminal e utilitários | Zsh, Oh My Zsh, Git, Vim, Htop, wget e usbutils |
-| Banco de dados | PostgreSQL 18 |
-| Hardware | Bluetooth habilitado e ligado no boot; remapeamento de teclado com keyd |
-| Memória | Swap comprimido em RAM (ZRAM), com zstd e tamanho lógico de 50% da RAM |
-| Manutenção Nix | `nix-command` habilitado (sem Flakes); coleta de lixo semanal com retenção de 60 dias |
-
-Alguns recursos dependem de hardware compatível ou da disponibilidade dos pacotes no canal Nixpkgs utilizado.
-
-## Estrutura do repositório
-
-```text
-nixos-config/
-├── .gitignore
-├── AGENTS.md
-├── README.md
-├── config/
-│   ├── local.example.nix
-│   └── options.nix
-├── install.sh
-├── modules/
-│   ├── desktops/
-│   │   ├── kde.nix
-│   │   └── xfce.nix
-│   ├── optional/
-│   │   ├── cron.nix
-│   │   ├── virtualization.nix
-│   │   └── zsh-theme.nix
-│   ├── personal.nix
-│   └── system/
-│       ├── hardware.nix
-│       ├── maintenance.nix
-│       ├── packages.nix
-│       └── postgresql.nix
-└── personal.nix
-```
-
-**`personal.nix`** importa os módulos e a configuração local quando ela existe. `config/options.nix` declara o perfil, a identidade e as opções dos módulos. `config/local.example.nix` é o modelo versionado. A configuração particular fica na implantação, em `/etc/nixos/nixos-config/config/local.nix`.
-
-Os módulos em `modules/system/` declaram pacotes, serviços, hardware e manutenção. `modules/personal.nix` configura o Zsh da conta selecionada, e `modules/desktops/` contém os perfis gráficos. O instalador aplica a identidade Git na primeira publicação protegida.
-
-**`modules/optional/`** contém os módulos de agendamento, virtualização e tema do Zsh. As escolhas ficam na configuração local da máquina.
-
-**`AGENTS.md`** estabelece orientações para agentes de IA que trabalham neste repositório, incluindo limites de edição e validação.
-
-**`.gitignore`** define os padrões de arquivos que não serão rastreados pelo Git.
-
-## Preparação de uma instalação mínima do NixOS
-
-Entre no TTY com sua conta local após concluir a instalação oficial do NixOS. O `install.sh` pressupõe um NixOS já instalado e publica a configuração deste repositório. A instalação do sistema, incluindo discos e bootloader, é feita pelo instalador oficial. [Manual do NixOS](https://nixos.org/manual/nixos/stable/#ch-installation)
-
-### Conectividade Wi-Fi pelo TTY
-
-Este procedimento pressupõe que o NetworkManager esteja instalado, ativo e gerenciando a interface Wi-Fi. No TTY, confira o estado da interface, liste as redes e substitua `NOME_DA_REDE` pelo nome da rede escolhida. O último comando verifica a conectividade.
+Para conectar ao Wi-Fi quando o NetworkManager gerencia a conexão, troque `NOME_DA_REDE` pelo nome da rede que aparece na lista. A opção `--ask` pede a senha sem registrá-la no histórico do terminal. [Referência do nmcli](https://networkmanager.dev/docs/api/latest/nmcli.html)
 
 ```bash
 nmcli device status
@@ -84,53 +17,45 @@ nmcli --ask device wifi connect "NOME_DA_REDE"
 ping -c 3 nixos.org
 ```
 
-O `--ask` solicita a senha interativamente, mantendo-a fora da linha de comando e do histórico do shell. [Referência do nmcli](https://networkmanager.dev/docs/api/latest/nmcli.html)
+Se o NetworkManager estiver indisponível, use uma conexão por cabo ou consulte o manual oficial. Preserve os ajustes de rede da máquina e guarde credenciais fora do Git e dos arquivos Nix, que podem ser copiados para o Nix Store. [Manual de redes do NixOS](https://nixos.org/manual/nixos/stable/#sec-networking)
 
-Se o NetworkManager estiver indisponível, use Ethernet para o bootstrap ou consulte o [manual oficial do NixOS sobre redes](https://nixos.org/manual/nixos/stable/#sec-networking).
-
-A conexão de bootstrap permite baixar o Git e clonar o repositório. Para manter a rede após reinicializações, preserve as definições persistentes em `/etc/nixos/configuration.nix`. O NetworkManager pode salvar perfis localmente. Mantenha nomes de rede e credenciais fora do repositório e as credenciais fora do Nix Store.
-
-### Git temporário e checkout
-
-Depois de confirmar a conexão no TTY, abra um ambiente temporário com Git. `nix-shell -p git` disponibiliza o comando nessa sessão e deixa a configuração declarativa intacta. [Referência do nix-shell](https://nix.dev/manual/nix/latest/command-ref/nix-shell.html)
+Se o Git ainda estiver indisponível, abra uma sessão temporária com o comando abaixo. [Referência do nix-shell](https://nix.dev/manual/nix/latest/command-ref/nix-shell.html)
 
 ```bash
 nix-shell -p git
 ```
 
-Dentro desse ambiente, clone o repositório e entre no diretório:
+Com o Git disponível, baixe o repositório e entre na pasta:
 
 ```bash
 git clone https://github.com/welbersolucoesti/nixos-config.git
 cd nixos-config
 ```
 
-Em seguida, [prepare a cópia revisada de `configuration.nix` e execute a primeira instalação](#3-preparar-e-avaliar-a-configuração-da-máquina). Depois da publicação, [ajuste a configuração real da máquina](#4-aplicar-os-ajustes-à-configuração-da-máquina) e [valide e aplique manualmente](#5-validar-a-configuração-e-aplicar-manualmente).
+O instalador precisa encontrar o Nixpkgs, que fornece os pacotes e módulos do sistema. O primeiro comando mostra o caminho que o Nix encontra na sua sessão. Se falhar, confira o canal configurado ou o `NIX_PATH` antes de continuar. O segundo mostra a versão.
 
-## Instalação
-
-### 1. Pré-requisitos
-
-- NixOS instalado e funcionando.
-- Acesso administrativo (`sudo`).
-- Git.
-- Um canal ou revisão do Nixpkgs que disponibilize os pacotes utilizados.
-
-Esta configuração é um módulo complementar. Ela **não substitui** os arquivos `configuration.nix` e `hardware-configuration.nix` da instalação.
-
-### 2. Obter os arquivos
-
-Use o checkout obtido na preparação. O instalador publica os módulos de um commit do checkout local. Por padrão, usa `HEAD`. Para escolher outro commit revisado, passe `--revision HASH`. A publicação exige todos os módulos da estrutura atual.
-
-Os exemplos abaixo consideram o repositório localizado em:
-
-```text
-~/nixos-config/
+```bash
+nix-instantiate --find-file nixpkgs
+nix-instantiate --eval --strict -E '(import <nixpkgs> {}).lib.version'
 ```
 
-### 3. Preparar e avaliar a configuração da máquina
+O projeto usa a revisão do Nixpkgs disponível na máquina. As versões dos pacotes podem variar entre instalações. Se um pacote ou opção estiver disponível na avaliação, mas faltar na hora de aplicar, confira qual revisão cada ambiente está usando. Se a máquina usa canais, compare as listas de `nix-channel --list` e `sudo nix-channel --list`.
 
-Na primeira instalação, ou se a máquina ainda importa `personal.nix` pelo checkout, prepare uma cópia revisada de `configuration.nix`. Preserve seus argumentos e capture o conjunto inteiro com `args@`. Antes do corpo do módulo, introduza a referência à implantação. O trecho abaixo mostra as alterações na estrutura, com o destino protegido padrão:
+## Publicar a primeira revisão
+
+### Preparar uma cópia da configuração da máquina
+
+O instalador avalia suas mudanças antes de você editar a configuração em uso. Se sua instalação usa os dois arquivos padrão em `/etc/nixos`, faça uma cópia fora do repositório:
+
+```bash
+copia=$(mktemp -d)
+cp /etc/nixos/configuration.nix /etc/nixos/hardware-configuration.nix "$copia/" &&
+  printf '%s\n' "$copia/configuration.nix"
+```
+
+Abra no editor o `configuration.nix` do caminho exibido. Se a configuração importar outros arquivos por caminhos relativos, mantenha esses arquivos na mesma posição em relação à cópia. Preserve a conta Linux normal, `system.stateVersion` e as definições de inicialização, rede, áudio, energia e hardware da máquina.
+
+Adapte o cabeçalho e os imports da cópia com o padrão abaixo. Preserve os demais argumentos e o corpo do seu módulo.
 
 ```nix
 args@{ config, pkgs, ... }:
@@ -141,324 +66,214 @@ in
   imports = [
     ./hardware-configuration.nix
     (deployment + "/current/personal.nix")
-    # Preserve os demais imports da máquina.
   ];
-  # Preserve o restante da configuração.
+
+  # Preserve a conta Linux, os demais imports e as configurações da máquina.
 }
 ```
 
-Mantenha os imports relativos acessíveis na cópia, incluindo o módulo de hardware. A entrada `current/personal.nix` já importa a configuração local. Retire da lista qualquer import direto de `local.nix` e os imports antigos de cron e virtualização. Para manter esses recursos, use as opções em `config/local.nix`. Para XFCE, remova da cópia as declarações que habilitam `services.desktopManager.plasma6.enable` e `services.displayManager.sddm.enable`.
+Use `current/personal.nix` como único import deste repositório. Ele já carrega os módulos do projeto e as escolhas da máquina. O trecho `args@` permite que o instalador teste os arquivos que pretende publicar. Retire imports antigos feitos diretamente do repositório, de `local.nix` e dos módulos avulsos de cron ou virtualização.
 
-Depois de preparar a cópia revisada e conferir seus imports relativos, execute a primeira instalação na raiz do checkout com sua conta normal:
+- Para usar **XFCE**, retire da cópia as declarações da máquina que ativam KDE Plasma (`services.desktopManager.plasma6.enable`) ou SDDM (`services.displayManager.sddm.enable`).
+- Para usar **KDE**, retire as que ativam XFCE (`services.xserver.desktopManager.xfce.enable`) ou LightDM (`services.xserver.displayManager.lightdm.enable`).
 
-```bash
-bash install.sh --configuration /caminho/para/configuration.nix
-```
+### Executar o instalador
 
-Na primeira execução, escolha KDE Plasma ou XFCE e informe o nome e o e-mail de autoria Git. Execute o instalador pela própria conta Linux selecionada, já declarada em `users.users`. A avaliação usa o Nixpkgs local e reproduz a árvore de implantação em um diretório temporário. Pressione Enter no menu ou responda `n` na confirmação para cancelar. Depois da confirmação, o instalador publica os módulos e `config/local.nix`. Na implantação padrão, só então aplica a identidade Git com as permissões da conta executora.
-
-Use `bash install.sh` sem argumentos apenas quando `/etc/nixos/configuration.nix` já estiver migrado. Nas execuções seguintes, o instalador preserva `config/local.nix` e a configuração Git da conta.
-
-Para testar a publicação sem privilégios, use `--destination` com um caminho alternativo em um diretório temporário gravável, fora do checkout. Use esse mesmo caminho na cópia da configuração. Publicações alternativas e verificações de rollback deixam a configuração Git intacta.
-
-### 4. Aplicar os ajustes à configuração da máquina
-
-Depois da publicação, compare a cópia avaliada com `/etc/nixos/configuration.nix` e faça os ajustes manualmente. Retire também do arquivo real os imports antigos de cron, virtualização e `local.nix`. Preserve `hardware-configuration.nix`, `system.stateVersion` e os demais ajustes.
-
-**Migração de uma implantação existente**
-
-Se o arquivo local ainda estiver em `/etc/nixos/nixos-config/local.nix`, preserve o original e copie manualmente seus ajustes para `/etc/nixos/nixos-config/config/local.nix` antes de publicar a nova revisão. Se o destino já existir, revise o conteúdo e incorpore apenas os ajustes necessários. Use `config/local.example.nix` como referência para completar a conta e a identidade Git. O instalador aponta campos ausentes ou incompatíveis e mantém o arquivo intacto. Para a publicação, use uma cópia revisada da configuração da máquina com apenas o import de `current/personal.nix` da implantação. A troca de `current` preserva a revisão anterior.
-
-**Perfil gráfico**
-
-O instalador grava a escolha em `/etc/nixos/nixos-config/config/local.nix`. Para trocar de perfil depois da instalação, o proprietário pode editar esse arquivo:
-
-```nix
-personalConfig.desktop = "xfce";
-```
-
-Use `"kde"` para KDE Plasma com SDDM. Antes de ativar XFCE, retire também da configuração efetiva da máquina as declarações que habilitam Plasma e SDDM, mesmo que já tenha removido essas linhas na cópia usada pelo instalador. Preserve os ajustes de áudio, teclado e hardware. Revise a sessão padrão e o login automático, se configurados.
-
-**Opções locais**
-
-Acrescente ao `local.nix` somente as escolhas que deseja aplicar:
-
-```nix
-personalConfig.cron.enable = true;
-personalConfig.virtualization.enable = true;
-personalConfig.zsh.theme = null;
-```
-
-Cron e virtualização ficam desativados por padrão, e o tema padrão é `"bira"`. O instalador preserva o conteúdo do arquivo local nas execuções seguintes.
-
-**Conta Linux e autoria Git**
-
-Revise `personalConfig.username`, `personalConfig.git.userName` e `personalConfig.git.userEmail` no arquivo local. O módulo usa uma conta normal já declarada e configura seu shell como Zsh. Escolha o e-mail que deseja publicar nos commits. Veja a seção [Git](#git) para a precedência dos arquivos e o alcance da configuração.
-
-**Pacotes não livres**
-
-Alguns aplicativos utilizados exigem a permissão para pacotes não livres. O módulo `modules/system/packages.nix` já inclui:
-
-```nix
-nixpkgs.config.allowUnfree = lib.mkForce true;
-```
-
-O `lib.mkForce` dá prioridade a essa definição sobre definições comuns de outros módulos. Revise essa política ao adaptar o módulo.
-
-**Hardware**
-
-O leitor biométrico e o remapeamento de teclado dependem de compatibilidade com o hardware utilizado. O módulo habilita o `fprintd` e o Polkit, mas não cadastra impressões digitais; o cadastro e o funcionamento da autenticação precisam ser verificados na máquina.
-
-**Serviços**
-
-Revise a configuração do PostgreSQL antes de utilizá-la em ambientes com dados importantes.
-
-### 5. Validar a configuração e aplicar manualmente
-
-**Validação pelo Emu (agente Codex), sem `sudo`:**
+Na pasta do repositório, execute o comando pela própria conta Linux que receberá a identidade Git, sem colocar `sudo` antes de `bash`. Rode no mesmo terminal em que criou a variável `copia` ou substitua `"$copia/configuration.nix"` pelo caminho exibido na etapa anterior. O instalador pede `sudo` na hora da publicação protegida.
 
 ```bash
+bash install.sh --configuration "$copia/configuration.nix"
+```
+
+1. Escolha KDE ou XFCE. Na pergunta sobre a conta Linux, pressione Enter para aceitar a conta sugerida. Informe o nome e o e-mail que devem aparecer como autor dos seus commits.
+2. Aguarde a avaliação da cópia. Se houver erro, corrija a cópia e execute o comando novamente.
+3. Confira o destino e a revisão apresentados. Digite `s` para publicar. Enter no menu de ambientes gráficos ou `n` na confirmação cancela.
+4. Na primeira publicação protegida, o instalador grava a identidade Git depois de publicar os arquivos. Se aparecer `Revisão publicada` e depois um erro do Git, veja [Identidade Git e falhas parciais](#identidade-git-e-falhas-parciais).
+
+Por padrão, o instalador lê os arquivos gravados no commit atual (`HEAD`). Edições em andamento só entram na publicação depois de registradas em um commit. Se aparecer `Arquivo regular ausente no commit`, use uma revisão que contenha todos os arquivos esperados pelo instalador. Para escolher outro commit, acrescente `--revision HASH` ao comando. Se a revisão já foi publicada nesta máquina, consulte [Recuperar uma revisão](#recuperar-uma-revisão).
+
+Para ensaiar sem `sudo`, acrescente `--destination /CAMINHO/DESTINO` ao comando. Escolha um caminho sem espaços, fora do repositório, cujo diretório pai já exista e permita escrita pela sua conta. Use esse mesmo caminho, sem aspas, no lugar de `/etc/nixos/nixos-config` na cópia de `configuration.nix`. Deixe o instalador criar o diretório de destino. Nesse modo, a identidade Git fica registrada apenas no arquivo local do ensaio. Para a publicação protegida, restaure o caminho padrão na cópia e retire `--destination` do comando.
+
+### Verificar e aplicar
+
+Depois da publicação protegida, abra o arquivo em uso com `sudoedit /etc/nixos/configuration.nix` e repita as mudanças da cópia avaliada. Depois, confira os caminhos e valide a configuração:
+
+```bash
+readlink /etc/nixos/nixos-config/current
+readlink /etc/nixos/nixos-config/current/config/local.nix
 nixos-rebuild dry-build
 ```
 
-O comando avalia a configuração do sistema que importa o módulo e determina o que precisaria ser construído, **sem ativar uma nova geração**. A execução sem `sudo` depende das permissões e da configuração do Nix. Executá-lo na raiz deste repositório não seleciona automaticamente o `personal.nix`; a importação precisa estar configurada conforme as etapas anteriores.
+O primeiro `readlink` deve mostrar `revisions/` seguido do hash publicado. O segundo deve mostrar `/etc/nixos/nixos-config/config/local.nix`. O `dry-build` avalia os arquivos importados pela configuração da máquina e mostra o que seria construído, sem ativar o sistema. Rode-o depois de ajustar os imports, mesmo que já esteja na pasta do repositório. Se houver erro, corrija a configuração antes de aplicar. Confira o funcionamento dos serviços e a sessão gráfica depois da ativação.
 
-Para alterações exclusivamente de documentação, `git diff --check` é suficiente; não é necessário executar `nixos-rebuild dry-build`. O `dry-build` não valida a qualidade do Markdown nem garante que os serviços funcionarão depois de ativados. Para conferir problemas de espaços em branco nas alterações locais, execute:
+Depois de revisar o resultado, somente o proprietário aplica manualmente a configuração com `sudo nixos-rebuild switch`. Quando o arquivo da máquina já estiver migrado, use `bash install.sh` para publicar novas revisões. As escolhas da máquina ficam no arquivo local.
 
-```bash
-git diff --check
-```
+## Configuração local
 
-Se as alterações já estiverem na área de preparação do Git (`git add`), verifique também:
+O instalador cria `/etc/nixos/nixos-config/config/local.nix` na primeira publicação. Todas as revisões publicadas usam o mesmo arquivo, fora do repositório. Para mudar suas escolhas depois da instalação, abra o arquivo com `sudoedit /etc/nixos/nixos-config/config/local.nix`. Veja a estrutura em [config/local.example.nix](config/local.example.nix).
 
-```bash
-git diff --cached --check
-```
+No módulo local, `personalConfig.desktop` aceita `"kde"` ou `"xfce"`. `personalConfig.username` deve identificar uma conta normal válida já declarada na máquina. Os campos de autoria Git registram as escolhas da primeira instalação.
 
-**Aplicação exclusiva pelo proprietário da máquina (David):** após revisar pessoalmente os arquivos e os resultados da validação, somente David decide quando executar, no próprio terminal:
-
-```bash
-sudo nixos-rebuild switch
-```
-
-**O Emu e quaisquer outros agentes automatizados estão proibidos de executar `nixos-rebuild switch`, `nixos-rebuild boot` e `nixos-rebuild test`, com ou sem `sudo`.** Apenas David pode ativar ou agendar a ativação de uma geração. `dry-build` avalia e planeja derivações sem ativá-las; não comprova o funcionamento do serviço nem substitui testes funcionais. A responsabilidade dos agentes termina na validação permitida e no relato dos resultados.
-
-## Agendamento diário opcional
-
-O módulo `modules/optional/cron.nix` executa `$HOME/.local/share/nixos-cron/cron.sh` como a conta de `personalConfig.username`, diariamente às **03h00 no horário local**. O serviço e o timer usam o nome `nixos-cron`. O serviço é `oneshot` e termina ao concluir o script. Se o arquivo não existir, a execução é ignorada. `Persistent=false` impede recuperar tarefas perdidas enquanto o computador estava desligado.
-
-Para habilitar o agendamento, defina `personalConfig.cron.enable = true;` no `local.nix`.
-
-Após revisar e validar, o proprietário aplica manualmente a configuração:
-
-```bash
-sudo nixos-rebuild switch
-```
-
-Na sessão da conta selecionada, crie e edite manualmente o script privado fora do repositório:
-
-```bash
-mkdir -p "$HOME/.local/share/nixos-cron"
-chmod 700 "$HOME/.local/share/nixos-cron"
-touch "$HOME/.local/share/nixos-cron/cron.sh"
-chmod 600 "$HOME/.local/share/nixos-cron/cron.sh"
-vim "$HOME/.local/share/nixos-cron/cron.sh"
-```
-
-O Bash do Nixpkgs lê o arquivo diretamente, sem exigir permissão de execução. O `PATH` inclui coreutils, findutils, grep, sed e awk; não depende da configuração interativa do Zsh. Para outros programas, declare os pacotes em `path` no módulo. Não use `sudo` no script nem inclua senhas, tokens ou chaves no repositório. O conteúdo privado não é copiado para o Nix Store, e cada computador pode manter comandos diferentes.
-
-Para verificar o timer, iniciar uma execução manual e consultar os logs:
-
-```bash
-systemctl list-timers --all nixos-cron.timer
-sudo systemctl start nixos-cron.service
-journalctl -u nixos-cron.service
-systemctl status nixos-cron.timer nixos-cron.service
-journalctl -u nixos-cron.service --since today --no-pager
-```
-
-O `ConditionPathExists` faz o systemd pular o início do serviço quando o script não existe; isso não equivale a uma execução bem-sucedida nem constitui monitoramento de falhas. Confira o resultado da última execução com `systemctl status` e os registros com `journalctl`. Uma falha do script pode exigir investigação manual; o timer, por si só, não envia alertas.
-
-Mesmo na execução manual, o serviço roda como a conta selecionada. Alterações no script privado dispensam rebuild. Mudanças no módulo `modules/optional/cron.nix` exigem reconstruir e aplicar a configuração. O caminho é derivado do diretório pessoal declarado para a conta em `users.users`. O diretório deve estar acessível no horário agendado.
-
-## Virtualização opcional (QEMU/KVM e Distrobox)
-
-O módulo `modules/optional/virtualization.nix` configura o serviço libvirt, habilita o virt-manager e disponibiliza o virt-viewer. Também habilita o Podman e instala o Podman Desktop (interface gráfica para contêineres, imagens e pods), o Distrobox e o Kontainer (interface Qt/Kirigami para gerenciar ambientes Distrobox no KDE Plasma). Por padrão, a virtualização fica desativada.
-
-O módulo adiciona a conta selecionada em `personalConfig.username` ao grupo `libvirtd`. Pertencer a esse grupo permite administrar recursos de virtualização e exige confiança no usuário autorizado. Verifique também se a CPU e o firmware oferecem suporte à virtualização de hardware e se `/dev/kvm` está disponível.
-
-Para habilitar o recurso, defina `personalConfig.virtualization.enable = true;` no `local.nix`.
-
-Valide a configuração importada com `nixos-rebuild dry-build`, sem `sudo`. A aplicação, se desejada, é feita **exclusivamente por David**, executando manualmente `sudo nixos-rebuild switch`. Nenhum agente deve executar comandos de ativação.
-
-Após ativar e abrir uma nova sessão, confira:
-
-```bash
-lscpu | grep Virtualization
-ls -l /dev/kvm
-id -nG
-virsh -c qemu:///system list --all
-```
-
-Checklist para uma eventual ativação, a ser executado pelo proprietário na máquina:
-
-- Conferir suporte de virtualização no processador e no firmware (BIOS/UEFI).
-- Validar `nixos-rebuild dry-build` com o módulo efetivamente importado, sem ativar o sistema.
-- Após aplicação manual por David e nova sessão, verificar `/dev/kvm`, grupos do usuário e conexão `qemu:///system`.
-- Criar uma VM de teste e verificar inicialização, armazenamento, console gráfico e rede virtual.
-- Se necessário, configurar separadamente firmware UEFI/OVMF, TPM virtual e conectividade bridge.
-
-A criação de VMs, a rede virtual NAT ou bridge, o firmware UEFI/OVMF e o TPM virtual podem exigir configuração adicional. O módulo não configura essas opções explicitamente nem garante compatibilidade com todo hardware. O virt-manager pode ser utilizado no KDE Plasma Wayland, normalmente via XWayland.
-
-### Contêineres de desenvolvimento (Podman, Podman Desktop, Distrobox e Kontainer)
-
-**QEMU/KVM não é Distrobox.** QEMU/KVM executa máquinas virtuais completas; Distrobox integra contêineres Linux ao ambiente do usuário, compartilhando o kernel do host. O módulo utiliza **Podman** como runtime, **Podman Desktop** para inspecionar e administrar contêineres, imagens e pods, e **Kontainer** como interface gráfica específica para o Distrobox; não instala DistroShelf nem Docker.
-
-Configuração declarativa incluída no módulo:
+Cron e virtualização começam desativados. Se quiser habilitá-los ou retirar o tema do Zsh, adicione apenas as linhas que desejar **dentro do bloco `personalConfig = { ... };`** criado pelo instalador:
 
 ```nix
-virtualisation.podman.enable = true;
-
-environment.systemPackages = with pkgs; [
-  virt-viewer
-  podman-desktop
-  distrobox
-  kontainer
-];
+cron.enable = true;
+virtualization.enable = true;
+zsh.theme = null;
 ```
 
-A presença desses pacotes e do serviço Podman **não cria contêineres automaticamente**. As imagens, os contêineres e os aplicativos exportados pelo Distrobox são gerenciados posteriormente pelo usuário; não são declarados neste arquivo. A compatibilidade do pacote `kontainer` depende da revisão do Nixpkgs utilizada.
+O tema padrão do Oh My Zsh é `"bira"`. Em `zsh.theme`, você pode indicar outro tema disponível. Com `null`, os plugins, o autocompletar, as sugestões e o destaque de sintaxe continuam disponíveis. Salve e siga os passos de [verificação e aplicação](#verificar-e-aplicar), começando pelo `dry-build`. Se trocar de ambiente gráfico, confira também as declarações da máquina conforme a seção [Publicar a primeira revisão](#publicar-a-primeira-revisão). Se houver sessão padrão ou login automático configurado, revise essas escolhas.
 
-Após David importar, validar e aplicar manualmente o módulo, poderá conferir os comandos e criar um ambiente de teste:
+Se uma implantação anterior guardava o arquivo em `/etc/nixos/nixos-config/local.nix`, preserve o original e transfira os ajustes para `/etc/nixos/nixos-config/config/local.nix` manualmente. Complete a identidade usando o modelo versionado. Retire o import direto do arquivo local na cópia da máquina antes da publicação.
+
+## Perfis gráficos
+
+| Perfil | Sessão | Gerenciador de login |
+| --- | --- | --- |
+| KDE | KDE Plasma da configuração padrão do NixOS | SDDM |
+| XFCE | XFCE em X11 | LightDM |
+
+### Complementos do XFCE
+
+Estes complementos fazem parte do perfil XFCE.
+
+| Complemento | Função | Quando entra em uso |
+| --- | --- | --- |
+| Whisker Menu | Menu de aplicativos pesquisável | Presente no modelo inicial. Em painéis existentes, adicione manualmente. |
+| Docklike | Barra de tarefas com ícones e janelas agrupadas | Presente no modelo inicial. Em painéis existentes, adicione manualmente. |
+| Clipman | Histórico da área de transferência | Adicione manualmente se quiser guardar o histórico. |
+| Thunar com Xarchiver | Compactação e extração no gerenciador de arquivos | Use o menu do botão direito. Se for solicitado um gerenciador de arquivos compactados, escolha Xarchiver. |
+
+Na primeira abertura do painel, o XFCE pode carregar o modelo do projeto, que inclui menu, barra de tarefas, seletor de áreas de trabalho, bandeja, relógio e ações da sessão. Se você já tem um painel configurado ou se um complemento não aparecer, abra **Painel → Preferências do painel → Itens** para adicioná-lo. Confira o resultado em uma sessão XFCE depois de aplicar a configuração. [Preferências do painel](https://docs.xfce.org/xfce/xfce4-panel/preferences)
+
+## Aplicativos e serviços
+
+```text
+nixos-config/
+├── install.sh
+├── personal.nix
+├── config/
+│   ├── local.example.nix
+│   └── options.nix
+└── modules/
+    ├── applications/  Navegadores, senhas, desenvolvimento, escritório, JDK e Zsh
+    ├── desktops/      Perfis KDE e XFCE, com painel e Thunar em xfce/
+    ├── optional/      Cron, virtualização e tema do Zsh
+    ├── services/      Bluetooth, fprintd, keyd, Polkit e PostgreSQL
+    └── system/        Pacotes gerais, manutenção do Nix e ZRAM
+```
+
+`personal.nix` declara os imports explicitamente. `modules/optional/virtualization.nix` reúne os imports do conjunto opcional, incluindo seus aplicativos e os módulos de serviço libvirt e Podman. O inventário no começo de `install.sh` lista o que a implantação recebe, incluindo o modelo do painel. Ao adicionar um arquivo necessário, atualize o import correspondente e o inventário.
+
+| Recurso | Configuração |
+| --- | --- |
+| Navegadores | Google Chrome instalado. O módulo de Firefox do NixOS fica desabilitado. O projeto permite pacotes proprietários em todo o sistema, com prioridade sobre configurações comuns de outros módulos. |
+| Desenvolvimento | IntelliJ IDEA, VS Code, DBeaver, Postman e Eclipse Temurin JDK 25. |
+| Uso geral | Bitwarden, WPS Office, Vim, wget, usbutils, Git, htop e pv. |
+| Biometria e Bluetooth | O serviço fprintd depende do leitor. Cadastre as digitais separadamente. O adaptador Bluetooth começa ligado, e o pareamento fica a cargo do usuário. |
+| Terminal | A conta escolhida passa a usar Zsh, com Oh My Zsh e os plugins de Git e sudo. |
+| Teclado | O keyd transforma `leftshift+leftmeta+f23` em reproduzir ou pausar. Em alguns notebooks, essa combinação é emitida pela tecla Copilot. A regra vale para todos os teclados gerenciados. Teste no seu teclado, pois o evento pode variar. |
+
+### Java
+
+O pacote `temurin-bin-25` disponibiliza `java` e `javac` no terminal. Use `java -version` e `javac -version` para conferir qual versão o terminal encontra.
+
+A instalação global deixa a escolha de `JAVA_HOME` e do JDK da IDE a cargo do usuário. Se uma ferramenta exigir `JAVA_HOME`, aponte a variável para o diretório do JDK escolhido. Na IDE, selecione o SDK de acordo com a versão de Java exigida pelo projeto.
+
+### PostgreSQL
+
+O PostgreSQL 18 atende conexões TCP da própria máquina em `localhost:5432`. As regras para IPv4 e IPv6 locais exigem SCRAM-SHA-256. O servidor também usa SCRAM-SHA-256 ao gravar senhas novas ou alteradas.
+
+Com `-h localhost`, o `psql` usa TCP. Ao omitir o endereço, ele pode usar um **socket Unix**, que segue as regras `local` do arquivo efetivo de autenticação. Para conferir se esse acesso exige senha, execute `SHOW hba_file;` em uma sessão autorizada e leia as entradas `local` do arquivo indicado.
+
+Crie os usuários e bancos de aplicação, guarde as senhas fora dos arquivos Nix e mantenha seus backups. A configuração é voltada ao desenvolvimento local. Revise a autenticação e o firewall antes de abrir o serviço à rede ou usá-lo em produção.
+
+Use `pg_isready` para conferir se o serviço responde. Para testar o acesso, troque `USUARIO` e `BANCO` por um usuário e um banco já criados. O `psql` pede a senha ao conectar.
 
 ```bash
-podman --version
-distrobox --version
-distrobox-list
-# Exemplo opcional: cria um contêiner de desenvolvimento
-# distrobox-create --name dev-fedora --image fedora:latest
+pg_isready -h localhost -p 5432
+psql -h localhost -p 5432 -U USUARIO -d BANCO -W
 ```
 
-O exemplo de criação permanece comentado para evitar alterações involuntárias. O Kontainer e o Podman Desktop poderão ser abertos pelo lançador de aplicativos do KDE quando estiverem instalados. A conexão do Podman Desktop com o runtime deve ser verificada na sessão do usuário; a instalação do pacote, por si só, não garante a detecção automática do socket rootless. O Podman pode funcionar em modo rootless para contêineres do usuário; esse uso depende de permissões e configurações adequadas do sistema. Contêineres Distrobox não oferecem o mesmo isolamento de uma máquina virtual completa.
+### ZRAM
 
-A opção de virtualização habilita em conjunto libvirt/QEMU/KVM e Podman/Podman Desktop/Distrobox/Kontainer.
+O ZRAM oferece uma área de swap comprimida em RAM com zstd. Os 50% definem o tamanho lógico do dispositivo, sem reservar metade da memória de uma vez. O conteúdo desaparece quando a máquina desliga. Para hibernar, configure separadamente uma área de swap em disco e a retomada do sistema a partir dela.
 
-## Memória comprimida (ZRAM)
-
-O módulo `personal.nix` habilita swap comprimido em memória com `zramSwap.enable = true`, algoritmo `zstd` e `memoryPercent = 50`. Esse percentual define o tamanho lógico do dispositivo, não uma reserva antecipada de metade da RAM física.
-
-A configuração dispensa partição ou arquivo swap em disco para o uso do ZRAM, mas **não fornece hibernação em disco**. Depois de aplicar a configuração manualmente, confira:
+Depois de aplicar a configuração, `zramctl` mostra o dispositivo comprimido e `swapon --show` lista as áreas de swap ativas.
 
 ```bash
 zramctl
 swapon --show
 ```
 
-## Manutenção do Nix Store
+### Manutenção do Nix
 
-O módulo habilita a interface moderna do Nix por meio de `nix.settings.experimental-features = [ "nix-command" ];`. **Flakes continuam desabilitados**; o repositório segue utilizando canais e módulos tradicionais.
+A coleta semanal pode remover gerações elegíveis com mais de 60 dias e liberar espaço ao apagar objetos do Nix Store que ficaram sem referências. Perfis e outras raízes do Nix mantêm vivos os objetos que ainda referenciam. Use `nix-generations` para ver quais gerações continuam disponíveis para voltar a uma configuração já construída. `nix-store --gc --print-dead` lista objetos elegíveis à coleta sem apagá-los.
 
-A coleta de lixo é agendada semanalmente com `nix.gc.automatic = true`, `dates = "weekly"` e `options = "--delete-older-than 60d"`. Isso torna elegíveis para exclusão gerações com mais de 60 dias. **Gerações excluídas não podem mais ser usadas para rollback**; objetos ainda referenciados por raízes do Nix são preservados.
+Recuperar uma **revisão publicada** aponta `current` para arquivos Nix antigos que serão usados na próxima construção. Uma geração excluída deixa de estar disponível para rollback, mesmo se a revisão com seus módulos ainda estiver em `revisions/`. Veja [Recuperar uma revisão](#recuperar-uma-revisão).
 
-Para consultar as gerações disponíveis:
-
-```bash
-sudo nix-env --list-generations --profile /nix/var/nix/profiles/system
-```
-
-Para listar objetos atualmente elegíveis à coleta, sem apagá-los:
+Em `modules/system/maintenance.nix`, `nix-update` atualiza os canais de root. `nix-check` planeja a construção, `nix-system-build` constrói sem ativar e `nix-switch` aplica a configuração. `nix-diff` compara dois caminhos existentes, na ordem origem e destino. Por exemplo, para comparar a geração 10, se ainda existir, com o sistema em execução:
 
 ```bash
-nix-store --gc --print-dead
+nix-diff /nix/var/nix/profiles/system-10-link /run/current-system
 ```
 
-A aplicação das mudanças continua sendo responsabilidade exclusiva do proprietário da máquina, após validação.
+### Agendamento privado
 
-## PostgreSQL
-
-O módulo habilita o PostgreSQL 18 para desenvolvimento local.
-
-Configuração:
-
-- Escuta TCP limitada a `localhost`.
-- Porta `5432`.
-- Autenticação TCP local utilizando SCRAM-SHA-256.
-- Criação ou alteração de senhas configurada para usar SCRAM-SHA-256 (`password_encryption`).
-- Nenhuma senha definida diretamente no arquivo Nix.
-
-As regras de autenticação TCP configuradas são:
-
-```text
-host all all 127.0.0.1/32 scram-sha-256
-host all all ::1/128      scram-sha-256
-```
-
-O módulo declara apenas regras `host` para conexões TCP. **Ele não estabelece explicitamente a autenticação por socket Unix** (`local`); a política efetiva depende das regras geradas pelo módulo NixOS e de sua composição. Não presuma que sockets Unix exigem senha SCRAM. Antes de depender dessa política, consulte o arquivo `pg_hba.conf` efetivo da instância (por exemplo, usando `SHOW hba_file;` no PostgreSQL) e revise as entradas `local`. Alterar a política de autenticação exige decisão separada.
-
-A configuração não disponibiliza conexões TCP para outros computadores da rede.
-
-**Importante:** a senha dos usuários do banco deve ser administrada separadamente. Este repositório não configura senhas, bancos de aplicação ou políticas de backup.
-
-Não utilize esta configuração como referência de segurança para produção sem uma revisão apropriada.
-
-## Java
-
-O módulo inclui **Eclipse Temurin JDK 25** nos pacotes globais do sistema. Ele não define `JAVA_HOME` nem configura o JDK utilizado por cada IDE ou projeto.
-
-Pacote Nixpkgs:
-
-```nix
-temurin-bin-25
-```
-
-Após aplicar a configuração, confira a versão encontrada no `PATH`:
+Com `personalConfig.cron.enable = true`, o agendamento `nixos-cron` roda diariamente às 03h no horário da máquina. Entre na conta selecionada na instalação e crie o script privado no diretório pessoal dessa conta:
 
 ```bash
-java -version
-javac -version
+cron_dir="$HOME/.local/share/nixos-cron"
+script="$cron_dir/cron.sh"
+mkdir -p -- "$cron_dir" &&
+  chmod 700 -- "$cron_dir" &&
+  (umask 077; touch -- "$script") &&
+  chmod 600 -- "$script" &&
+  vim -- "$script"
 ```
 
-A instalação global do JDK não impede a utilização de outras versões em ambientes de desenvolvimento específicos.
+`touch` cria o arquivo quando está ausente e preserva o conteúdo de um script existente. O Bash lê o arquivo em cada execução, sem exigir permissão de execução nem copiar o script para o Nix Store. O serviço tem seu próprio `PATH`, com utilitários como `find`, `grep`, `sed` e `awk`. Se o script precisar de outros programas, declare-os no `path` do serviço.
 
-## Zsh
-
-O módulo habilita:
-
-- Zsh como shell do usuário configurado.
-- Oh My Zsh.
-- Plugins `git` e `sudo`.
-- Autocompletar, sugestões automáticas e destaque de sintaxe.
-
-O tema do Oh My Zsh é configurado separadamente por `personalConfig.zsh.theme`. O padrão é `"bira"`. Use o nome de outro tema disponível ou defina `null` para usar o Zsh com Oh My Zsh e sem tema.
-
-### Atalhos de manutenção
-
-`environment.shellAliases` define aliases globais para os shells dos usuários, incluindo o Zsh. Após aplicar a configuração, abra um novo terminal para utilizá-los.
-
-| Alias | Efeito |
-|---|---|
-| `nix-update` | Atualiza os canais do usuário root com `sudo nix-channel --update`; não atualiza o sistema em execução. |
-| `nix-check` | Executa `nixos-rebuild dry-build`: avalia e planeja a construção, sem realizar uma compilação completa nem ativar o sistema. |
-| `nix-system-build` | Executa `nixos-rebuild build`: constrói a configuração sem ativá-la. |
-| `nix-switch` | Executa `sudo nixos-rebuild switch`: constrói e ativa a configuração. Uso manual exclusivo do proprietário; agentes não devem executá-lo. |
-| `nix-generations` | Lista as gerações do perfil do sistema. |
-| `nix-diff` | Executa `nix store diff-closures` com dois caminhos explícitos, na ordem origem e destino. |
-
-O nome `nix-system-build` preserva o comando nativo `nix-build`. Para comparar gerações, escolha dois caminhos existentes; não é necessário que seus números sejam consecutivos. Por exemplo, se as gerações 10 e 14 existirem:
+Depois de habilitar o agendamento e aplicar a configuração, confira o próximo horário e os registros:
 
 ```bash
-nix-diff /nix/var/nix/profiles/system-10-link /nix/var/nix/profiles/system-14-link
+systemctl list-timers --all nixos-cron.timer
+systemctl status nixos-cron.service
+journalctl -u nixos-cron.service
 ```
 
-A comparação apenas consulta as closures, sem alterar ou ativar gerações. `nix-diff` habilita `nix-command` somente nessa chamada. `/run/current-system` pode ser usado como um dos caminhos para representar a geração ativa.
+O serviço termina ao concluir o script, então pode aparecer como inativo entre execuções. Se o arquivo estiver ausente, o serviço pula a execução. Se o notebook estiver desligado às 03h, o agendamento aguarda o próximo horário. Para rodar o script na hora, o proprietário pode usar `sudo systemctl start nixos-cron.service`. Mesmo nessa execução o script roda pela conta selecionada. Consulte o log para detectar falhas, pois o timer não envia alertas.
 
-## Git
+### Virtualização
 
-O Git continua disponível no sistema. Na primeira publicação no destino protegido, o instalador grava apenas `user.name`, `user.email` e `init.defaultBranch` com `git config --global`, pela conta selecionada. O Git grava em `~/.gitconfig` ou no arquivo XDG existente quando `~/.gitconfig` estiver ausente. Aliases, assinatura e as demais preferências são preservados. Configurações de cada repositório continuam com precedência. [Documentação das configurações do Git](https://git-scm.com/docs/git-config#FILES)
+`personalConfig.virtualization.enable = true` habilita libvirt com QEMU/KVM, virt-manager e virt-viewer para máquinas virtuais, além de Podman, Podman Desktop, Distrobox e Kontainer para contêineres. Para usar a aceleração por hardware, verifique se o processador oferece suporte e se a virtualização está habilitada no firmware. Depois de aplicar a configuração, encerre a sessão e entre novamente para receber o grupo `libvirtd`, que dá à conta acesso à administração do libvirt. Para conferir:
 
-O instalador confere o `HOME` da conta, aceita `XDG_CONFIG_HOME` dentro dele e recusa links simbólicos, permissões inseguras e variáveis que mudam o arquivo de configuração ou a autoria. Se as chaves estiverem duplicadas ou vierem de arquivos incluídos, revise suas origens antes de instalar.
+```bash
+ls -l /dev/kvm
+id -nG
+virsh -c qemu:///system list --all
+podman --version
+distrobox-list
+```
 
-`config/local.nix` registra as escolhas da instalação. Editar `personalConfig.git.userName` ou `personalConfig.git.userEmail` ali não altera o arquivo global do Git, mesmo após um rebuild. Para atualizar a identidade depois, execute pela própria conta:
+- **Máquinas virtuais:** QEMU/KVM executa um sistema convidado completo, com kernel próprio. Crie a máquina no virt-manager e configure UEFI, TPM virtual ou rede por ponte conforme a necessidade.
+- **Contêineres Distrobox:** compartilham o kernel da máquina e podem acessar seu diretório pessoal. Use-os para ambientes de desenvolvimento com software de confiança. O Podman executa os contêineres, o Podman Desktop administra imagens e contêineres, e o Kontainer gerencia ambientes Distrobox. [Implicações de segurança do Distrobox](https://distrobox.it/#security-implications)
+
+A criação dos ambientes e a escolha das imagens ficam a cargo do usuário. Se o Podman Desktop não encontrar o Podman da sua conta, confira na sua sessão a conexão ao socket do Podman em modo sem privilégios (`rootless`).
+
+## Identidade Git e falhas parciais
+
+Depois da primeira publicação protegida, o instalador usa `git config --global` pela própria conta selecionada para definir o nome do autor (`user.name`), o e-mail (`user.email`) e o nome `main` para a primeira branch de novos repositórios (`init.defaultBranch`). O Git guarda essas preferências em `~/.gitconfig` ou, se esse arquivo estiver ausente, em um arquivo de configuração global XDG já existente, normalmente `~/.config/git/config`. Aliases, assinatura e demais preferências são preservados.
+
+Se o instalador parar **antes de publicar** por causa do Git, confira a mensagem. Os caminhos globais precisam ficar dentro do diretório pessoal da conta, com propriedade e permissões adequadas e sem links simbólicos. O instalador também verifica variáveis que redirecionam a configuração ou a autoria e chaves duplicadas ou definidas em arquivos incluídos. Resolva o problema indicado antes de tentar novamente.
+
+Se aparecer **`Revisão publicada`** e depois um erro do Git, os arquivos do NixOS já foram publicados. O instalador informa quais valores confirmou e onde parou. Pela própria conta, veja o valor e o arquivo de origem de cada preferência:
+
+```bash
+git config --global --includes --show-origin --get-regexp '^(user\.(name|email)|init\.defaultbranch)$'
+```
+
+Execute somente os comandos correspondentes aos ajustes que faltarem, substituindo os exemplos pelos seus dados:
 
 ```bash
 git config --global user.name "NOVO_NOME"
@@ -466,110 +281,33 @@ git config --global user.email "NOVO_EMAIL"
 git config --global init.defaultBranch main
 ```
 
-Se alguma gravação falhar depois da publicação, a revisão NixOS permanece publicada. O instalador informa quais chaves foram verificadas e onde parou. Revise as origens com `git config --show-origin --list` e complete manualmente as chaves pendentes. Uma nova execução preserva o arquivo Git no estado em que estiver.
+`config/local.nix` registra as escolhas. Depois da primeira publicação, altere a autoria diretamente no Git quando precisar. Reconstruir o sistema ou executar novamente o instalador preserva as preferências Git existentes. A configuração de um repositório específico tem precedência sobre a global.
 
-## Remapeamento da tecla Copilot
+## Recuperar uma revisão
 
-Uma das personalizações deste ambiente é o remapeamento da tecla Copilot para controle de reprodução multimídia.
+O instalador mantém as versões publicadas em `/etc/nixos/nixos-config/revisions/` e verifica a integridade dos arquivos antes de trocar `current`. O link indica qual versão será usada na próxima construção. Todas usam as escolhas atuais de `config/local.nix`. Com os imports da máquina migrados, a configuração publicada funciona independentemente da cópia do repositório.
 
-Em determinados teclados, essa tecla emite a combinação:
-
-```text
-LeftShift + LeftMeta + F23
-```
-
-O módulo configura o `keyd` com a intenção de transformá-la em:
-
-```text
-Play/Pause
-```
-
-Configuração:
-
-```nix
-services.keyd = {
-  enable = true;
-
-  keyboards.default = {
-    ids = [ "*" ];
-
-    settings.main = {
-      "leftshift+leftmeta+f23" = "playpause";
-    };
-  };
-};
-```
-
-O remapeamento é configurado no serviço `keyd`, separado dos atalhos do KDE Plasma. A presença dessa regra no módulo não comprova seu funcionamento: valide a combinação emitida pelo teclado e o resultado na máquina antes de depender desse atalho.
-
-**Observação:** nem todos os teclados possuem a mesma implementação da tecla Copilot. A configuração também utiliza `ids = [ "*" ]`, abrangendo os teclados gerenciados pelo serviço.
-
-## Versionamento e reprodução
-
-O objetivo deste repositório é manter configurações reutilizáveis entre instalações.
-
-Entretanto, o `personal.nix` sozinho não garante versões de pacotes idênticas em máquinas diferentes. Os resultados também dependem da revisão do Nixpkgs utilizada.
-
-Para inspecionar a origem dos canais configurados, utilize:
-
-```bash
-nix-channel --list
-sudo nix-channel --list
-```
-
-Para consultar a revisão do Nixpkgs no contexto do usuário atual, quando o canal estiver acessível:
-
-```bash
-nix-instantiate --eval --strict -E '(import <nixpkgs> {}).lib.version'
-```
-
-Registre também qual canal ou revisão é utilizado pelo `nixos-rebuild` no ambiente de root. Esses comandos ajudam a documentar o ambiente, mas **não fixam** uma revisão e não garantem, isoladamente, uma reprodução exata.
-
-Para reprodução exata, é necessário fixar a revisão das dependências por um mecanismo apropriado.
-
-Este projeto prioriza inicialmente uma configuração simples, baseada nos módulos tradicionais do NixOS.
-
-### Implantação e recuperação
-
-- O checkout da conta do usuário fornece os arquivos para publicação. O instalador copia os módulos do commit selecionado e verifica seus hashes. Depois da migração dos imports da máquina, a configuração publicada pode ser avaliada mesmo sem o checkout de origem.
-- `/etc/nixos/nixos-config/config/local.nix` guarda a identidade, o perfil e os ajustes da máquina fora das revisões. Cada revisão aponta `config/local.nix` para esse arquivo por um link absoluto. O checkout e os arquivos versionados da revisão contêm apenas o modelo `config/local.example.nix` e as opções. Mantenha credenciais em arquivos protegidos fora do Nix Store.
-- A implantação protegida fica em `/etc/nixos/nixos-config`, sob propriedade de root. O publicador recebe o conteúdo por entrada padrão e confere os hashes após gravá-lo em uma área privada dentro do destino protegido ou em seu diretório pai. O link `current` só muda após a revisão estar completa em `revisions/HASH`. A revisão anterior continua disponível mesmo após a troca.
-
-Para recuperar uma revisão, use o hash completo informado pelo instalador. Primeiro, no checkout, avalie a revisão preservada com o `local.nix` e a configuração da máquina atuais:
+Na pasta do repositório, substitua `HASH_ANTERIOR` pelo código completo exibido pelo instalador ao preservar a revisão anterior. Valide a revisão com a configuração atual da máquina:
 
 ```bash
 bash install.sh --check-rollback HASH_ANTERIOR
 ```
 
-Se a avaliação falhar, mantenha `current` e revise a incompatibilidade. Revisões antigas sem o vínculo para `config/local.nix` são recusadas. Mesmo com o vínculo, uma revisão pode desconhecer opções do arquivo local ou ter serviços incompatíveis com os imports da máquina.
+A verificação pode recusar revisões antigas sem o vínculo para o arquivo local ou incompatíveis com a configuração atual. Se houver erro, mantenha a revisão atual.
 
-`--check-rollback` verifica a compatibilidade em uma operação separada e não torna atômica a troca manual posterior de `current`. No exemplo abaixo, o último comando substitui o link atomicamente por renomeação no mesmo diretório. A avaliação e a renomeação podem ocorrer sobre estados diferentes se a configuração mudar nesse intervalo. Execute os comandos a partir de `/etc/nixos/nixos-config`:
+A avaliação e a troca manual são operações separadas. O `mv` abaixo substitui o link `current` de forma atômica, por renomeação no mesmo diretório. Entre a avaliação e a troca, porém, outra publicação ou uma edição da configuração pode mudar o estado que foi validado. Evite fazer essas mudanças em paralelo e, se algo mudou, rode a verificação novamente antes da troca. Use o mesmo hash nos dois passos:
 
 ```bash
-sudo ln -s -- revisions/HASH_ANTERIOR .current-recovery &&
-  sudo mv -Tf -- .current-recovery current
+cd /etc/nixos/nixos-config &&
+  sudo ln -s -- revisions/HASH_ANTERIOR .current-recovery &&
+  sudo mv -Tf -- .current-recovery current &&
+  nixos-rebuild dry-build
 ```
 
-Valide novamente com `nixos-rebuild dry-build`. Essa troca recupera os módulos publicados e preserva `local.nix`; qualquer alteração no sistema em execução depende da aplicação manual pelo proprietário.
+Se o `dry-build` passar e você quiser colocar a revisão recuperada em uso, siga a etapa de ativação em [Verificar e aplicar](#verificar-e-aplicar).
 
-## Segurança
+## Cuidados com credenciais e permissões
 
-Antes de utilizar ou compartilhar qualquer configuração:
+Guarde senhas, tokens e chaves privadas em arquivos com acesso restrito, fora do Git e de `/nix/store`, e faça os serviços lerem esses arquivos em tempo de execução. Valores gravados em arquivos Nix, inclusive em `local.nix`, podem aparecer em texto claro nos arquivos gerados e ficar acessíveis a outros usuários da máquina pelo Nix Store. [Manual do Nix sobre segredos](https://nix.dev/manual/nix/2.34/store/secrets)
 
-- Revise os serviços habilitados e as interfaces de rede expostas.
-- Não armazene senhas, tokens ou outras credenciais diretamente em arquivos Nix públicos.
-- Para alterações no módulo Nix, o agente deve validar com `nixos-rebuild dry-build`, sem `sudo`, e informar o resultado. Para alterações exclusivamente de documentação, basta `git diff --check`. Somente David pode executar manualmente comandos de ativação (`nixos-rebuild switch`, `boot` ou `test`).
-- Mantenha os arquivos e diretórios importados protegidos contra modificações não autorizadas.
-- Adapte configurações específicas de usuário e hardware.
-
-## Filosofia
-
-Este repositório nasceu de uma necessidade prática: **não precisar resolver o mesmo problema duas vezes**.
-
-Cada ajuste manual que puder ser representado de forma declarativa se torna uma oportunidade de melhorar a próxima instalação.
-
-A proposta não é automatizar tudo a qualquer custo, mas tornar o ambiente de desenvolvimento mais previsível, compreensível e fácil de manter.
-
----
-
-**Nota:** este é um projeto pessoal, compartilhado como referência e ponto de partida. Revise e adapte as configurações antes de utilizá-las em sua própria instalação.
+Mantenha os arquivos de configuração importados protegidos contra escrita por contas sem autorização. Antes de usar a configuração em outra máquina, revise os serviços habilitados e as interfaces de rede em que eles escutam.

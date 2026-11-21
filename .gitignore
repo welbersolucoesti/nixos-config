@@ -1,3 +1,4 @@
-#Arquivos ignorados
+# Anotações locais que não fazem parte da configuração.
 *.txt
+# A identidade e as escolhas do notebook ficam fora do Git.
 /config/local.nix

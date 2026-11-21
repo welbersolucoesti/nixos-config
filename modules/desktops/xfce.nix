@@ -1,6 +1,9 @@
 { config, lib, ... }:
 
 {
+  imports = [ ./xfce/panel.nix ./xfce/thunar.nix ];
+
+  # O perfil seleciona a sessão X11 e deixa áudio, rede e energia a cargo da máquina e do NixOS.
   config = lib.mkIf (config.personalConfig.desktop == "xfce") {
     services.xserver.enable = true;
     services.xserver.displayManager.lightdm.enable = true;

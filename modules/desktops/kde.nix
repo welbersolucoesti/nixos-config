@@ -1,6 +1,7 @@
 { config, lib, ... }:
 
 {
+  # O perfil mantém o Plasma com SDDM. As asserções sinalizam conflito com XFCE ou LightDM.
   config = lib.mkIf (config.personalConfig.desktop == "kde") {
     services.xserver.enable = true;
     services.displayManager.sddm.enable = true;

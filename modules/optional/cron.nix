@@ -6,10 +6,6 @@ let
 in
 {
   config = lib.mkIf (config.personalConfig.cron.enable && username != null) {
-    # ----------------------------------------------------------------------------
-    # Execução do script privado
-    # ----------------------------------------------------------------------------
-
     systemd.services.nixos-cron = {
       description = "Executa o script privado de agendamento";
 
@@ -39,9 +35,6 @@ in
     };
 
 
-    # ----------------------------------------------------------------------------
-    # Agendamento pelo systemd
-    # ----------------------------------------------------------------------------
 
     systemd.timers.nixos-cron = {
       description = "Agenda o script privado diariamente às 03h00";
