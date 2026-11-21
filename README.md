@@ -14,7 +14,7 @@ O repositório representa meu ambiente pessoal. Ele pode servir como referência
 
 ## Ambiente
 
-A configuração foi desenvolvida para um ambiente NixOS com KDE Plasma e Wayland. O `personal.nix` não habilita o ambiente gráfico nem configura a sessão Wayland; essas definições devem existir na configuração principal da máquina.
+A configuração foi desenvolvida para NixOS com KDE Plasma e Wayland. Com `personalConfig.desktop` ausente, a configuração da máquina continua responsável pelo ambiente gráfico. Os perfis opcionais são KDE Plasma com SDDM e XFCE com LightDM em X11.
 
 As definições incluem:
 
@@ -34,16 +34,26 @@ Alguns recursos dependem de hardware compatível ou da disponibilidade dos pacot
 ## Estrutura do repositório
 
 ```text
-nix-configs/
+nixos-config/
 ├── .gitignore
 ├── AGENTS.md
 ├── README.md
-├── personal.nix
 ├── cron.nix
+├── modules/
+│   ├── desktops/
+│   │   ├── kde.nix
+│   │   └── xfce.nix
+│   ├── personal.nix
+│   └── system/
+│       ├── hardware.nix
+│       ├── maintenance.nix
+│       ├── packages.nix
+│       └── postgresql.nix
+├── personal.nix
 └── virtualization.nix
 ```
 
-**`personal.nix`** contém as configurações pessoais do sistema, incluindo aplicativos, serviços e ajustes de hardware.
+**`personal.nix`** é o ponto de entrada. Os módulos em `modules/system/` declaram pacotes, serviços, hardware e manutenção. `modules/personal.nix` reúne as configurações de Zsh e Git, e `modules/desktops/` contém os perfis gráficos.
 
 **`cron.nix`** define um serviço e um timer opcionais para um script privado externo ao repositório.
 
@@ -66,12 +76,12 @@ Esta configuração é um módulo complementar. Ela **não substitui** os arquiv
 
 ### 2. Obter os arquivos
 
-Clone este repositório para um diretório de sua preferência ou copie os arquivos manualmente.
+Clone este repositório para um diretório de sua preferência ou copie a árvore completa de arquivos, incluindo `modules/`.
 
 Os exemplos abaixo consideram o repositório localizado em:
 
 ```text
-~/nix-configs/
+~/nixos-config/
 ```
 
 ### 3. Importar o módulo pessoal
@@ -104,9 +114,19 @@ Alternativamente, o `configuration.nix` pode importar diretamente o caminho abso
 
 Antes de aplicar o arquivo, revise os pontos abaixo.
 
+**Perfil gráfico**
+
+Para selecionar um perfil, acrescente à configuração local da máquina, por exemplo em `/etc/nixos/configuration.nix`:
+
+```nix
+personalConfig.desktop = "xfce";
+```
+
+Use `"kde"` para KDE Plasma com SDDM. Ao migrar do Plasma para o XFCE, remova as declarações locais que habilitam `services.desktopManager.plasma6.enable` e `services.displayManager.sddm.enable`. Preserve os imports da máquina e as configurações de áudio, teclado e hardware. Se houver sessão padrão ou login automático configurado, revise essas opções para a nova sessão.
+
 **Nome do usuário**
 
-A configuração contém:
+O arquivo `modules/personal.nix` contém:
 
 ```nix
 users.users.david.shell = pkgs.zsh;
@@ -122,7 +142,7 @@ Por ser uma configuração **de sistema**, os valores podem ser herdados por out
 
 **Pacotes não livres**
 
-Alguns aplicativos utilizados exigem a permissão para pacotes não livres. O `personal.nix` já inclui:
+Alguns aplicativos utilizados exigem a permissão para pacotes não livres. O módulo `modules/system/packages.nix` já inclui:
 
 ```nix
 nixpkgs.config.allowUnfree = lib.mkForce true;
@@ -405,7 +425,7 @@ O módulo gerencia `/etc/gitconfig` com as opções:
     defaultBranch = main
 ```
 
-O e-mail acima é apenas ilustrativo. No `personal.nix`, revise a identidade antes de publicar ou reutilizar a configuração. Como `/etc/gitconfig` é global para o sistema, outros usuários podem herdar essa identidade. Configurações específicas do usuário ou do repositório têm precedência.
+O e-mail acima é apenas ilustrativo. Em `modules/personal.nix`, revise a identidade antes de publicar ou reutilizar a configuração. Como `/etc/gitconfig` é global para o sistema, outros usuários podem herdar essa identidade. Configurações específicas do usuário ou do repositório têm precedência.
 
 Após aplicar a configuração, confira quais arquivos estão fornecendo os valores efetivos:
 
@@ -473,6 +493,10 @@ Registre também qual canal ou revisão é utilizado pelo `nixos-rebuild` no amb
 Para reprodução exata, é necessário fixar a revisão das dependências por um mecanismo apropriado.
 
 Este projeto prioriza inicialmente uma configuração simples, baseada nos módulos tradicionais do NixOS.
+
+### Implantação futura
+
+O plano é manter o checkout de desenvolvimento na conta do usuário, a seleção de desktop e os ajustes da máquina em um módulo local persistente, e as revisões implantadas em um diretório protegido. A configuração da máquina importará o módulo local e a revisão publicada por caminhos estáveis. A revisão anterior poderá ser recuperada sem trocar o arquivo local.
 
 ## Segurança
 
