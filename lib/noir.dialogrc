@@ -1,22 +1,51 @@
 use_colors = ON
 use_shadow = OFF
+# WHITE e BLACK usam as cores ANSI 7 e 0 da paleta do terminal.
 screen_color = (WHITE,BLACK,OFF)
-dialog_color = (WHITE,BLACK,OFF)
-title_color = (CYAN,BLACK,ON)
-border_color = (WHITE,BLACK,OFF)
+shadow_color = (BLACK,BLACK,OFF)
+dialog_color = screen_color
+title_color = dialog_color
+border_color = dialog_color
 border2_color = border_color
-button_active_color = (BLACK,CYAN,OFF)
+
+button_active_color = (BLACK,WHITE,OFF)
 button_label_active_color = button_active_color
-button_key_active_color = (BLACK,CYAN,ON)
+button_key_active_color = button_active_color
 button_inactive_color = dialog_color
-button_label_inactive_color = dialog_color
-button_key_inactive_color = dialog_color
-form_text_color = dialog_color
-form_active_text_color = (WHITE,BLUE,OFF)
-inputbox_color = form_active_text_color
+button_label_inactive_color = button_inactive_color
+button_key_inactive_color = button_inactive_color
+
+menubox_color = dialog_color
+# As listas usam apenas a moldura externa.
+menubox_border_color = shadow_color
+menubox_border2_color = shadow_color
+item_color = dialog_color
 item_selected_color = button_active_color
-tag_selected_color = button_active_color
-tag_key_selected_color = button_active_color
-position_indicator_color = title_color
-uarrow_color = title_color
-darrow_color = title_color
+tag_color = item_color
+tag_selected_color = item_selected_color
+tag_key_color = tag_color
+tag_key_selected_color = tag_selected_color
+check_color = item_color
+check_selected_color = item_selected_color
+itemhelp_color = dialog_color
+
+inputbox_color = dialog_color
+inputbox_border_color = border_color
+inputbox_border2_color = border_color
+form_text_color = dialog_color
+# Sublinhar o campo em foco evita preencher a linha com cinza-claro.
+form_active_text_color = (WHITE,BLACK,OFF,ON)
+form_item_readonly_color = form_text_color
+
+searchbox_color = dialog_color
+searchbox_title_color = title_color
+searchbox_border_color = border_color
+searchbox_border2_color = border_color
+position_indicator_color = dialog_color
+uarrow_color = dialog_color
+darrow_color = uarrow_color
+gauge_color = dialog_color
+
+# --last-key distingue o número pressionado do item em foco.
+bindkey menubox \061 LEAVE
+bindkey menubox \062 LEAVE

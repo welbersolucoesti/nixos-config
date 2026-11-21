@@ -2,11 +2,12 @@
 
 ui_dialog_dir=''
 ui_dialog_theme=''
-ui_dialog_width=56
-ui_dialog_report_width=76
+ui_dialog_width=68
+ui_dialog_report_width=96
 ui_dialog_report_height=18
-ui_dialog_form_rows=3
-ui_dialog_backtitle='Noir · NixOS'
+ui_dialog_report_x=2
+ui_dialog_heading='NOIR | NixOS Configuration'
+ui_dialog_backtitle=$ui_dialog_heading
 ui_dialog_cancelled=''
 
 ui_use_dialog() {
@@ -28,15 +29,11 @@ ui_dialog_open() {
       --msgbox 'Use 40×12 ou --plain.' 7 0 && return 2
     return 1
   fi
-  ui_dialog_width=$((columns - 4 < 56 ? columns - 4 : 56))
-  ui_dialog_report_width=$((columns - 4 < 88 ? columns - 4 : 88))
-  if (( rows < 16 )); then
-    ui_dialog_backtitle=''
-    ui_dialog_form_rows=2
-    ui_dialog_report_height=$((rows - 1))
-  else
-    ui_dialog_report_height=$((rows - 4 < 24 ? rows - 4 : 24))
-  fi
+  ui_dialog_width=$((columns - 4 < 68 ? columns - 4 : 68))
+  ui_dialog_report_width=$((columns - 4 < 96 ? columns - 4 : 96))
+  ui_dialog_report_height=$((rows - 3 < 24 ? rows - 3 : 24))
+  ui_dialog_report_x=$(((columns - ui_dialog_report_width) / 2))
+  if (( rows < 16 )); then ui_dialog_backtitle=''; fi
   ui_dialog_dir=$(mktemp -d) || return 1
   exec {ui_dialog_stderr}>&2
   exec >"$ui_dialog_dir/log" 2>&1
@@ -71,56 +68,84 @@ ui_dialog_run() (
   esac
 )
 
+ui_dialog_list() {
+  local title=$1 prompt=$2 footer=$3
+  shift 3
+  local option item answer selection key index=0
+  local -a items=()
+  for option; do
+    index=$((index + 1))
+    # O Dialog centraliza pela largura do item mais longo.
+    printf -v item '%-*s' "$((ui_dialog_width - 10))" "$index. $option"
+    items+=("$index" -- "$item")
+  done
+  while :; do
+    answer=$(ui_dialog_run --title -- "$title" --hline "$footer" \
+      --ok-label 'Selecionar' --no-cancel --no-tags --no-hot-list --last-key \
+      --menu -- "$prompt" 0 "$ui_dialog_width" "$#" "${items[@]}") || return "$?"
+    read -r selection key <<< "$answer"
+    # LEAVE retorna o item em foco e o código ASCII da tecla pressionada.
+    case $key in
+      49) selection=1 ;;
+      50)
+        if (( $# < 2 )); then continue; fi
+        selection=2
+        ;;
+    esac
+    [[ $selection =~ ^[1-9][0-9]*$ ]] && (( selection <= $# )) || return 2
+    printf '%s\n' "$selection"
+    return
+  done
+}
+
 ui_dialog_start() {
-  local prompt='Configuração do NixOS' revision=$1 limit=$((ui_dialog_width - 15)) selection
+  local ui_dialog_backtitle='' selection
+  local prompt='Checkout: indisponível' revision=$1 limit=$((ui_dialog_width - 15))
+  local footer='↑↓  1/Enter  Esc Sair'
   if [[ -n $revision ]]; then
     if (( ${#revision} > limit )); then revision="${revision:0:limit}…"; fi
     prompt="Checkout: $revision"
   fi
-  selection=$(ui_dialog_run --title 'Noir · Instalação' \
-    --ok-label 'Continuar' --cancel-label 'Sair' --no-tags \
-    --menu "$prompt" 0 "$ui_dialog_width" 1 install 'Instalar ou atualizar') || return "$?"
-  [[ $selection == install ]] || return 2
+  if (( ui_dialog_width >= 52 )); then footer='↑↓ Navegar  1 / Enter Selecionar  Esc Sair'; fi
+  selection=$(ui_dialog_list "$ui_dialog_heading" "$prompt" "$footer" \
+    'Instalar ou atualizar') || return "$?"
+  [[ $selection == 1 ]] || return 2
 }
 
 ui_dialog_input() {
   ui_dialog_run --title -- "$ui_section_title" --ok-label 'Continuar' --cancel-label 'Cancelar' \
+    --hline 'Enter Continuar Esc Voltar' \
     --inputbox -- "$1" 0 "$ui_dialog_width" -- "$2"
 }
 
 ui_dialog_git_identity() {
   local field_width=$((ui_dialog_width - 15))
   ui_dialog_run --title 'Identidade Git' --ok-label 'Continuar' --cancel-label 'Cancelar' \
-    --hline '↑↓: campos · Tab: botões' \
-    --form 'Autoria dos commits' 0 "$ui_dialog_width" "$ui_dialog_form_rows" \
+    --hline '↑↓ Campos Tab Enter/Esc' \
+    --form 'Autoria dos commits' 0 "$ui_dialog_width" 2 \
     'Nome'   1 2 '' 1 10 "$field_width" 2048 \
-    'E-mail' "$ui_dialog_form_rows" 2 '' "$ui_dialog_form_rows" 10 "$field_width" 2048
+    'E-mail' 2 2 '' 2 10 "$field_width" 2048
 }
 
 ui_dialog_choose() {
-  local option index=0
-  local -a items=()
-  for option; do
-    index=$((index + 1))
-    items+=("$index" -- "$option")
-  done
-  ui_dialog_run --title -- "$ui_section_title" --ok-label 'Continuar' --cancel-label 'Cancelar' \
-    --no-tags --menu 'Selecione uma sessão.' 0 "$ui_dialog_width" "$#" "${items[@]}"
+  ui_dialog_list "$ui_section_title" 'Selecione a sessão.' '↑↓ 1–2/Enter Esc Voltar' "$@"
 }
 
 ui_dialog_confirm() {
   ui_dialog_run --title -- "${ui_section_title:-Confirmar}" \
+    --hline '←→ Opção Enter Esc' \
     --defaultno --yes-label 'Sim' --no-label 'Não' --yesno -- "$1" 7 "$ui_dialog_width"
 }
 
 ui_dialog_textbox() {
-  local title=$1 file=$2 height
+  local ui_dialog_backtitle="NOIR | $1" file=$2 height
   shift 2
   height=$(wc -l < "$file") || return 2
   height=$((height + 4))
   if (( height < 7 )); then height=7; fi
   if (( height > ui_dialog_report_height )); then height=$ui_dialog_report_height; fi
-  ui_dialog_run --title -- "$title" "$@" --textbox -- "$file" "$height" "$ui_dialog_report_width"
+  ui_dialog_run --begin 2 "$ui_dialog_report_x" --scrollbar "$@" \
+    --textbox -- "$file" "$height" "$ui_dialog_report_width"
 }
 
 ui_dialog_review() (
@@ -130,16 +155,18 @@ ui_dialog_review() (
   report=$(mktemp) || return 2
   trap 'rm -f -- "$report"' EXIT
   "$@" | fold -s -w "$((ui_dialog_report_width - 5))" > "$report" || return 2
-  ui_dialog_textbox "$title" "$report" --exit-label 'Continuar'
+  ui_dialog_textbox "$title" "$report" --exit-label 'Continuar' --hline '↑↓ Rolar Enter/Esc'
 )
 
 ui_dialog_progress() {
-  ui_dialog_run --title 'Em andamento' --infobox "$1"$'\n\nCtrl+C: interromper' 7 "$ui_dialog_width"
+  ui_dialog_run --title 'Em andamento' --hline 'Ctrl+C Interromper' \
+    --infobox -- "$1" 7 "$ui_dialog_width"
 }
 
 ui_dialog_password() {
   ui_dialog_run --title 'Autenticação administrativa' \
     --ok-label 'Autenticar' --cancel-label 'Cancelar' \
+    --hline 'Enter Autenticar Esc Voltar' \
     --passwordbox 'Senha da sua conta Linux' 0 "$ui_dialog_width"
 }
 
@@ -160,10 +187,12 @@ ui_dialog_finish() {
   } | fold -s -w "$((ui_dialog_report_width - 5))" > "$ui_dialog_dir/result" || action=2
   while (( action == 0 )); do
     ui_dialog_textbox "$title" "$ui_dialog_dir/result" --ok-label 'Fechar' \
-      --extra-button --extra-label 'Registros' --erase-on-exit || action=$?
+      --extra-button --extra-label 'Registros' --hline '↑↓ Rolar Tab Enter/Esc' \
+      --erase-on-exit || action=$?
     if (( action != 3 )); then break; fi
     action=0
-    ui_dialog_textbox 'Registros da operação' "$ui_dialog_dir/log" --exit-label 'Voltar' || action=$?
+    ui_dialog_textbox 'Registros da operação' "$ui_dialog_dir/log" --exit-label 'Voltar' \
+      --hline '↑↓ Rolar ←→ Colunas Esc' || action=$?
     if (( action == 1 )); then action=0; fi
   done
   if (( action > 1 )); then
