@@ -116,13 +116,13 @@ O tema padrão do Oh My Zsh é `"bira"`. Em `zsh.theme`, você pode indicar outr
 | KDE | KDE Plasma da configuração padrão do NixOS | SDDM |
 | XFCE | XFCE em X11 | LightDM |
 
-O NumLock é ativado no início da sessão. O XFCE usa `numlockx` por autostart e o Plasma usa a opção nativa de teclado, inclusive em Wayland. No Plasma, uma configuração de NumLock já gravada pela conta tem precedência.
+O NumLock é ativado no início da sessão. No XFCE, o `xfsettingsd` lê os valores `Numlock` e `RestoreNumlock` do canal `keyboards`, que o perfil fixa como verdadeiros. A tecla NumLock continua disponível durante a sessão. No Plasma, a opção nativa também funciona em Wayland e uma configuração de NumLock já gravada pela conta tem precedência.
 
-Kickoff e Whisker usam o floco oficial `nix-snowflake` do pacote `nixos-icons`. O Plasma aplica o ícone aos Kickoffs com o ícone padrão na inicialização do painel. No XFCE, o Whisker herda o ícone de `hicolor` pelo Tela-dark e mantém um ícone escolhido nas suas propriedades. Os ícones dos aplicativos continuam sendo fornecidos pelos respectivos temas e pacotes. [Arte oficial do NixOS](https://github.com/NixOS/nixos-artwork)
+Kickoff e Whisker usam o nome de ícone `nix-snowflake`. O Plasma aplica o ícone aos Kickoffs com o ícone padrão na inicialização do painel. No XFCE, esse nome aponta para `distributor-logo-nixos.svg` no Tela-dark. O tema `hicolor` também oferece o floco oficial pelo pacote `nixos-icons`. Novas instâncias do Whisker recebem o ícone por padrão. Na abertura de uma sessão XFCE, as instâncias existentes têm somente a propriedade `button-icon` atualizada. [Arte oficial do NixOS](https://github.com/NixOS/nixos-artwork)
 
 ### XFCE Noir
 
-O perfil usa `Orchis-Dark` no GTK e no Xfwm4, `Tela-dark` para os ícones e `Bibata-Modern-Ice` para o cursor. Thunar, painel e menus usam o tema GTK da sessão. Preferências já gravadas no xfconf têm precedência sobre os padrões do sistema.
+O perfil usa `Orchis-Dark` no GTK e no Xfwm4, `Tela-dark` para os ícones e `Bibata-Modern-Ice` para o cursor. Thunar, painel e menus usam o tema GTK da sessão. As preferências de aparência já gravadas no xfconf têm precedência sobre os padrões do sistema, com a atualização do ícone do Whisker descrita acima.
 
 A tela do LightDM usa o GTK Greeter com os mesmos temas e um fundo grafite. A barra apresenta relógio em formato de 24 horas, seleção de sessão, acessibilidade e ações de energia conforme disponíveis.
 

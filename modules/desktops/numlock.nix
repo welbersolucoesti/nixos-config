@@ -1,16 +1,18 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, ... }:
 
 {
   config = lib.mkMerge [
     (lib.mkIf (config.personalConfig.desktop == "xfce") {
-      # O autostart roda na sessão X11, após o início dos serviços do XFCE.
-      environment.etc."xdg/autostart/xfce-numlock.desktop".text = ''
-        [Desktop Entry]
-        Type=Application
-        Name=NumLock
-        Exec=${pkgs.numlockx}/bin/numlockx on
-        OnlyShowIn=XFCE;
-        NoDisplay=true
+      # O xfsettingsd restaura este valor ao iniciar e ao detectar outro teclado.
+      # O bloqueio impede que o último estado gravado substitua o padrão.
+      environment.etc."xdg/xfce4/xfconf/xfce-perchannel-xml/keyboards.xml".text = ''
+        <?xml version="1.0" encoding="UTF-8"?>
+        <channel name="keyboards" version="1.0">
+          <property name="Default" type="empty">
+            <property name="RestoreNumlock" type="bool" value="true" unlocked="root"/>
+            <property name="Numlock" type="bool" value="true" unlocked="root"/>
+          </property>
+        </channel>
       '';
     })
     (lib.mkIf (config.personalConfig.desktop == "kde") {
