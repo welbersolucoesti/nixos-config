@@ -26,9 +26,12 @@ in
     ./modules/system/maintenance.nix
     ./modules/services/postgresql.nix
     ./modules/applications/zsh.nix
+    ./modules/applications/terminal.nix
     ./modules/optional/cron.nix
     ./modules/optional/virtualization.nix
     ./modules/optional/zsh-theme.nix
+    ./modules/desktops/numlock.nix
+    ./modules/desktops/launcher-icon.nix
     ./modules/desktops/kde.nix
     ./modules/desktops/xfce.nix
   ];

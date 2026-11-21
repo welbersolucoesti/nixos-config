@@ -2,10 +2,10 @@
 
 {
   imports = [
-    ../applications/terminal.nix
     ./xfce/appearance.nix
     ./xfce/bluetooth.nix
     ./xfce/compositor.nix
+    ./xfce/login.nix
     ./xfce/mugshot.nix
     ./xfce/panel.nix
     ./xfce/shortcuts.nix

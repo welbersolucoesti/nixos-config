@@ -6,6 +6,16 @@ let
     && !builtins.any (
       package: lib.getName package == lib.getName pkgs.xfce4-pulseaudio-plugin
     ) config.environment.xfce.excludePackages;
+  mixerAvailable = !builtins.any (
+    package: lib.getName package == lib.getName pkgs.pavucontrol
+  ) config.environment.xfce.excludePackages;
+
+  volumePlugin = ''
+    <property name="plugin-8" type="string" value="pulseaudio">
+      ${lib.optionalString mixerAvailable ''
+        <property name="mixer-command" type="string" value="pavucontrol --tab=3"/>
+      ''}
+    </property>'';
 in
 {
   config = lib.mkIf (config.personalConfig.desktop == "xfce") {
@@ -21,7 +31,7 @@ in
       [ "<!-- volume-id -->" "<!-- volume-plugin -->" ]
       [
         (lib.optionalString audioAvailable ''<value type="int" value="8"/>'')
-        (lib.optionalString audioAvailable ''<property name="plugin-8" type="string" value="pulseaudio"/>'')
+        (lib.optionalString audioAvailable volumePlugin)
       ]
       (builtins.readFile ./panel-default.xml);
   };

@@ -116,16 +116,22 @@ O tema padrão do Oh My Zsh é `"bira"`. Em `zsh.theme`, você pode indicar outr
 | KDE | KDE Plasma da configuração padrão do NixOS | SDDM |
 | XFCE | XFCE em X11 | LightDM |
 
+O NumLock é ativado no início da sessão. O XFCE usa `numlockx` por autostart e o Plasma usa a opção nativa de teclado, inclusive em Wayland. No Plasma, uma configuração de NumLock já gravada pela conta tem precedência.
+
+Kickoff e Whisker usam o floco oficial `nix-snowflake` do pacote `nixos-icons`. O Plasma aplica o ícone aos Kickoffs com o ícone padrão na inicialização do painel. No XFCE, o Whisker herda o ícone de `hicolor` pelo Tela-dark e mantém um ícone escolhido nas suas propriedades. Os ícones dos aplicativos continuam sendo fornecidos pelos respectivos temas e pacotes. [Arte oficial do NixOS](https://github.com/NixOS/nixos-artwork)
+
 ### XFCE Noir
 
 O perfil usa `Orchis-Dark` no GTK e no Xfwm4, `Tela-dark` para os ícones e `Bibata-Modern-Ice` para o cursor. Thunar, painel e menus usam o tema GTK da sessão. Preferências já gravadas no xfconf têm precedência sobre os padrões do sistema.
+
+A tela do LightDM usa o GTK Greeter com os mesmos temas e um fundo grafite. A barra apresenta relógio em formato de 24 horas, seleção de sessão, acessibilidade e ações de energia conforme disponíveis.
 
 | Complemento | Função | Quando entra em uso |
 | --- | --- | --- |
 | Whisker Menu | Menu de aplicativos pesquisável | Abra pelo painel ou toque e solte a tecla Super esquerda. Em painéis existentes, adicione o Whisker pelo editor do painel, se necessário. |
 | Docklike | Barra de tarefas com ícones e janelas agrupadas | Presente no modelo inicial. Em painéis existentes, adicione manualmente. |
 | Blueman | Gerenciador e applet Bluetooth | Use o menu de aplicativos ou a bandeja para parear, conectar e desconectar dispositivos. |
-| Áudio | Volume no painel e entradas, saídas e microfone no Pavucontrol | O NixOS disponibiliza os dois com a camada Pulse do PipeWire ou com PulseAudio. |
+| Áudio | Volume, entradas e saídas no painel e no Pavucontrol | Abra o controle no painel. Os seletores aparecem quando há mais de um dispositivo disponível. Use **Mixer de áudio** para abrir o Pavucontrol. |
 | Mugshot | Editor de perfil pessoal | Abra pelo item de perfil no menu. Os campos disponíveis dependem do AccountsService e das permissões da conta. |
 | Clipman | Histórico da área de transferência | Adicione manualmente se quiser guardar o histórico. |
 | Thunar com Xarchiver | Compactação e extração no gerenciador de arquivos | Use o menu do botão direito. Se for solicitado um gerenciador de arquivos compactados, escolha Xarchiver. |
@@ -134,7 +140,14 @@ O XFCE carrega o modelo do projeto quando ainda não há um painel configurado. 
 
 Ao iniciar a sessão X11, o atalho usa `Shift+Alt+F11` para abrir o Whisker. Se a combinação ou a própria Super esquerda já estiver atribuída a outra ação no XFCE, a atribuição pessoal tem precedência.
 
-O XFCE Terminal continua disponível pelo menu e pelo atalho padrão `Ctrl+Alt+T` quando preservada a associação padrão do XFCE. A paleta Noir usa DejaVu Sans Mono 11 e fundo com opacidade inicial de 90%, definida em `modules/applications/terminal.nix`. A composição nativa do Xfwm4 fornece sombras e transparência; a aparência deve ser conferida na sessão X11 da máquina. O Foot exige Wayland. [Compositor do Xfwm4](https://github.com/xfce-mirror/xfwm4/blob/master/COMPOSITOR) · [Foot](https://codeberg.org/dnkl/foot)
+No modelo inicial do painel, **Mixer de áudio** abre o Pavucontrol na aba **Dispositivos de saída**. A aba **Dispositivos de entrada** permite selecionar o microfone e ajustar o nível. Painéis existentes mantêm a configuração do mixer e podem editar seu comando nas propriedades do plugin.
+
+### Terminais
+
+Os padrões de ambos os terminais ficam em `modules/applications/terminal.nix`. Menus, ferramentas e barra de rolagem começam ocultos. As abas aparecem quando há mais de uma, e o terminal mantém o título da janela, a seleção de texto, a rolagem e os atalhos. As preferências pessoais têm precedência.
+
+- **KDE** usa Konsole com o perfil de sistema **Noir** quando a conta não tem outro perfil padrão. `Ctrl+Shift+M` alterna a barra de menus. [Manual do Konsole](https://docs.kde.org/stable_kf6/en/konsole/konsole/)
+- **XFCE** usa XFCE Terminal com DejaVu Sans Mono 11, opacidade inicial de 90% e o atalho padrão `Ctrl+Alt+T`. O menu de contexto permite reexibir a barra de menus. O Xfwm4 oferece composição em X11. [Compositor do Xfwm4](https://github.com/xfce-mirror/xfwm4/blob/master/COMPOSITOR)
 
 ## Aplicativos e serviços
 
