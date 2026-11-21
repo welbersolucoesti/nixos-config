@@ -4,7 +4,8 @@
 
 Este repositório contém configurações pessoais e declarativas do NixOS para uma estação de desenvolvimento com KDE Plasma e Wayland. Utiliza módulos tradicionais do NixOS e Nixpkgs, sem Flakes ou Home Manager.
 
-- `personal.nix` é o módulo principal reutilizável, importado pelo `/etc/nixos/configuration.nix` da máquina.
+- `personal.nix` é o ponto de entrada da máquina e inclui `config/local.nix` quando disponível. O `configuration.nix` importa o ponto de entrada da revisão ativa.
+- `config/options.nix` declara o perfil e a identidade. `config/local.example.nix` é o modelo versionado. O instalador publica a identidade em `/etc/nixos/nixos-config/config/local.nix`, fora da revisão, e as revisões apontam para ela por link.
 - `modules/optional/cron.nix` declara o serviço e o timer systemd para um script privado externo ao repositório. O recurso é habilitado por `personalConfig.cron.enable`.
 - `modules/optional/virtualization.nix` declara o suporte a QEMU/KVM e as ferramentas de contêineres. O recurso é habilitado por `personalConfig.virtualization.enable`.
 - `modules/optional/zsh-theme.nix` define `personalConfig.zsh.theme`, cuja configuração padrão é `"bira"`. O valor `null` desativa o tema.
@@ -31,7 +32,7 @@ Leia os arquivos relevantes do repositório antes de fazer alterações. Conside
 - Escreva em português brasileiro (`pt-BR`), com exemplos práticos e Markdown correto.
 - Organize o README para facilitar a leitura: objetivo, pré-requisitos, estrutura do repositório, instalação, recursos, validação, limitações e segurança.
 - Descreva fielmente os pacotes e serviços existentes em `personal.nix`, incluindo o JDK Java configurado, editores, PostgreSQL, Zsh, Git, Bluetooth, biometria e keyd, quando presentes. Documente os módulos opcionais sem pressupor que estejam habilitados.
-- Diferencie configurações globais do sistema (como `/etc/gitconfig`) de configurações específicas do usuário.
+- Documente a aplicação única da identidade com `git config --global` pela própria conta selecionada após a primeira publicação protegida. `config/local.nix` registra as escolhas e as configurações de repositório têm precedência.
 - Explique que as versões dos pacotes dependem da revisão do Nixpkgs e que este repositório não fixa todas as dependências.
 - Destaque pressupostos específicos da máquina e etapas de adaptação; não prometa compatibilidade universal.
 - Inclua comandos somente quando forem relevantes e coerentes com o repositório.

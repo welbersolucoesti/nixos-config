@@ -1,8 +1,9 @@
 { config, lib, pkgs, ... }:
 
+let
+  inherit (config.personalConfig) username;
+in
 {
-  options.personalConfig.virtualization.enable = lib.mkEnableOption "as ferramentas de virtualização e contêineres";
-
   config = lib.mkIf config.personalConfig.virtualization.enable {
     # ----------------------------------------------------------------------------
     # Maquinas virtuais: QEMU/KVM com libvirt
@@ -15,8 +16,9 @@
     programs.virt-manager.enable = true;
 
     # Permite que o usuario local administre recursos do libvirt.
-    # Revise o nome do usuario antes de importar este modulo.
-    users.users.david.extraGroups = [ "libvirtd" ];
+    users.users = lib.optionalAttrs (username != null) {
+      ${username}.extraGroups = [ "libvirtd" ];
+    };
 
     # ----------------------------------------------------------------------------
     # Conteineres de desenvolvimento: Podman e Distrobox

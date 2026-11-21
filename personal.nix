@@ -1,7 +1,13 @@
-{ lib, ... }:
+{ config, lib, ... }:
 
+let
+  localConfig = ./config/local.nix;
+  hasLocalConfig = builtins.pathExists localConfig;
+  inherit (config) personalConfig;
+in
 {
   imports = [
+    ./config/options.nix
     ./modules/system/packages.nix
     ./modules/system/hardware.nix
     ./modules/system/maintenance.nix
@@ -12,11 +18,12 @@
     ./modules/optional/zsh-theme.nix
     ./modules/desktops/kde.nix
     ./modules/desktops/xfce.nix
-  ];
+  ] ++ lib.optional hasLocalConfig localConfig;
 
-  options.personalConfig.desktop = lib.mkOption {
-    type = lib.types.nullOr (lib.types.enum [ "kde" "xfce" ]);
-    default = null;
-    description = "Perfil de desktop. Por padrão, o desktop é definido pela configuração da máquina.";
+  assertions = lib.optional hasLocalConfig {
+    assertion = personalConfig.username != null
+      && personalConfig.git.userName != null
+      && personalConfig.git.userEmail != null;
+    message = "Complete personalConfig.username, personalConfig.git.userName e personalConfig.git.userEmail em config/local.nix.";
   };
 }

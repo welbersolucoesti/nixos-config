@@ -38,6 +38,9 @@ nixos-config/
 ├── .gitignore
 ├── AGENTS.md
 ├── README.md
+├── config/
+│   ├── local.example.nix
+│   └── options.nix
 ├── install.sh
 ├── modules/
 │   ├── desktops/
@@ -56,7 +59,9 @@ nixos-config/
 └── personal.nix
 ```
 
-**`personal.nix`** é o ponto de entrada. Os módulos em `modules/system/` declaram pacotes, serviços, hardware e manutenção. `modules/personal.nix` reúne as configurações de Zsh e Git, e `modules/desktops/` contém os perfis gráficos.
+**`personal.nix`** importa os módulos e a configuração local quando ela existe. `config/options.nix` declara o perfil, a identidade e as opções dos módulos. `config/local.example.nix` é o modelo versionado. A configuração particular fica na implantação, em `/etc/nixos/nixos-config/config/local.nix`.
+
+Os módulos em `modules/system/` declaram pacotes, serviços, hardware e manutenção. `modules/personal.nix` reúne as configurações de Zsh e Git, e `modules/desktops/` contém os perfis gráficos.
 
 **`modules/optional/`** contém os módulos de agendamento, virtualização e tema do Zsh. As escolhas ficam na configuração local da máquina.
 
@@ -136,14 +141,13 @@ in
   imports = [
     ./hardware-configuration.nix
     (deployment + "/current/personal.nix")
-    (deployment + "/local.nix")
     # Preserve os demais imports da máquina.
   ];
   # Preserve o restante da configuração.
 }
 ```
 
-Mantenha os imports relativos acessíveis na cópia, incluindo o módulo de hardware. Nos notebooks existentes, retire da lista os imports antigos de cron e virtualização que apontem para a raiz do checkout ou da revisão publicada. Para manter esses recursos, use as opções em `local.nix`. Para XFCE, remova da cópia as declarações que habilitam `services.desktopManager.plasma6.enable` e `services.displayManager.sddm.enable`.
+Mantenha os imports relativos acessíveis na cópia, incluindo o módulo de hardware. A entrada `current/personal.nix` já importa a configuração local. Retire da lista qualquer import direto de `local.nix` e os imports antigos de cron e virtualização. Para manter esses recursos, use as opções em `config/local.nix`. Para XFCE, remova da cópia as declarações que habilitam `services.desktopManager.plasma6.enable` e `services.displayManager.sddm.enable`.
 
 Depois de preparar a cópia revisada e conferir seus imports relativos, execute a primeira instalação na raiz do checkout com sua conta normal:
 
@@ -151,19 +155,23 @@ Depois de preparar a cópia revisada e conferir seus imports relativos, execute 
 bash install.sh --configuration /caminho/para/configuration.nix
 ```
 
-Na primeira execução, escolha KDE Plasma ou XFCE. O instalador avalia a cópia revisada com o Nixpkgs local e a árvore candidata. Os imports da cópia são avaliados como estão, com a referência à implantação resolvida para o diretório temporário. Pressione Enter no menu ou responda `n` na confirmação para cancelar. A chamada a `sudo` ocorre após a confirmação.
+Na primeira execução, escolha KDE Plasma ou XFCE e informe o nome e o e-mail de autoria Git. Execute o instalador pela própria conta Linux selecionada, já declarada em `users.users`. A avaliação usa o Nixpkgs local e reproduz a árvore de implantação em um diretório temporário. Pressione Enter no menu ou responda `n` na confirmação para cancelar. Depois da confirmação, o instalador publica os módulos e `config/local.nix`. Na implantação padrão, só então aplica a identidade Git com as permissões da conta executora.
 
-Use `bash install.sh` sem argumentos apenas quando `/etc/nixos/configuration.nix` já estiver migrado e contiver os imports da implantação. Nas execuções seguintes, o instalador preserva `local.nix`.
+Use `bash install.sh` sem argumentos apenas quando `/etc/nixos/configuration.nix` já estiver migrado. Nas execuções seguintes, o instalador preserva `config/local.nix` e a configuração Git da conta.
 
-Para testar a publicação sem privilégios, use `--destination` com um caminho em um diretório temporário gravável, fora do checkout. Use esse mesmo caminho como destino na cópia da configuração.
+Para testar a publicação sem privilégios, use `--destination` com um caminho alternativo em um diretório temporário gravável, fora do checkout. Use esse mesmo caminho na cópia da configuração. Publicações alternativas e verificações de rollback deixam a configuração Git intacta.
 
 ### 4. Aplicar os ajustes à configuração da máquina
 
-Depois da publicação, compare a cópia avaliada com `/etc/nixos/configuration.nix` e faça os ajustes manualmente. Nos notebooks existentes, retire também do arquivo real os imports antigos de cron e virtualização. Preserve `hardware-configuration.nix`, `system.stateVersion` e os demais ajustes. O link antigo de `personal.nix` pode permanecer enquanto você valida a migração.
+Depois da publicação, compare a cópia avaliada com `/etc/nixos/configuration.nix` e faça os ajustes manualmente. Retire também do arquivo real os imports antigos de cron, virtualização e `local.nix`. Preserve `hardware-configuration.nix`, `system.stateVersion` e os demais ajustes.
+
+**Migração de uma implantação existente**
+
+Se o arquivo local ainda estiver em `/etc/nixos/nixos-config/local.nix`, preserve o original e copie manualmente seus ajustes para `/etc/nixos/nixos-config/config/local.nix` antes de publicar a nova revisão. Se o destino já existir, revise o conteúdo e incorpore apenas os ajustes necessários. Use `config/local.example.nix` como referência para completar a conta e a identidade Git. O instalador aponta campos ausentes ou incompatíveis e mantém o arquivo intacto. Para a publicação, use uma cópia revisada da configuração da máquina com apenas o import de `current/personal.nix` da implantação. A troca de `current` preserva a revisão anterior.
 
 **Perfil gráfico**
 
-O instalador grava a escolha em `/etc/nixos/nixos-config/local.nix`. Para trocar de perfil depois da instalação, o proprietário pode editar esse arquivo:
+O instalador grava a escolha em `/etc/nixos/nixos-config/config/local.nix`. Para trocar de perfil depois da instalação, o proprietário pode editar esse arquivo:
 
 ```nix
 personalConfig.desktop = "xfce";
@@ -183,21 +191,9 @@ personalConfig.zsh.theme = null;
 
 Cron e virtualização ficam desativados por padrão, e o tema padrão é `"bira"`. O instalador preserva o conteúdo do arquivo local nas execuções seguintes.
 
-**Nome do usuário**
+**Conta Linux e autoria Git**
 
-O arquivo `modules/personal.nix` contém:
-
-```nix
-users.users.david.shell = pkgs.zsh;
-```
-
-Substitua `david` pelo nome do usuário da sua instalação.
-
-**Identidade Git**
-
-O módulo também define `user.name` e `user.email` no arquivo `/etc/gitconfig`. Antes de aplicar a configuração, substitua esses dados pelos seus e considere que o endereço de e-mail ficará visível se o repositório for público.
-
-Por ser uma configuração **de sistema**, os valores podem ser herdados por outros usuários. Configurações de usuário (`~/.gitconfig` ou `~/.config/git/config`) e de repositório podem sobrescrevê-los.
+Revise `personalConfig.username`, `personalConfig.git.userName` e `personalConfig.git.userEmail` no arquivo local. O módulo usa uma conta normal já declarada e configura seu shell como Zsh. Escolha o e-mail que deseja publicar nos commits. Veja a seção [Git](#git) para a precedência dos arquivos e o alcance da configuração.
 
 **Pacotes não livres**
 
@@ -249,7 +245,7 @@ sudo nixos-rebuild switch
 
 ## Agendamento diário opcional
 
-O módulo `modules/optional/cron.nix` executa `/home/david/.local/share/nixos-cron/cron.sh` como usuário `david`, diariamente às **03h00 no horário local**. O serviço é `oneshot` e termina ao concluir o script. Se o arquivo não existir, a execução é ignorada. `Persistent=false` impede recuperar tarefas perdidas enquanto o computador estava desligado.
+O módulo `modules/optional/cron.nix` executa `$HOME/.local/share/nixos-cron/cron.sh` como a conta de `personalConfig.username`, diariamente às **03h00 no horário local**. O serviço e o timer usam o nome `nixos-cron`. O serviço é `oneshot` e termina ao concluir o script. Se o arquivo não existir, a execução é ignorada. `Persistent=false` impede recuperar tarefas perdidas enquanto o computador estava desligado.
 
 Para habilitar o agendamento, defina `personalConfig.cron.enable = true;` no `local.nix`.
 
@@ -259,14 +255,14 @@ Após revisar e validar, o proprietário aplica manualmente a configuração:
 sudo nixos-rebuild switch
 ```
 
-Como usuário `david`, crie e edite manualmente o script privado fora do repositório:
+Na sessão da conta selecionada, crie e edite manualmente o script privado fora do repositório:
 
 ```bash
-mkdir -p /home/david/.local/share/nixos-cron
-chmod 700 /home/david/.local/share/nixos-cron
-touch /home/david/.local/share/nixos-cron/cron.sh
-chmod 600 /home/david/.local/share/nixos-cron/cron.sh
-vim /home/david/.local/share/nixos-cron/cron.sh
+mkdir -p "$HOME/.local/share/nixos-cron"
+chmod 700 "$HOME/.local/share/nixos-cron"
+touch "$HOME/.local/share/nixos-cron/cron.sh"
+chmod 600 "$HOME/.local/share/nixos-cron/cron.sh"
+vim "$HOME/.local/share/nixos-cron/cron.sh"
 ```
 
 O Bash do Nixpkgs lê o arquivo diretamente, sem exigir permissão de execução. O `PATH` inclui coreutils, findutils, grep, sed e awk; não depende da configuração interativa do Zsh. Para outros programas, declare os pacotes em `path` no módulo. Não use `sudo` no script nem inclua senhas, tokens ou chaves no repositório. O conteúdo privado não é copiado para o Nix Store, e cada computador pode manter comandos diferentes.
@@ -274,22 +270,22 @@ O Bash do Nixpkgs lê o arquivo diretamente, sem exigir permissão de execução
 Para verificar o timer, iniciar uma execução manual e consultar os logs:
 
 ```bash
-systemctl list-timers --all david-cron.timer
-sudo systemctl start david-cron.service
-journalctl -u david-cron.service
-systemctl status david-cron.timer david-cron.service
-journalctl -u david-cron.service --since today --no-pager
+systemctl list-timers --all nixos-cron.timer
+sudo systemctl start nixos-cron.service
+journalctl -u nixos-cron.service
+systemctl status nixos-cron.timer nixos-cron.service
+journalctl -u nixos-cron.service --since today --no-pager
 ```
 
 O `ConditionPathExists` faz o systemd pular o início do serviço quando o script não existe; isso não equivale a uma execução bem-sucedida nem constitui monitoramento de falhas. Confira o resultado da última execução com `systemctl status` e os registros com `journalctl`. Uma falha do script pode exigir investigação manual; o timer, por si só, não envia alertas.
 
-Mesmo na execução manual, o serviço roda como `david`. Alterações no script privado dispensam rebuild. Mudanças no módulo `modules/optional/cron.nix` exigem reconstruir e aplicar a configuração. Ao adaptar para outra máquina, ajuste o usuário e os caminhos no módulo e nos comandos acima. O usuário precisa existir e o diretório pessoal deve estar acessível no horário agendado.
+Mesmo na execução manual, o serviço roda como a conta selecionada. Alterações no script privado dispensam rebuild. Mudanças no módulo `modules/optional/cron.nix` exigem reconstruir e aplicar a configuração. O caminho é derivado do diretório pessoal declarado para a conta em `users.users`. O diretório deve estar acessível no horário agendado.
 
 ## Virtualização opcional (QEMU/KVM e Distrobox)
 
 O módulo `modules/optional/virtualization.nix` configura o serviço libvirt, habilita o virt-manager e disponibiliza o virt-viewer. Também habilita o Podman e instala o Podman Desktop (interface gráfica para contêineres, imagens e pods), o Distrobox e o Kontainer (interface Qt/Kirigami para gerenciar ambientes Distrobox no KDE Plasma). Por padrão, a virtualização fica desativada.
 
-Para utilizá-lo futuramente, revise o usuário `david` e o grupo `libvirtd` no módulo. Pertencer a esse grupo permite administrar recursos de virtualização e exige confiança no usuário autorizado. Verifique também se a CPU e o firmware oferecem suporte à virtualização de hardware e se `/dev/kvm` está disponível.
+O módulo adiciona a conta selecionada em `personalConfig.username` ao grupo `libvirtd`. Pertencer a esse grupo permite administrar recursos de virtualização e exige confiança no usuário autorizado. Verifique também se a CPU e o firmware oferecem suporte à virtualização de hardware e se `/dev/kvm` está disponível.
 
 Para habilitar o recurso, defina `personalConfig.virtualization.enable = true;` no `local.nix`.
 
@@ -458,26 +454,19 @@ A comparação apenas consulta as closures, sem alterar ou ativar gerações. `n
 
 ## Git
 
-O Git é instalado globalmente e recebe configurações padrão declarativas pelo NixOS, sem necessidade de Home Manager.
+O Git continua disponível no sistema. Na primeira publicação no destino protegido, o instalador grava apenas `user.name`, `user.email` e `init.defaultBranch` com `git config --global`, pela conta selecionada. O Git grava em `~/.gitconfig` ou no arquivo XDG existente quando `~/.gitconfig` estiver ausente. Aliases, assinatura e as demais preferências são preservados. Configurações de cada repositório continuam com precedência. [Documentação das configurações do Git](https://git-scm.com/docs/git-config#FILES)
 
-O módulo gerencia `/etc/gitconfig` com as opções:
+O instalador confere o `HOME` da conta, aceita `XDG_CONFIG_HOME` dentro dele e recusa links simbólicos, permissões inseguras e variáveis que mudam o arquivo de configuração ou a autoria. Se as chaves estiverem duplicadas ou vierem de arquivos incluídos, revise suas origens antes de instalar.
 
-```gitconfig
-[user]
-    name = David
-    email = seu-email@example.com
-
-[init]
-    defaultBranch = main
-```
-
-O e-mail acima é apenas ilustrativo. Em `modules/personal.nix`, revise a identidade antes de publicar ou reutilizar a configuração. Como `/etc/gitconfig` é global para o sistema, outros usuários podem herdar essa identidade. Configurações específicas do usuário ou do repositório têm precedência.
-
-Após aplicar a configuração, confira quais arquivos estão fornecendo os valores efetivos:
+`config/local.nix` registra as escolhas da instalação. Editar `personalConfig.git.userName` ou `personalConfig.git.userEmail` ali não altera o arquivo global do Git, mesmo após um rebuild. Para atualizar a identidade depois, execute pela própria conta:
 
 ```bash
-git config --list --show-origin
+git config --global user.name "NOVO_NOME"
+git config --global user.email "NOVO_EMAIL"
+git config --global init.defaultBranch main
 ```
+
+Se alguma gravação falhar depois da publicação, a revisão NixOS permanece publicada. O instalador informa quais chaves foram verificadas e onde parou. Revise as origens com `git config --show-origin --list` e complete manualmente as chaves pendentes. Uma nova execução preserva o arquivo Git no estado em que estiver.
 
 ## Remapeamento da tecla Copilot
 
@@ -543,7 +532,7 @@ Este projeto prioriza inicialmente uma configuração simples, baseada nos módu
 ### Implantação e recuperação
 
 - O checkout da conta do usuário serve para desenvolvimento. O instalador copia apenas os módulos do commit selecionado e verifica seus hashes antes de publicar.
-- `local.nix` guarda a seleção e os ajustes da máquina em um arquivo separado das revisões. Mantenha credenciais em arquivos protegidos fora do Nix Store. Quando um serviço aceitar um caminho de leitura em tempo de execução, passe esse caminho como string e deixe o serviço abrir o arquivo.
+- `/etc/nixos/nixos-config/config/local.nix` guarda a identidade, o perfil e os ajustes da máquina fora das revisões. Cada revisão aponta `config/local.nix` para esse arquivo por um link absoluto. O checkout e os arquivos versionados da revisão contêm apenas o modelo `config/local.example.nix` e as opções. Mantenha credenciais em arquivos protegidos fora do Nix Store.
 - A implantação protegida fica em `/etc/nixos/nixos-config`, sob propriedade de root. O publicador recebe o conteúdo por entrada padrão e confere os hashes após gravá-lo em uma área privada dentro do destino protegido ou em seu diretório pai. O link `current` só muda após a revisão estar completa em `revisions/HASH`. A revisão anterior continua disponível mesmo após a troca.
 
 Para recuperar uma revisão, use o hash completo informado pelo instalador. Primeiro, no checkout, avalie a revisão preservada com o `local.nix` e a configuração da máquina atuais:
@@ -552,7 +541,7 @@ Para recuperar uma revisão, use o hash completo informado pelo instalador. Prim
 bash install.sh --check-rollback HASH_ANTERIOR
 ```
 
-Se a avaliação falhar, mantenha `current` e revise a incompatibilidade. Uma revisão anterior pode desconhecer opções presentes em `local.nix` ou oferecer serviços incompatíveis com os imports da máquina.
+Se a avaliação falhar, mantenha `current` e revise a incompatibilidade. Revisões antigas sem o vínculo para `config/local.nix` são recusadas. Mesmo com o vínculo, uma revisão pode desconhecer opções do arquivo local ou ter serviços incompatíveis com os imports da máquina.
 
 `--check-rollback` verifica a compatibilidade em uma operação separada e não torna atômica a troca manual posterior de `current`. No exemplo abaixo, o último comando substitui o link atomicamente por renomeação no mesmo diretório. A avaliação e a renomeação podem ocorrer sobre estados diferentes se a configuração mudar nesse intervalo. Execute os comandos a partir de `/etc/nixos/nixos-config`:
 

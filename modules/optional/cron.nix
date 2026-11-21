@@ -1,18 +1,20 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, utils, ... }:
 
+let
+  inherit (config.personalConfig) username;
+  script = "${config.users.users.${username}.home}/.local/share/nixos-cron/cron.sh";
+in
 {
-  options.personalConfig.cron.enable = lib.mkEnableOption "o agendamento diário de tarefas privadas";
-
-  config = lib.mkIf config.personalConfig.cron.enable {
+  config = lib.mkIf (config.personalConfig.cron.enable && username != null) {
     # ----------------------------------------------------------------------------
     # Execução do script privado
     # ----------------------------------------------------------------------------
 
-    systemd.services.david-cron = {
-      description = "Executa o script privado de agendamento de david";
+    systemd.services.nixos-cron = {
+      description = "Executa o script privado de agendamento";
 
       # Ignora a execução se o script privado ainda não tiver sido criado.
-      unitConfig.ConditionPathExists = "/home/david/.local/share/nixos-cron/cron.sh";
+      unitConfig.ConditionPathExists = lib.replaceStrings [ "%" ] [ "%%" ] script;
 
       # Disponibiliza utilitários básicos sem depender do Zsh interativo.
       path = with pkgs; [
@@ -27,12 +29,12 @@
         # Executa a tarefa até sua conclusão, sem manter um serviço contínuo.
         Type = "oneshot";
 
-        # Executa sem privilégios de root; adapte o usuário e os caminhos juntos.
-        User = "david";
+        # Executa sem privilégios de root.
+        User = username;
 
         # O Bash lê o arquivo externo em tempo de execução, sem copiá-lo ao Nix Store.
         # Alterações no conteúdo do script privado não exigem rebuild.
-        ExecStart = "${pkgs.bash}/bin/bash /home/david/.local/share/nixos-cron/cron.sh";
+        ExecStart = utils.escapeSystemdExecArgs [ "${pkgs.bash}/bin/bash" script ];
       };
     };
 
@@ -41,8 +43,8 @@
     # Agendamento pelo systemd
     # ----------------------------------------------------------------------------
 
-    systemd.timers.david-cron = {
-      description = "Agenda o script privado de david diariamente às 03h00";
+    systemd.timers.nixos-cron = {
+      description = "Agenda o script privado diariamente às 03h00";
 
       # Habilita o timer junto aos demais timers do sistema.
       wantedBy = [ "timers.target" ];

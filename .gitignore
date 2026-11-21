@@ -1,2 +1,3 @@
 #Arquivos ignorados
 *.txt
+/config/local.nix

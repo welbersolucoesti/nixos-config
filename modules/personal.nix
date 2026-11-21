@@ -1,31 +1,22 @@
-{ pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
+let
+  inherit (config.personalConfig) username;
+in
 {
-  # Zsh com autocompletar, sugestões automáticas e destaque de sintaxe.
   programs.zsh = {
-
     enable = true;
     enableCompletion = true;
     autosuggestions.enable = true;
     syntaxHighlighting.enable = true;
 
-    # Oh My Zsh com os plugins git e sudo.
     ohMyZsh = {
       enable = true;
-      plugins = ["git" "sudo"];
+      plugins = [ "git" "sudo" ];
     };
   };
 
-  # Define o shell do usuário david; adapte o nome ao reutilizar o módulo.
-  users.users.david.shell = pkgs.zsh;
-
-  environment.etc."gitconfig".text = ''
-    [user]
-      name = David
-      email = welbersolucoesti@gmail.com
-
-    [init]
-      defaultBranch = main
-  '';
-
+  users.users = lib.optionalAttrs (username != null) {
+    ${username}.shell = pkgs.zsh;
+  };
 }

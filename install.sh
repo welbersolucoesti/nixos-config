@@ -10,6 +10,7 @@ rollback_revision=''
 
 source_files=(
   personal.nix
+  config/options.nix config/local.example.nix
   modules/personal.nix
   modules/desktops/kde.nix modules/desktops/xfce.nix
   modules/system/hardware.nix modules/system/maintenance.nix
@@ -29,7 +30,7 @@ Uso: bash install.sh [--revision REV | --check-rollback HASH] [--configuration A
 Publica os módulos de um commit Git. O padrão é HEAD, com avaliação de
 /etc/nixos/configuration.nix e publicação em /etc/nixos/nixos-config.
 --configuration seleciona a configuração revisada com os imports da implantação.
---check-rollback avalia uma revisão preservada com o local.nix atual, sem publicar.
+--check-rollback avalia uma revisão preservada com o config/local.nix atual, sem publicar.
 --destination usa um diretório alternativo sem sudo.
 EOF
 }
@@ -52,8 +53,12 @@ inspect_deployment() {
     return
   fi
 
+  if [[ ! -e $target/config/local.nix && -f $target/local.nix ]]; then
+    die "Layout anterior encontrado em $target/local.nix. Preserve o arquivo e prepare manualmente $target/config/local.nix com a identidade. Consulte a migração no README."
+  fi
   [[ -d $target && ! -L $target && -d $target/revisions && ! -L $target/revisions &&
-     -f $target/local.nix && ! -L $target/local.nix && -L $target/current ]] ||
+     -d $target/config && ! -L $target/config &&
+     -f $target/config/local.nix && ! -L $target/config/local.nix && -L $target/current ]] ||
     die "Instalação anterior incompleta ou layout desconhecido em $target. Revise o diretório antes de continuar."
   link=$(readlink -- "$target/current") || die "Não foi possível ler $target/current."
   [[ $link =~ ^revisions/([0-9a-f]{40}|[0-9a-f]{64})$ &&
@@ -87,15 +92,138 @@ verify_release() {
     die "O conteúdo da revisão não corresponde ao commit aprovado."
 }
 
+verify_local_link() {
+  [[ -d $1/config && ! -L $1/config &&
+     -L $1/config/local.nix && $(readlink -- "$1/config/local.nix") == "$2" ]] ||
+    die "Revisão incompatível: $1 não referencia a configuração persistente esperada em $2."
+}
+
+nix_string() {
+  local value=$1
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//\$\{/\\\$\{}
+  printf '"%s"' "$value"
+}
+
 write_new_local() {
-  printf '{\n  personalConfig.desktop = "%s";\n}\n' "$1"
+  printf '{\n  personalConfig = {\n    desktop = %s;\n    username = %s;\n    git = {\n      userName = %s;\n      userEmail = %s;\n    };\n  };\n}\n' \
+    "$(nix_string "$desktop")" "$(nix_string "$username")" \
+    "$(nix_string "$git_name")" "$(nix_string "$git_email")"
+}
+
+valid_username() {
+  local LC_ALL=C
+  [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]
+}
+
+read_identity() {
+  local suggested
+  suggested=$(id -un) || die "Não foi possível identificar a conta da sessão."
+  if valid_username "$suggested"; then
+    IFS= read -r -p "Conta Linux existente [$suggested]: " username || die "Entrada da conta interrompida."
+    username=${username:-$suggested}
+  else
+    IFS= read -r -p "Conta Linux existente: " username || die "Entrada da conta interrompida."
+  fi
+  valid_username "$username" ||
+    die "Nome de conta inválido. Use até 32 caracteres, iniciando por letra minúscula ou _, seguidos por minúsculas, números, _ ou -."
+  [[ $username == "$suggested" ]] ||
+    die "Execute a primeira instalação pela própria conta Linux selecionada."
+  IFS= read -r -p "Nome para autoria Git: " git_name || die "Entrada do nome Git interrompida."
+  IFS= read -r -p "E-mail para autoria Git: " git_email || die "Entrada do e-mail Git interrompida."
+  [[ $git_name != *[[:cntrl:]]* && $git_email != *[[:cntrl:]]* ]] ||
+    die "A identidade Git deve ser informada sem caracteres de controle."
+}
+
+trusted_git_path() {
+  local item=$1 kind=$2 mode
+  while :; do
+    if [[ -e $item || -L $item ]]; then
+      [[ ! -L $item && -O $item ]] || return 1
+      if [[ $kind == directory ]]; then
+        [[ -d $item ]] || return 1
+      else
+        [[ -f $item && -r $item ]] || return 1
+      fi
+      mode=$(stat -c %a -- "$item") || return 1
+      (( (8#$mode & 022) == 0 )) || return 1
+    fi
+    [[ $item == "$git_home" ]] && return 0
+    item=${item%/*}
+    kind=directory
+  done
+}
+
+git_user_config() {
+  HOME="$git_home" XDG_CONFIG_HOME="$git_xdg" git -C "$prepared" config --global "$@"
+}
+
+prepare_git_config() {
+  local variable entry account uid passwd_home origin key status=0
+  local -A seen=()
+  for variable in GIT_CONFIG GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM GIT_CONFIG_NOSYSTEM \
+                  GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR \
+                  GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL; do
+    [[ ! -v $variable ]] || die "Remova $variable do ambiente antes da primeira instalação."
+  done
+  entry=$(getent passwd "$EUID") || die "Não foi possível consultar a conta Linux executora."
+  IFS=: read -r account _ uid _ _ passwd_home _ <<< "$entry"
+  [[ $account == "$username" && $uid == "$EUID" && $passwd_home == /* && ${HOME:-} == /* ]] ||
+    die "A conta efetiva ou HOME não corresponde à configuração da conta selecionada."
+  git_home=$(realpath -e -- "$passwd_home") && [[ $git_home != / && -d $git_home &&
+    $(realpath -e -- "$HOME") == "$git_home" ]] ||
+    die "HOME deve apontar para o diretório pessoal da conta selecionada."
+  git_xdg=${XDG_CONFIG_HOME:-$git_home/.config}
+  [[ $git_xdg == /* ]] || die "XDG_CONFIG_HOME deve ser um caminho absoluto dentro de HOME."
+  git_xdg=$(realpath -ms -- "$git_xdg") || die "XDG_CONFIG_HOME inválido."
+  [[ $git_xdg == "$git_home/"* ]] ||
+    die "XDG_CONFIG_HOME deve ficar dentro do diretório pessoal da conta selecionada."
+
+  local dotfile=$git_home/.gitconfig xdgfile=$git_xdg/git/config
+  trusted_git_path "$dotfile" file && trusted_git_path "$xdgfile" file ||
+    die "Configuração Git global em caminho inseguro. Revise a propriedade, as permissões e os links sob HOME."
+  git_target=$dotfile
+  if [[ ! -e $dotfile && -f $xdgfile ]]; then git_target=$xdgfile; fi
+  [[ -w ${git_target%/*} && ( ! -e $git_target || -w $git_target ) ]] ||
+    die "O destino global do Git não permite gravação pela conta selecionada: $git_target."
+
+  # Só lemos as origens e as chaves, sem copiar seus valores para o diagnóstico.
+  git_user_config --includes --show-origin --null --name-only \
+    --get-regexp '^(user\.(name|email)|init\.defaultbranch)$' > "$prepared/git-origins" 2>/dev/null || status=$?
+  (( status <= 1 )) || die "O Git não conseguiu ler a configuração global. Revise os arquivos e includes."
+  while IFS= read -r -d '' origin && IFS= read -r -d '' key; do
+    [[ ( $origin == "file:$dotfile" || $origin == "file:$xdgfile" ) && ! -v "seen[$key]" ]] ||
+      die "Configuração Git em conflito para $key. Revise includes e definições duplicadas antes da instalação."
+    seen[$key]=1
+  done < "$prepared/git-origins"
+}
+
+apply_git_config() {
+  local index key effective
+  local keys=(user.name user.email init.defaultBranch)
+  local values=("$git_name" "$git_email" main)
+  printf 'Publicação concluída. Aplicando a identidade Git em %s.\n' "$git_target"
+  for index in "${!keys[@]}"; do
+    key=${keys[index]}
+    if ! trusted_git_path "$git_target" file ||
+       ! GIT_CONFIG_GLOBAL="$git_target" git_user_config -- "$key" "${values[index]}" 2>/dev/null; then
+      printf 'Erro ao gravar %s. A revisão permanece publicada. As chaves posteriores ficaram pendentes.\n' "$key" >&2
+      return 1
+    fi
+    if ! effective=$(git_user_config --includes --get "$key" 2>/dev/null) || [[ $effective != "${values[index]}" ]]; then
+      printf 'A chave %s foi gravada, mas seu valor efetivo não pôde ser confirmado. A revisão permanece publicada. As chaves posteriores ficaram pendentes.\n' "$key" >&2
+      return 1
+    fi
+    printf 'Git: %s gravada e verificada.\n' "$key"
+  done
 }
 
 send_payload() {
-  local include_local=$1 desktop=$2 file
-  shift 2
+  local include_local=$1 file
+  shift
   if [[ $include_local == yes ]]; then
-    write_new_local "$desktop" | base64 -w0 && printf '\n' || return 1
+    write_new_local | base64 -w0 && printf '\n' || return 1
   fi
   for file; do
     git -C "$checkout" cat-file blob "$revision:$file" | base64 -w0 && printf '\n' || return 1
@@ -133,11 +261,12 @@ publish() (
   if [[ -n $previous ]]; then
     if (( EUID == 0 )); then
       protected_dir "$target"
+      protected_dir "$target/config"
       protected_dir "$target/revisions"
       protected_dir "$target/$previous"
-      check_protected_permissions "$target/local.nix"
+      check_protected_permissions "$target/config/local.nix"
     fi
-    [[ $(digest "$target/local.nix") == "$expected_local" ]] ||
+    [[ $(digest "$target/config/local.nix") == "$expected_local" ]] ||
       die "A configuração local mudou durante a preparação. Execute novamente."
   fi
 
@@ -149,9 +278,9 @@ publish() (
   if [[ -z $previous ]]; then
     stage=$(mktemp -d -- "$parent/.nixos-config.XXXXXXXX") || die "Não foi possível preparar $target."
     tree=$stage
-    mkdir -- "$tree/revisions" || die "Não foi possível criar o diretório de revisões."
-    receive_file "$tree/local.nix"
-    [[ $(digest "$tree/local.nix") == "$expected_local" ]] ||
+    mkdir -- "$tree/revisions" "$tree/config" || die "Não foi possível criar os diretórios da implantação."
+    receive_file "$tree/config/local.nix"
+    [[ $(digest "$tree/config/local.nix") == "$expected_local" ]] ||
       die "O módulo local recebido diverge do conteúdo aprovado."
   else
     stage=$(mktemp -d -- "$target/.install.XXXXXXXX") || die "Não foi possível preparar a troca de revisão."
@@ -174,6 +303,7 @@ publish() (
 
   if [[ -e $release || -L $release ]]; then
     verify_release "$release" "$manifest" "$@"
+    verify_local_link "$release" "$target/config/local.nix"
     if (( EUID == 0 )); then
       protected_dir "$release"
       protected_dir "$release/modules"
@@ -183,6 +313,8 @@ publish() (
       done
     fi
   else
+    ln -s -- "$target/config/local.nix" "$revision_stage/config/local.nix" ||
+      die "Não foi possível apontar a revisão para a configuração persistente."
     chmod 0755 -- "$revision_stage" || die "Não foi possível ajustar as permissões da revisão."
     mv -Tn -- "$revision_stage" "$release" && [[ ! -e $revision_stage ]] ||
       die "Falha ao gravar a revisão completa."
@@ -195,6 +327,8 @@ publish() (
     mv -Tn -- "$stage" "$target" && [[ ! -e $stage ]] ||
       die "Falha ao publicar a instalação."
   else
+    [[ $(digest "$target/config/local.nix") == "$expected_local" ]] ||
+      die "O módulo local mudou antes da troca de revisão."
     mv -Tf -- "$stage/current" "$target/current" ||
       die "Falha ao trocar a revisão ativa. A revisão anterior continua em uso."
   fi
@@ -214,7 +348,9 @@ evaluate_candidate() {
             else throw "O destino declarado no módulo da máquina difere do destino selecionado no instalador.";
         };
         c = evaluated.config;
-        desktopOption = evaluated.options.personalConfig.desktop or {};
+        options = evaluated.options.personalConfig or {};
+        localPath = deployment + "/current/config/local.nix";
+        fromLocal = option: (option.files or []) == [ localPath ];
         selected = c.personalConfig.desktop;
         kde = selected == "kde";
         profileMatches =
@@ -225,9 +361,14 @@ evaluate_candidate() {
           && c.services.xserver.desktopManager.xfce.enable == !kde
           && c.services.xserver.displayManager.lightdm.enable == !kde;
       in
-        if (desktopOption.declarations or []) != [ (deployment + "/current/personal.nix") ]
-          || !(builtins.elem (deployment + "/local.nix") (desktopOption.files or []))
-        then throw "A configuração deve importar somente current/personal.nix e o módulo local por nixosConfigDeployment. A revisão precisa declarar personalConfig.desktop."
+        if (options.desktop.declarations or []) != [ (deployment + "/current/config/options.nix") ]
+        then throw "Importe current/personal.nix via nixosConfigDeployment. A revisão deve declarar as opções em config/options.nix."
+        else if !(builtins.all fromLocal [
+          (options.desktop or {}) (options.username or {})
+          (options.git.userName or {}) (options.git.userEmail or {})
+        ]) || c.personalConfig.username == null || c.personalConfig.git.userName == null
+           || c.personalConfig.git.userEmail == null
+        then throw "Defina desktop, username, git.userName e git.userEmail em config/local.nix. Remova imports diretos do módulo local e definições duplicadas da configuração da máquina."
         else builtins.seq c.system.build.toplevel.drvPath
           (if profileMatches then selected else throw "Os serviços gráficos efetivos não correspondem ao perfil selecionado.")
     '
@@ -235,14 +376,23 @@ evaluate_candidate() {
 
 show_migration() {
   printf '\nUse no módulo da máquina o argumento nixosConfigDeployment descrito no README e o destino padrão %s.\n' "$destination"
+  printf 'Importe somente current/personal.nix da implantação. Complete a identidade em config/local.nix no destino e retire imports diretos do arquivo local.\n'
   printf 'Preserve os outros imports, o hardware e system.stateVersion. Para XFCE, remova as ativações locais de Plasma e SDDM.\n'
   printf 'Revise e instale manualmente a cópia avaliada, se aplicável. Valide a configuração final com nixos-rebuild dry-build.\n'
 }
 
+publish_protected() {
+  local root_script=$'PATH=/run/current-system/sw/bin:/run/wrappers/bin\n'
+  root_script+=$(declare -f die digest inspect_deployment check_protected_permissions protected_dir \
+    verify_release verify_local_link receive_file publish)
+  root_script+=$'\npublish "$@"'
+  sudo -- /run/current-system/sw/bin/bash -p -c "$root_script" -- "$@"
+}
+
 main() {
-  local cmd repo revision file entry mode local_hash manifest root_script use_sudo=false
-  local checkout previous local_config desktop evaluated_desktop revision_directory
-  local include_local=no configuration_hash
+  local cmd repo revision file entry mode local_hash manifest use_sudo=false
+  local checkout previous local_config desktop username git_name git_email evaluated_desktop revision_directory
+  local include_local=no configuration_hash git_home git_xdg git_target configure_git=false
 
   while (( $# > 0 )); do
     case $1 in
@@ -270,7 +420,7 @@ main() {
   [[ -r /etc/os-release ]] && grep -Eq '^ID="?nixos"?$' /etc/os-release ||
     die "Este instalador requer NixOS."
   for cmd in git grep nix-instantiate realpath dirname readlink mktemp sha256sum base64 flock mkdir \
-             stat chmod mv ln rm; do
+             stat chmod mv ln rm id; do
     command -v "$cmd" >/dev/null || die "Comando necessário ausente: $cmd."
   done
   nix-instantiate --find-file nixpkgs >/dev/null ||
@@ -303,16 +453,20 @@ main() {
   trap 'exit 130' INT
   trap 'exit 143' TERM
 
+  mkdir -- "$prepared/revisions" || die "Não foi possível preparar o diretório de revisões."
   if [[ -n $rollback_revision ]]; then
     [[ -n $previous ]] || die "Não há instalação em $destination."
     revision_directory=$destination/revisions/$revision
     [[ -d $revision_directory && ! -L $revision_directory &&
        -f $revision_directory/personal.nix && ! -L $revision_directory/personal.nix ]] ||
       die "Revisão preservada ausente ou inválida: $revision_directory."
+    verify_local_link "$revision_directory" "$destination/config/local.nix"
+    ln -s -- "$revision_directory" "$prepared/revisions/$revision" ||
+      die "Não foi possível preparar a revisão preservada."
   else
     revision=$(git -C "$checkout" rev-parse --verify --end-of-options "$revision_ref^{commit}") ||
       die "A revisão $revision_ref não identifica um commit neste checkout."
-    revision_directory=$prepared/source
+    revision_directory=$prepared/revisions/$revision
     for file in "${source_files[@]}"; do
       entry=$(git -C "$checkout" ls-tree "$revision" -- "$file") || die "Falha ao consultar $file."
       mode=${entry%% *}
@@ -324,11 +478,11 @@ main() {
     manifest=$(cd -- "$revision_directory" && sha256sum -- "${source_files[@]}") ||
       die "Não foi possível calcular a integridade dos arquivos."
   fi
-  ln -s -- "$revision_directory" "$prepared/current" || die "Não foi possível preparar o link de avaliação."
+  ln -s -- "revisions/$revision" "$prepared/current" || die "Não foi possível preparar o link de avaliação."
 
   if [[ -n $previous ]]; then
-    local_config=$destination/local.nix
-    ln -s -- "$local_config" "$prepared/local.nix" || die "Não foi possível preparar o import local."
+    local_config=$destination/config/local.nix
+    ln -s -- "$destination/config" "$prepared/config" || die "Não foi possível preparar o import local."
     printf 'Instalação encontrada em %s. Módulo local preservado: %s.\n' "$destination" "$local_config"
   else
     printf 'Escolha o ambiente gráfico.\n  1) KDE Plasma\n  2) XFCE\n'
@@ -339,17 +493,26 @@ main() {
       '') printf 'Instalação cancelada.\n'; return ;;
       *) die "Escolha 1 para KDE Plasma ou 2 para XFCE." ;;
     esac
-    local_config=$prepared/local.nix
+    read_identity
+    mkdir -- "$prepared/config" || die "Não foi possível preparar a configuração local."
+    local_config=$prepared/config/local.nix
     include_local=yes
-    write_new_local "$desktop" > "$local_config" ||
+    write_new_local > "$local_config" ||
       die "Não foi possível preparar o módulo local."
+  fi
+  if [[ -z $rollback_revision ]]; then
+    ln -s -- "$prepared/config/local.nix" "$revision_directory/config/local.nix" ||
+      die "Não foi possível preparar o vínculo local da revisão."
   fi
   local_hash=$(digest "$local_config") || die "Não foi possível verificar o módulo local."
   configuration_hash=$(digest "$configuration") || die "Não foi possível verificar o módulo da máquina."
 
   printf '\nRevisão avaliada: %s\nConfiguração avaliada: %s\nDestino: %s\nRevisão ativa: %s\n' \
     "$revision" "$configuration" "$destination" "${previous:-primeira instalação}"
-  if [[ $include_local == yes ]]; then printf 'Módulo local a criar: %s/local.nix\n' "$destination"; fi
+  if [[ $include_local == yes ]]; then
+    printf 'Conta Linux: %s\nMódulo local a criar: %s/config/local.nix\n' \
+      "$username" "$destination"
+  fi
   if ! evaluated_desktop=$(evaluate_candidate); then
     if [[ -n $rollback_revision ]]; then
       die "Rollback não validado com a configuração e o módulo local atuais. Mantenha current até resolver o erro acima."
@@ -369,28 +532,42 @@ main() {
 
   if [[ $previous == "revisions/$revision" ]]; then
     verify_release "$destination/$previous" "$manifest" "${source_files[@]}"
+    verify_local_link "$destination/$previous" "$destination/config/local.nix"
     printf 'Revisão já publicada. Nenhuma alteração necessária.\n'
   else
     local privilege='sem sudo'
     if "$use_sudo"; then privilege='com sudo'; fi
-    confirm "Publicar em $destination $privilege?" || { printf 'Instalação cancelada.\n'; return; }
+    local confirmation="Publicar em $destination $privilege?"
+    if [[ $include_local == yes ]]; then
+      printf 'Nome Git: %s\nE-mail Git: informado na coleta\nBranch inicial: main\n' "$git_name"
+      if "$use_sudo"; then
+        command -v getent >/dev/null || die "Comando necessário ausente: getent."
+        prepare_git_config
+        configure_git=true
+        printf 'Destino global do Git: %s\n' "$git_target"
+        confirmation="Publicar em $destination $privilege e, depois, configurar o Git desta conta?"
+      else
+        printf 'Destino alternativo. A identidade fica registrada apenas no módulo local.\n'
+      fi
+    fi
+    confirm "$confirmation" || { printf 'Instalação cancelada.\n'; return; }
     [[ $(digest "$configuration") == "$configuration_hash" ]] ||
       die "O módulo da máquina mudou após a avaliação. Execute novamente."
     if "$use_sudo"; then
-      root_script=$'PATH=/run/current-system/sw/bin:/run/wrappers/bin\n'
-      root_script+=$(declare -f die digest inspect_deployment check_protected_permissions protected_dir \
-        verify_release receive_file publish)
-      root_script+=$'\npublish "$@"'
-      send_payload "$include_local" "${desktop:-}" "${source_files[@]}" |
-        sudo -- /run/current-system/sw/bin/bash -p -c "$root_script" -- \
+      send_payload "$include_local" "${source_files[@]}" |
+        publish_protected \
           "$destination" "$revision" "$previous" "$local_hash" "$manifest" "${source_files[@]}" ||
         die "Publicação interrompida. Confira a revisão ativa em $destination/current."
     else
-      send_payload "$include_local" "${desktop:-}" "${source_files[@]}" |
+      send_payload "$include_local" "${source_files[@]}" |
         publish "$destination" "$revision" "$previous" "$local_hash" "$manifest" "${source_files[@]}" ||
         die "Publicação interrompida. Confira a revisão ativa em $destination/current."
     fi
     printf 'Revisão publicada: %s\n' "$revision"
+    if "$configure_git"; then
+      apply_git_config || { show_migration; exit 1; }
+      printf 'Identidade Git configurada.\n'
+    fi
   fi
 
   if [[ -n $previous && $previous != "revisions/$revision" ]]; then
