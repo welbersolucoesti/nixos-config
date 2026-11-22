@@ -5,6 +5,7 @@ unset TAR_OPTIONS
 
 default_destination=/etc/nixos/nixos-config
 system_path=/run/current-system/sw/bin:/run/wrappers/bin
+system_rebuild=/run/current-system/sw/bin/nixos-rebuild
 prepared=''
 new_local=''
 wizard_started=false
@@ -14,6 +15,11 @@ publication_result=(neutral 'Não iniciada')
 backup_result=(neutral 'Não criado')
 identity_result=(neutral 'Não aplicada')
 published_destination=''
+rebuild_operation=''
+rebuild_log=''
+rebuild_lock_fd=''
+validation_result=(neutral 'Não iniciada')
+activation_result=(neutral 'Não iniciada')
 
 die() {
   if declare -F ui_error >/dev/null; then
@@ -52,6 +58,14 @@ fail_command() {
 
 show_result() {
   ui_section 'Resumo'
+  if [[ -n $rebuild_operation ]]; then
+    ui_outcome 'Validação (dry-build)' "${validation_result[@]}"
+    if [[ $rebuild_operation == switch ]]; then
+      ui_outcome 'Ativação (switch)' "${activation_result[@]}"
+    fi
+    if [[ -n $rebuild_log ]]; then ui_fields 'Registro' "$rebuild_log"; fi
+    return
+  fi
   ui_outcome 'Sincronização' "${git_result[@]}"
   ui_outcome 'Configuração local' "${local_result[@]}"
   if [[ -n $published_destination ]]; then
@@ -65,6 +79,7 @@ show_result() {
 
 finish() {
   local status=$1
+  if [[ -n $rebuild_lock_fd ]]; then exec {rebuild_lock_fd}<&-; fi
   if [[ -n $prepared ]]; then rm -rf -- "$prepared"; fi
   if [[ -n $new_local ]]; then rm -f -- "$new_local"; fi
   if [[ -n ${ui_dialog_dir:-} ]]; then
@@ -279,7 +294,7 @@ generate_local() {
   local model=$1 output=$2 desktop line value
   local assignment='^([[:blank:]]*)(desktop|username|userName|userEmail)[[:blank:]]*='
   ui_section 'Ambiente gráfico'
-  desktop=$(ui_choose 'KDE Plasma' 'XFCE') || cancel "$?"
+  desktop=$(ui_choose 'Selecione a sessão.' 'KDE Plasma' 'XFCE') || cancel "$?"
   case $desktop in
     ''|1) desktop=kde ;;
     2) desktop=xfce ;;
@@ -509,11 +524,90 @@ Em /etc/nixos/configuration.nix, adicione ./nixos-config/personal.nix a imports.
 Remova os imports antigos do projeto. Preserve os imports de hardware e os ajustes da máquina.
 
 Valide:
-  sudo nixos-rebuild dry-build
+  nixos-rebuild dry-build
 
 Após conferir o resultado, aplique manualmente:
   sudo nixos-rebuild switch
 INSTRUCTIONS
+  fi
+}
+
+run_logged_rebuild() {
+  local title=$1
+  shift
+  local -a statuses=()
+
+  ui_progress "$title" || return "$?"
+  printf '\n%s\n' "$title" >> "$rebuild_log" || return "$?"
+  if [[ -n $ui_dialog && $1 != sudo ]]; then
+    "$@" >> "$rebuild_log" 2>&1
+  else
+    # O sudo usa o terminal controlador para autenticação e a saída fica visível e registrada.
+    if [[ -n $ui_dialog ]]; then
+      printf '\n\n' > /dev/tty
+      "$@" </dev/tty 2>&1 | tee -a -- "$rebuild_log" >/dev/tty || statuses=("${PIPESTATUS[@]}")
+    else
+      "$@" 2>&1 | tee -a -- "$rebuild_log" || statuses=("${PIPESTATUS[@]}")
+    fi
+    if (( ${statuses[0]:-0} != 0 )); then return "${statuses[0]}"; fi
+    return "${statuses[1]:-0}"
+  fi
+}
+
+rebuild_configuration() {
+  local operation=$1 interactive=$2 machine_dir=${default_destination%/*} status tool
+  local log_dir=${XDG_STATE_HOME:-$HOME/.local/state}/noir/rebuilds
+  local -a args=(--no-flake -I "nixos-config=$machine_dir/configuration.nix")
+  local system_channel=/nix/var/nix/profiles/per-user/root/channels/nixos pinned_channel
+
+  rebuild_operation=$operation
+  wizard_started=true
+  if [[ $operation == switch ]] && ! "$interactive"; then
+    die 'A ativação exige um terminal interativo para as duas confirmações.'
+  fi
+  [[ -x $system_rebuild ]] || die 'nixos-rebuild indisponível na configuração atual do sistema.'
+  for tool in flock mkdir mktemp realpath tee; do
+    command -v "$tool" >/dev/null || die "Comando necessário ausente: $tool."
+  done
+  if [[ $operation == switch ]]; then
+    command -v sudo >/dev/null || die 'A ativação requer sudo.'
+    ui_section 'Ativação do NixOS'
+    ui_confirm 'O switch altera o sistema e pode afetar a sessão. Validar primeiro?' || cancel "$?"
+  fi
+
+  cd -- "$machine_dir" || die "Diretório da configuração indisponível: $machine_dir."
+  # Use a mesma trava de diretório da publicação protegida, inclusive entre contas.
+  exec {rebuild_lock_fd}< . || die "Não foi possível abrir $machine_dir para bloqueio."
+  flock -n -x "$rebuild_lock_fd" || die 'Outra publicação ou operação de rebuild do Noir está em andamento.'
+  [[ -r configuration.nix && -r $default_destination/personal.nix &&
+     -r $default_destination/config/local.nix ]] ||
+    die "Configuração indisponível. Confira configuration.nix e a publicação em $default_destination."
+
+  if pinned_channel=$(realpath -e -- "$system_channel") && [[ $pinned_channel == /nix/store/* ]]; then
+    args+=(-I "nixpkgs=$pinned_channel")
+  fi
+  (umask 077; mkdir -p -- "$log_dir") || die "Não foi possível criar o diretório de registros: $log_dir."
+  rebuild_log=$(mktemp -- "$log_dir/$operation.XXXXXXXX.log") || die 'Não foi possível criar o registro do rebuild.'
+  printf 'Configuração: %s/configuration.nix\nImplantação: %s\n' "$machine_dir" "$default_destination" > "$rebuild_log" ||
+    die 'Não foi possível gravar o registro do rebuild.'
+  ui_fields 'Registro' "$rebuild_log"
+
+  validation_result=(error 'Interrompida ou com falha')
+  run_logged_rebuild 'Validando configuração (dry-build)' "$system_rebuild" dry-build "${args[@]}" || {
+    status=$?
+    fail_command "$status" "A validação falhou (código $status). Consulte o registro do rebuild."
+  }
+  validation_result=(ok 'Concluída')
+  ui_success 'Validação (dry-build) concluída.'
+  if [[ $operation == switch ]]; then
+    ui_confirm 'A validação passou. Ativar agora? Serviços podem reiniciar.' || cancel "$?" 'Ativação cancelada.'
+    activation_result=(error 'Interrompida ou com falha. Confira a geração atual e o registro.')
+    run_logged_rebuild 'Aplicando configuração (switch)' sudo -- "$system_rebuild" switch "${args[@]}" || {
+      status=$?
+      fail_command "$status" "A ativação falhou (código $status). Consulte o registro e confira as gerações do NixOS."
+    }
+    activation_result=(ok 'Concluída')
+    ui_success 'Ativação (switch) concluída.'
   fi
 }
 
@@ -645,6 +739,7 @@ main() {
   local destination=$default_destination checkout parent expected=absent source_commit plain=false
   local username git_name git_email git_target tree entry mode file checkout_local root_script
   local revision local_info account profile previous backup status argument_error='' shell_options=$-
+  local selection interactive=false
   local +x password
   local -a identity_args=() nix_files=() identity_summary=()
   case $backend in
@@ -667,11 +762,12 @@ main() {
       *) argument_error=$usage; break ;;
     esac
   done
-  (( EUID != 0 )) || die "Execute o instalador pela sua conta normal, sem sudo."
+  (( EUID != 0 )) || die "Execute o Noir pela sua conta normal, sem sudo."
   command -v dirname >/dev/null || die "Comando necessário ausente: dirname."
   checkout=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
   [[ -r $checkout/lib/ui.sh ]] || die "Módulo de interface ausente: $checkout/lib/ui.sh."
   source "$checkout/lib/ui.sh"
+  if ui_interactive; then interactive=true; fi
   trap 'finish "$?"' EXIT
   trap 'cancel 130' INT
   trap 'cancel 143' TERM
@@ -688,11 +784,49 @@ main() {
     fi
   fi
   [[ -z $argument_error ]] || die "$argument_error"
+  if ! "$plain" && [[ $backend == gum ]]; then prepare_ui gum; fi
+  cd -- "$checkout"
+  # Identificação visual sem carregar configurações Git.
+  revision=''
+  if [[ -f .git/HEAD ]] && IFS= read -r revision < .git/HEAD; then
+    revision=${revision#ref: refs/heads/}
+    if [[ $revision =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]; then revision=${revision:0:12}; fi
+  fi
+  [[ $revision =~ ^[a-zA-Z0-9._/-]+$ ]] || revision=''
+  local -a menu=('Instalar ou atualizar')
+  if [[ $destination == "$default_destination" ]]; then menu+=('Gerenciar sistema'); fi
+  while :; do
+    selection=$(ui_start "$revision" "${menu[@]}") || {
+      status=$?
+      if (( status == 1 )); then
+        if [[ -n ${ui_dialog_dir:-} ]]; then
+          rm -rf -- "$ui_dialog_dir"
+          ui_dialog_dir=''
+        fi
+        return 0
+      fi
+      cancel "$status"
+    }
+    if [[ $selection == 1 ]]; then break; fi
+    [[ $selection == 2 && $destination == "$default_destination" ]] || die 'Selecione uma opção do menu.'
+    ui_section_title='Gerenciar sistema'
+    selection=$(ui_choose 'Selecione uma operação.' 'Validar configuração (dry-build)' \
+      'Aplicar configuração (switch)') || {
+      status=$?
+      if (( status == 1 )); then continue; fi
+      cancel "$status"
+    }
+    case $selection in
+      1) rebuild_configuration dry-build "$interactive" ;;
+      2) rebuild_configuration switch "$interactive" ;;
+      *) die 'Selecione uma opção do menu.' ;;
+    esac
+    return
+  done
+  ui_section_title=''
   ui_progress 'Verificando pré-requisitos'
   check_requirements
   ui_success 'Pré-requisitos'
-  if ! "$plain" && [[ $backend == gum ]]; then prepare_ui gum; fi
-  cd -- "$checkout"
   if [[ $destination != "$default_destination" ]]; then
     destination=$(realpath -ms -- "$destination") || die "Destino alternativo inválido."
     parent=${destination%/*}
@@ -702,14 +836,6 @@ main() {
   fi
   [[ $destination != "$checkout" && $destination != "$checkout/"* && $checkout != "$destination/"* ]] ||
     die "Escolha um destino separado do checkout."
-  # Identificação visual sem carregar configurações Git antes das verificações.
-  revision=''
-  if [[ -f .git/HEAD ]] && IFS= read -r revision < .git/HEAD; then
-    revision=${revision#ref: refs/heads/}
-    if [[ $revision =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]; then revision=${revision:0:12}; fi
-  fi
-  [[ $revision =~ ^[a-zA-Z0-9._/-]+$ ]] || revision=''
-  ui_start "$revision" || cancel "$?"
   wizard_started=true
   backup=$destination.previous
   if [[ -d $backup && ! -L $backup ]]; then backup_result=(ok "$backup"); fi

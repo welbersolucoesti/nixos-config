@@ -55,7 +55,7 @@ O configurador Noir usa Dialog no console TTY e nos terminais do KDE e do XFCE, 
 
 Em um terminal interativo, `./config.sh` usa o Dialog do `PATH` ou carrega o executável automaticamente com `nix-shell -p dialog`. Se o carregamento falhar, execute `./config.sh --plain` para usar o modo texto. Fora de um terminal interativo, o configurador também usa o modo texto. `bash install.sh` continua disponível com Gum e aceita `--plain` e `--destination`.
 
-Depois de selecionar **Instalar ou atualizar** no Dialog ou confirmar o início no modo texto ou Gum, o assistente pede confirmação para consultar o remoto, aplicar o fast-forward quando houver atualizações e publicar a cópia. Na publicação protegida, o Dialog abre um campo oculto e entrega a senha ao `sudo` somente se ele pedir autenticação para aquele comando. A implantação chega por um descritor separado, lido com as permissões da conta que a preparou. Se sua configuração de PAM usar uma pergunta de autenticação personalizada, use `--plain`. Prepare as credenciais do remoto antes de iniciar a sincronização no Dialog.
+Depois de selecionar **Instalar ou atualizar**, o assistente pede confirmação para consultar o remoto, aplicar o fast-forward quando houver atualizações e publicar a cópia. Na publicação protegida, o Dialog abre um campo oculto e entrega a senha ao `sudo` somente se ele pedir autenticação para aquele comando. A implantação chega por um descritor separado, lido com as permissões da conta que a preparou. Se sua configuração de PAM usar uma pergunta de autenticação personalizada, use `--plain`. Prepare as credenciais do remoto antes de iniciar a sincronização no Dialog.
 
 1. Na primeira instalação, preencha **Conta Linux** e **Identidade Git**. Confira os dados no resumo antes de publicar. Nas atualizações, o instalador reutiliza a identidade da cópia implantada.
 2. O instalador executa `git fetch` para o remoto configurado na branch e apresenta os commits e arquivos alterados. Se você autorizar, `git merge --ff-only` avança o checkout até o commit apresentado usando o objeto já buscado. Recusar encerra a instalação. Alterações não commitadas, commits apenas locais e branches divergentes exigem que você resolva o estado do checkout.
@@ -79,17 +79,17 @@ imports = [
 - Para usar **XFCE**, remova as declarações da máquina que ativam KDE Plasma (`services.desktopManager.plasma6.enable`) ou SDDM (`services.displayManager.sddm.enable`).
 - Para usar **KDE**, remova as que ativam XFCE (`services.xserver.desktopManager.xfce.enable`) ou LightDM (`services.xserver.displayManager.lightdm.enable`).
 
-Valide os imports e o restante da configuração da máquina:
+O menu principal oferece **Instalar ou atualizar** e **Gerenciar sistema**. Em **Gerenciar sistema**, escolha **Validar configuração (dry-build)** ou **Aplicar configuração (switch)**. No Dialog, Esc volta ao menu principal e, a partir dele, encerra o Noir. No Gum, use **Cancelar**. No modo texto, digite `q`.
 
-```bash
-sudo nixos-rebuild dry-build
-```
+**Validar configuração (dry-build)** avalia `/etc/nixos/configuration.nix` e a cópia publicada em `/etc/nixos/nixos-config`. Execute pela sua conta normal. Alterações ainda no checkout precisam ser publicadas antes de aparecer nessa validação. O equivalente no terminal é `nixos-rebuild dry-build`.
 
-Se houver erro, corrija a configuração antes de continuar. Depois de conferir o resultado, somente o proprietário aplica manualmente a configuração:
+**Aplicar configuração (switch)** exige um terminal interativo e duas confirmações. A primeira inicia a validação. Se ela passar, a segunda autoriza a ativação e o `sudo` faz a autenticação no terminal. O switch pode reiniciar serviços e afetar a sessão gráfica. A publicação termina na revisão dos resultados e a ativação começa pelo menu. Somente o proprietário da máquina pode aprovar a ativação ou realizar o equivalente manual depois de validar a configuração.
 
 ```bash
 sudo nixos-rebuild switch
 ```
+
+Os rebuilds do Noir compartilham uma trava com a publicação protegida. Use **Registros** no Dialog ou abra o caminho indicado no resumo para consultar a saída. Os registros de rebuild ficam em `$XDG_STATE_HOME/noir/rebuilds` ou, por padrão, em `~/.local/state/noir/rebuilds`. Em caso de falha no switch, confira o registro e consulte [Diagnóstico e recuperação](#diagnóstico-e-recuperação) antes de tentar novamente.
 
 Confira a sessão gráfica e os serviços depois da ativação. Repita a instalação e a validação para atualizar a cópia implantada.
 
@@ -148,11 +148,15 @@ No primeiro login após a atualização, o migrador reorganiza o lado esquerdo d
 
 Ao iniciar a sessão X11, o atalho usa `Shift+Alt+F11` para abrir o Whisker. Se a combinação ou a própria Super esquerda já estiver atribuída a outra ação no XFCE, a atribuição pessoal tem precedência.
 
+`Super+L` chama `xflock4`, que delega o bloqueio ao protetor de tela da sessão, normalmente `xfce4-screensaver`. A configuração registra o atalho quando a combinação está livre. Se houver conflito, revise **Teclado → Atalhos de aplicativos** ou os atalhos do gerenciador de janelas. [Atalhos padrão do XFCE](https://github.com/xfce-mirror/libxfce4ui/blob/master/libxfce4kbd-private/xfce4-keyboard-shortcuts.xml)
+
 No modelo inicial do painel, **Mixer de áudio** abre o Pavucontrol na aba **Dispositivos de saída**. A aba **Dispositivos de entrada** permite selecionar o microfone e ajustar o nível. Painéis existentes mantêm a configuração do mixer e podem editar seu comando nas propriedades do plugin.
 
 ### Terminais
 
 Os padrões de ambos os terminais ficam em `modules/applications/terminal.nix`. Menus, ferramentas e barra de rolagem começam ocultos. As abas aparecem quando há mais de uma, e o terminal mantém o título da janela, a seleção de texto, a rolagem e os atalhos. As preferências pessoais têm precedência.
+
+O comando `noir` abre o configurador executável em `~/nixos-config/config.sh` pela conta da sessão, inclusive com outro shell ou desktop. Com o perfil KDE ou XFCE selecionado, `Super+N` abre uma janela de Konsole ou XFCE Terminal, respectivamente. Se o Noir falhar, a janela espera Enter antes de fechar. No KDE, o KGlobalAccel carrega o atalho padrão do aplicativo **Noir**. No XFCE X11, o perfil registra a combinação livre em Xfconf. Atalhos personalizados já atribuídos têm precedência. Em um TTY ou com outro desktop escolhido pela máquina, execute `noir` no terminal ou configure o atalho no gerenciador da sessão. [Implementação do KGlobalAccel](https://github.com/KDE/kglobalacceld/blob/v6.6.6/src/globalshortcutsregistry.cpp)
 
 - **KDE** usa Konsole com o perfil de sistema **Noir** quando a conta não tem outro perfil padrão. `Ctrl+Shift+M` alterna a barra de menus. [Manual do Konsole](https://docs.kde.org/stable_kf6/en/konsole/konsole/)
 - **XFCE** usa XFCE Terminal com DejaVu Sans Mono 11, opacidade inicial de 90% e o atalho padrão `Ctrl+Alt+T`. O menu de contexto permite reexibir a barra de menus. O Xfwm4 oferece composição em X11. [Compositor do Xfwm4](https://github.com/xfce-mirror/xfwm4/blob/master/COMPOSITOR)
@@ -202,6 +206,8 @@ fprintd-verify
 ```
 
 Para apagar todas as digitais cadastradas para essa conta no fprintd, use `fprintd-delete "$USER"`.
+
+No perfil XFCE, `biometria` verifica se o fprintd detecta um leitor e inicia o cadastro na própria conta. Use `biometria -f left-index-finger` para selecionar outro dedo. Siga as instruções do fprintd e autentique-se se a sessão solicitar. Cadastre um dedo ainda livre para preservar o modelo já cadastrado para o mesmo dedo. [API do fprintd](https://fprint.freedesktop.org/fprintd-dev/Manager.html)
 
 No XFCE, o LightDM GTK Greeter autentica a conta pela pilha PAM `lightdm`, que delega a autenticação à pilha `login` do NixOS. Selecione a conta e use o leitor assim que a leitura for solicitada. Se a autenticação terminar e o greeter continuar na tela, clique em **Entrar** ou pressione **Enter**. Se a digital falhar ou o tempo expirar, aguarde o campo de senha. [Código do LightDM GTK Greeter](https://github.com/Xubuntu/lightdm-gtk-greeter/blob/lightdm-gtk-greeter-2.0.9/src/lightdm-gtk-greeter.c)
 
@@ -328,7 +334,7 @@ Para voltar à cópia anterior, confira se `/etc/nixos/nixos-config.previous/per
 
 ```bash
 sudo mv -T --exchange --no-copy -- /etc/nixos/nixos-config.previous /etc/nixos/nixos-config
-sudo nixos-rebuild dry-build
+nixos-rebuild dry-build
 ```
 
 Se o backup veio da implantação anterior à mudança de layout, restaure também o import da máquina que correspondia àquela cópia. Para aplicar após a validação, siga [Verificar e aplicar](#verificar-e-aplicar). Para iniciar um sistema já construído, escolha uma geração disponível no menu de inicialização do NixOS.

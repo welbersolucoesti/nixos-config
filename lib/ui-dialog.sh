@@ -99,17 +99,16 @@ ui_dialog_list() {
 }
 
 ui_dialog_start() {
-  local ui_dialog_backtitle='' selection
+  local ui_dialog_backtitle=''
   local prompt='Checkout: indisponível' revision=$1 limit=$((ui_dialog_width - 15))
-  local footer='↑↓  1/Enter  Esc Sair'
+  shift
+  local footer="↑↓ 1–$#/Enter  Esc Sair"
   if [[ -n $revision ]]; then
     if (( ${#revision} > limit )); then revision="${revision:0:limit}…"; fi
     prompt="Checkout: $revision"
   fi
-  if (( ui_dialog_width >= 52 )); then footer='↑↓ Navegar  1 / Enter Selecionar  Esc Sair'; fi
-  selection=$(ui_dialog_list "$ui_dialog_heading" "$prompt" "$footer" \
-    'Instalar ou atualizar') || return "$?"
-  [[ $selection == 1 ]] || return 2
+  if (( ui_dialog_width >= 52 )); then footer="↑↓ Navegar  1–$# / Enter Selecionar  Esc Sair"; fi
+  ui_dialog_list "$ui_dialog_heading" "$prompt" "$footer" "$@"
 }
 
 ui_dialog_input() {
@@ -128,7 +127,9 @@ ui_dialog_git_identity() {
 }
 
 ui_dialog_choose() {
-  ui_dialog_list "$ui_section_title" 'Selecione a sessão.' '↑↓ 1–2/Enter Esc Voltar' "$@"
+  local prompt=$1
+  shift
+  ui_dialog_list "$ui_section_title" "$prompt" '↑↓ 1–2/Enter Esc Voltar' "$@"
 }
 
 ui_dialog_confirm() {
@@ -172,6 +173,7 @@ ui_dialog_password() {
 
 ui_dialog_finish() {
   local status=$1 title='Resultado' message='Operação concluída.' action=0
+  local diagnostics=${rebuild_log:-$ui_dialog_dir/log}
   if [[ -n $ui_dialog_cancelled ]]; then
     title='Operação cancelada'
     if (( status >= 128 )); then title='Operação interrompida'; fi
@@ -191,13 +193,13 @@ ui_dialog_finish() {
       --erase-on-exit || action=$?
     if (( action != 3 )); then break; fi
     action=0
-    ui_dialog_textbox 'Registros da operação' "$ui_dialog_dir/log" --exit-label 'Voltar' \
+    ui_dialog_textbox 'Registros da operação' "$diagnostics" --exit-label 'Voltar' \
       --hline '↑↓ Rolar ←→ Colunas Esc' || action=$?
     if (( action == 1 )); then action=0; fi
   done
   if (( action > 1 )); then
     printf 'Falha ao exibir os diagnósticos no Dialog. Código da operação: %s.\n' "$status" >&"$ui_dialog_stderr"
-    cat -- "$ui_dialog_dir/result" "$ui_dialog_dir/log" >&"$ui_dialog_stderr" || :
+    cat -- "$ui_dialog_dir/result" "$diagnostics" >&"$ui_dialog_stderr" || :
   fi
   rm -rf -- "$ui_dialog_dir"
 }

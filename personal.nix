@@ -27,6 +27,7 @@ in
     ./modules/services/postgresql.nix
     ./modules/applications/zsh.nix
     ./modules/applications/terminal.nix
+    ./modules/applications/noir.nix
     ./modules/optional/cron.nix
     ./modules/optional/virtualization.nix
     ./modules/optional/zsh-theme.nix

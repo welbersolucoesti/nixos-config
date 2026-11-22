@@ -33,11 +33,13 @@ ui_header() {
 }
 
 ui_start() {
+  local revision=$1
+  shift
   if [[ -n ${ui_dialog:-} ]]; then
-    ui_dialog_start "$1"
+    ui_dialog_start "$revision" "$@"
   else
-    ui_header "$1"
-    ui_confirm 'Iniciar?'
+    ui_header "$revision" >&2
+    ui_choose 'Selecione uma opção.' "$@"
   fi
 }
 
@@ -95,10 +97,11 @@ ui_input() {
 }
 
 ui_choose() {
-  local option answer index=0
+  local prompt=$1 option answer index=0
+  shift
   local -a options=()
   if [[ -n ${ui_dialog:-} ]]; then
-    ui_dialog_choose "$@"
+    ui_dialog_choose "$prompt" "$@"
     return "$?"
   fi
   for option; do
@@ -109,12 +112,12 @@ ui_choose() {
     fi
   done
   if [[ -n $ui_gum ]]; then
-    answer=$("$ui_gum" choose --header '' --limit 1 --label-delimiter '|' \
+    answer=$("$ui_gum" choose --header "$prompt" --limit 1 --label-delimiter '|' \
       --cursor.foreground "$ui_accent" \
       --item.foreground "$ui_muted" --selected.foreground "$ui_foreground" \
       -- "${options[@]}" 'Cancelar|q') || return "$?"
   else
-    printf '  Opção [1-%s, Enter: 1, q: cancelar]: ' "$index" >&2
+    printf '  %s [1-%s, Enter: 1, q: voltar/sair] ' "$prompt" "$index" >&2
     IFS= read -r answer || return 1
     answer=${answer:-1}
     if [[ ! -t 0 ]]; then printf '%s\n' "$answer" >&2; fi
