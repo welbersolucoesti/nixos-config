@@ -2,3 +2,5 @@
 *.txt
 # A identidade e as escolhas do notebook ficam fora do Git.
 /config/local.nix
+/config/optionals.json
+/config/.optionals.*

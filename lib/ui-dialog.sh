@@ -136,6 +136,12 @@ ui_dialog_choose() {
   ui_dialog_list "$ui_section_title" "$prompt" "↑↓ 1–$#/Enter Esc Voltar" "$@"
 }
 
+ui_dialog_optionals() {
+  ui_dialog_run --title 'Gerenciar opcionais' --separate-output \
+    --ok-label 'Revisar' --cancel-label 'Cancelar' --no-tags \
+    --checklist 'Use Espaço para alterar uma opção.' 0 "$ui_dialog_width" 3 "$@"
+}
+
 ui_dialog_confirm() {
   ui_dialog_run --title -- "${ui_section_title:-Confirmar}" \
     --hline '←→ Opção Enter Esc' \

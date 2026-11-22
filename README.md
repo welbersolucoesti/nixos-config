@@ -39,11 +39,11 @@ nix-instantiate --find-file nixpkgs
 nix-instantiate --eval --strict -E '(import <nixpkgs> {}).lib.version'
 ```
 
-O projeto usa a revisão do Nixpkgs disponível na máquina. As versões dos pacotes podem variar entre instalações. Se um pacote ou opção estiver disponível na avaliação, mas faltar na hora de aplicar, confira qual revisão cada ambiente está usando. Se a máquina usa canais, compare as listas de `nix-channel --list` e `sudo nix-channel --list`.
+O projeto usa a revisão do Nixpkgs disponível na máquina para os perfis e pacotes padrão. As versões desses pacotes podem variar entre instalações. O Codex CLI opcional tem uma revisão própria, fixada no repositório. Se um pacote ou opção estiver disponível na avaliação, mas faltar na hora de aplicar, confira qual revisão cada ambiente está usando. Se a máquina usa canais, compare as listas de `nix-channel --list` e `sudo nix-channel --list`.
 
 ## Instalar ou atualizar
 
-O GitHub é a fonte de verdade. A pasta obtida com `git clone` é o **checkout de desenvolvimento**, onde você usa Git e mantém suas alterações. `/etc/nixos/nixos-config/` é a **cópia implantada**, que o NixOS importa e o instalador atualiza com os arquivos versionados. O arquivo `config/local.nix` fica fora do Git em ambas as cópias. Após a primeira instalação, edite as escolhas da máquina no arquivo implantado.
+O GitHub é a fonte de verdade. A pasta obtida com `git clone` é o **checkout de desenvolvimento**, onde você usa Git e mantém suas alterações. `/etc/nixos/nixos-config/` é a **cópia implantada**, que o NixOS importa e o instalador atualiza com os arquivos versionados. `config/local.nix` e `config/optionals.json` ficam fora do Git em ambas as cópias. Após a primeira instalação, a identidade, o desktop e o tema continuam no `local.nix` implantado. Use o Noir para os opcionais.
 
 Execute o configurador pela conta Linux que receberá a identidade Git. A autenticação administrativa acontece após a confirmação da publicação no destino padrão.
 
@@ -60,7 +60,7 @@ Depois de selecionar **Instalar ou atualizar**, o assistente pede confirmação 
 1. Na primeira instalação, preencha **Conta Linux** e **Identidade Git**. Confira os dados no resumo antes de publicar. Nas atualizações, o instalador reutiliza a identidade da cópia implantada.
 2. O instalador executa `git fetch` para o remoto configurado na branch e apresenta os commits e arquivos alterados. Se você autorizar, `git merge --ff-only` avança o checkout até o commit apresentado usando o objeto já buscado. Recusar encerra a instalação e devolve o controle ao menu principal. Alterações não commitadas, commits apenas locais e branches divergentes exigem que você resolva o estado do checkout.
 3. Na primeira instalação, se o checkout ainda estiver sem `config/local.nix`, escolha KDE ou XFCE para preencher o modelo versionado. Se já houver um arquivo, a identidade precisa coincidir exatamente com a informada. O instalador confere os tipos das opções locais e os campos obrigatórios. O `dry-build` manual avalia a configuração completa da máquina, incluindo as asserções do NixOS.
-4. Confirme o destino. O instalador publica os arquivos regulares versionados e o módulo local, sem `.git`. Ao substituir uma implantação, guarda a cópia anterior em `/etc/nixos/nixos-config.previous`. A troca atômica de diretórios usa `mv --exchange --no-copy` do GNU Coreutils e exige suporte do sistema de arquivos. Guarde ajustes avulsos fora da pasta de implantação para preservá-los por mais de uma atualização.
+4. Confirme o destino. O instalador publica os arquivos regulares versionados, o módulo local e as escolhas salvas pelo Noir, quando houver. Ao substituir uma implantação, guarda a cópia anterior em `/etc/nixos/nixos-config.previous`. A troca atômica de diretórios usa `mv --exchange --no-copy` do GNU Coreutils e exige suporte do sistema de arquivos. Guarde ajustes avulsos fora da pasta de implantação para preservá-los por mais de uma atualização.
 5. Na primeira instalação, o instalador configura o Git global pela conta selecionada depois da publicação.
 6. Após uma publicação bem-sucedida no destino padrão, o Noir oferece **Validar agora (dry-build)**, **Voltar ao menu principal** e **Sair**. A validação abre na mesma sessão. Se a publicação for cancelada ou falhar, o Noir retorna ao menu principal após mostrar o resultado.
 
@@ -80,7 +80,7 @@ imports = [
 - Para usar **XFCE**, remova as declarações da máquina que ativam KDE Plasma (`services.desktopManager.plasma6.enable`) ou SDDM (`services.displayManager.sddm.enable`).
 - Para usar **KDE**, remova as que ativam XFCE (`services.xserver.desktopManager.xfce.enable`) ou LightDM (`services.xserver.displayManager.lightdm.enable`).
 
-O menu principal oferece **Instalar ou atualizar** e **Gerenciar sistema**. Em **Gerenciar sistema**, escolha **Validar configuração (dry-build)** ou **Aplicar configuração (switch)**. No Dialog, Esc volta ao menu principal e, a partir dele, encerra o Noir. No Gum, use **Cancelar**. No modo texto, digite `q`.
+O menu principal oferece **Instalar ou atualizar** e, para o destino padrão, **Gerenciar sistema**. O Dialog também oferece **Gerenciar opcionais**, inclusive antes da primeira instalação. Em **Gerenciar sistema**, escolha **Validar configuração (dry-build)** ou **Aplicar configuração (switch)**. No Dialog, Esc volta ao menu principal e, a partir dele, encerra o Noir. No Gum, use **Cancelar**. No modo texto, digite `q`.
 
 **Validar configuração (dry-build)** avalia `/etc/nixos/configuration.nix` e a cópia publicada em `/etc/nixos/nixos-config`. Execute pela sua conta normal. Alterações ainda no checkout precisam ser publicadas antes de aparecer nessa validação. O equivalente no terminal é `nixos-rebuild dry-build`. Depois do resultado, é possível voltar a **Gerenciar sistema** ou sair. Se a validação passou, também é possível iniciar o fluxo de aplicação.
 
@@ -100,15 +100,15 @@ Confira a sessão gráfica e os serviços depois da ativação. Repita a instala
 
 `personalConfig.desktop` aceita `"kde"`, `"xfce"` ou `null` para delegar o desktop à configuração da máquina. `personalConfig.username` deve identificar uma conta normal já declarada na máquina. Os campos de autoria registram as escolhas locais. Se o instalador indicar que o arquivo está incompleto ou incompatível, corrija-o no caminho indicado antes de repetir a instalação. Se uma implantação mais antiga guardava as escolhas em `/etc/nixos/nixos-config/local.nix`, guarde o original e transfira as opções para `/etc/nixos/nixos-config/config/local.nix` conforme o modelo.
 
-Cron e virtualização começam desativados. Para habilitá-los ou retirar o tema do Zsh, adicione as linhas desejadas **dentro do bloco `personalConfig = { ... };`**:
-
-```nix
-cron.enable = true;
-virtualization.enable = true;
-zsh.theme = null;
-```
-
 O tema padrão do Oh My Zsh é `"bira"`. Em `zsh.theme`, você pode indicar outro tema disponível. Com `null`, os plugins, o autocompletar, as sugestões e o destaque de sintaxe continuam disponíveis. Depois de editar, siga [Verificar e aplicar](#verificar-e-aplicar). Se trocar de ambiente gráfico, revise também a sessão padrão, o login automático e as declarações gráficas da máquina.
+
+### Gerenciar opcionais
+
+Abra **Gerenciar opcionais** no Dialog, antes ou depois da primeira instalação. Você pode salvar as escolhas antes de informar a identidade da máquina. Use Espaço para marcar ou desmarcar **CRON**, **Virtualization** e **Codex CLI**. Escolha **Revisar**, confira as mudanças e confirme o salvamento. O Noir valida o candidato em Nix e faz a troca atômica de `config/optionals.json` no checkout. Cancelar ou falhar na validação conserva as escolhas anteriores.
+
+Reabra o menu para ver as escolhas salvas. **Instalar ou atualizar** publica a seleção do checkout quando disponível e reaproveita o arquivo implantado quando o checkout ainda não tem escolhas. Após publicar, o **dry-build** avalia a configuração completa da máquina.
+
+Em um clone novo, os três opcionais começam desmarcados. Instalações antigas mantêm os valores comuns de `personalConfig.cron.enable` e `personalConfig.virtualization.enable` de `local.nix` até a primeira alteração salva pelo menu. A partir daí, o Noir registra as três opções juntas, inclusive quando todas ficam desmarcadas.
 
 ## Perfis gráficos
 
@@ -134,7 +134,7 @@ A tela do LightDM usa o GTK Greeter com os mesmos temas e um fundo grafite. A ba
 | Complemento | Função | Quando entra em uso |
 | --- | --- | --- |
 | Whisker Menu | Menu de aplicativos pesquisável | Abra pelo painel ou toque e solte a tecla Super esquerda. Em painéis existentes, adicione o Whisker pelo editor do painel, se necessário. |
-| Plank | Dock inferior para janelas abertas e favoritos | Inicia automaticamente no XFCE X11, centralizada, com ocultação inteligente, ícones de 36 px e o tema escuro Default. Preferências gravadas e favoritos da conta são preservados. |
+| Plank | Dock inferior para janelas abertas e favoritos | Inicia no XFCE X11, centralizada, com ocultação inteligente, ícones de 36 px e tema Default. Cada usuário gerencia manualmente os lançadores fixados e a ordem deles na própria sessão. |
 | Blueman | Gerenciador e applet Bluetooth | Use o menu de aplicativos ou a bandeja para parear, conectar e desconectar dispositivos. |
 | Áudio | Volume, entradas e saídas no painel e no Pavucontrol | Abra o controle no painel. Os seletores aparecem quando há mais de um dispositivo disponível. Use **Mixer de áudio** para abrir o Pavucontrol. |
 | Mugshot | Editor de perfil pessoal | Abra pelo item de perfil no menu. Os campos disponíveis dependem do AccountsService e das permissões da conta. |
@@ -175,11 +175,12 @@ nixos-config/
 ├── personal.nix
 ├── config/
 │   ├── local.example.nix
+│   ├── noir-optionals.nix  Importa o arquivo de escolhas do Noir
 │   └── options.nix
 └── modules/
     ├── applications/  Navegadores, senhas, desenvolvimento, escritório, JDK, Zsh e terminal
     ├── desktops/      Perfis KDE e XFCE, com complementos do Noir em xfce/
-    ├── optional/      Cron, virtualização e tema do Zsh
+    ├── optional/      Cron, virtualização, Codex CLI e tema do Zsh
     ├── services/      Bluetooth, fprintd, keyd, Polkit e PostgreSQL
     └── system/        Pacotes gerais, manutenção do Nix e ZRAM
 ```
@@ -190,11 +191,15 @@ nixos-config/
 | --- | --- |
 | Navegadores | Google Chrome instalado. O módulo de Firefox do NixOS fica desabilitado. O projeto permite pacotes proprietários em todo o sistema, com prioridade sobre configurações comuns de outros módulos. |
 | Desenvolvimento | IntelliJ IDEA, VS Code, DBeaver, Postman e Eclipse Temurin JDK 25. |
-| Uso geral | Bitwarden, WPS Office, Vim, wget, usbutils, Git, htop e pv. |
+| Uso geral | Bitwarden, WPS Office, Inkscape, GIMP, Fastfetch, Vim, wget, usbutils, Git, htop e pv. |
+| Vim | NERDTree (`:NERDTreeToggle`), espaços com quatro colunas, wildmenu, numeração, pesquisa incremental, margem de cinco linhas, divisões à direita e abaixo e undo persistente em `$XDG_STATE_HOME/vim/undo` (padrão `~/.local/state/vim/undo`). |
+| Fontes | JetBrainsMono Nerd Font e Microsoft Core Fonts para todas as contas. |
 | Biometria | O fprintd é compartilhado entre os perfis e depende de um leitor compatível e de digitais cadastradas. |
 | Bluetooth | O adaptador começa ligado, e o pareamento fica a cargo do usuário. |
 | Terminal | A conta escolhida passa a usar Zsh, com Oh My Zsh e os plugins de Git e sudo. |
 | Teclado | O keyd transforma `leftshift+leftmeta+f23` em reproduzir ou pausar. Em alguns notebooks, essa combinação é emitida pela tecla Copilot. A regra vale para todos os teclados gerenciados. Teste no seu teclado, pois o evento pode variar. |
+
+As Microsoft Core Fonts são extraídas localmente dos instaladores originais com hash já declarados no Nixpkgs. O visualizador do Word e a fonte Tahoma ficam fora. A derivação inclui a EULA ao lado das fontes. Consulte a licença antes de usar as fontes e mantenha a saída extraída fora de caches públicos e imagens distribuídas. [EULA Microsoft Core Fonts](https://corefonts.sourceforge.net/eula.htm)
 
 ### Impressões digitais
 
@@ -262,7 +267,7 @@ nix-diff /nix/var/nix/profiles/system-10-link /run/current-system
 
 ### Agendamento privado
 
-Com `personalConfig.cron.enable = true`, o agendamento `nixos-cron` roda diariamente às 03h no horário da máquina. Entre na conta selecionada na instalação e crie o script privado no diretório pessoal dessa conta:
+Marque **CRON** no Noir para habilitar o agendamento `nixos-cron`, que roda diariamente às 03h no horário da máquina. Entre na conta selecionada na instalação e crie o script privado no diretório pessoal dessa conta:
 
 ```bash
 cron_dir="$HOME/.local/share/nixos-cron"
@@ -288,7 +293,7 @@ O serviço termina ao concluir o script, então pode aparecer como inativo entre
 
 ### Virtualização
 
-`personalConfig.virtualization.enable = true` habilita libvirt com QEMU/KVM, virt-manager e virt-viewer para máquinas virtuais, além de Podman, Podman Desktop, Distrobox e Kontainer para contêineres. Para usar a aceleração por hardware, verifique se o processador oferece suporte e se a virtualização está habilitada no firmware. Depois de aplicar a configuração, encerre a sessão e entre novamente para receber o grupo `libvirtd`, que dá à conta acesso à administração do libvirt. Para conferir:
+Marque **Virtualization** no Noir para habilitar libvirt com QEMU/KVM, virt-manager e virt-viewer para máquinas virtuais, além de Podman, Podman Desktop, Distrobox e Kontainer para contêineres. Para usar a aceleração por hardware, verifique se o processador oferece suporte e se a virtualização está habilitada no firmware. Depois de aplicar a configuração, encerre a sessão e entre novamente para receber o grupo `libvirtd`, que dá à conta acesso à administração do libvirt. Para conferir:
 
 ```bash
 ls -l /dev/kvm
@@ -302,6 +307,24 @@ distrobox-list
 - **Contêineres Distrobox:** compartilham o kernel da máquina e podem acessar seu diretório pessoal. Use-os para ambientes de desenvolvimento com software de confiança. O Podman executa os contêineres, o Podman Desktop administra imagens e contêineres, e o Kontainer gerencia ambientes Distrobox. [Implicações de segurança do Distrobox](https://distrobox.it/#security-implications)
 
 A criação dos ambientes e a escolha das imagens ficam a cargo do usuário. Se o Podman Desktop não encontrar o Podman da sua conta, confira na sua sessão a conexão ao socket do Podman em modo sem privilégios (`rootless`).
+
+### Codex CLI
+
+Marque **Codex CLI** no Noir para adicionar `codex` ao ambiente do sistema. O módulo usa a revisão fixa em `modules/optional/codex-package.nix`, que resolve a versão 0.171.0. Na primeira avaliação com o opcional habilitado, o Nix obtém o tarball do GitHub com verificação de hash quando o conteúdo ainda não está no cache. O canal principal da máquina fornece os demais pacotes. Desmarcar o opcional e aplicar a configuração remove o executável gerenciado e preserva os arquivos pessoais em `~/.codex` ou `$CODEX_HOME` e as credenciais da conta. [Release do Codex CLI 0.171.0](https://github.com/openai/codex/releases/tag/rust-v0.171.0)
+
+Para atualizar a versão, consulte `https://channels.nixos.org/nixpkgs-unstable/git-revision`, use o commit publicado no comando abaixo e atualize juntos a revisão e o hash em `codex-package.nix`.
+
+```bash
+nix-prefetch-url --unpack "https://codeload.github.com/NixOS/nixpkgs/tar.gz/COMMIT"
+nix-instantiate --eval --strict -E '
+  let
+    pkgs = import <nixpkgs> {};
+    codex = import ./modules/optional/codex-package.nix { inherit pkgs; };
+  in { inherit (codex) version drvPath; }
+'
+```
+
+Confira a versão resolvida, publique com o Codex CLI marcado e faça o dry-build. Depois de aplicar pelo fluxo normal, confira com `codex --version`.
 
 ## Identidade Git e falhas parciais
 

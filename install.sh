@@ -8,6 +8,8 @@ system_path=/run/current-system/sw/bin:/run/wrappers/bin
 system_rebuild=/run/current-system/sw/bin/nixos-rebuild
 prepared=''
 new_local=''
+new_choices=''
+optionals_result=''
 wizard_started=false
 git_result=(neutral 'Não consultado')
 local_result=(neutral 'Não preparada')
@@ -59,6 +61,10 @@ partial_publication() {
 
 show_result() {
   ui_section 'Resumo'
+  if [[ -n $optionals_result ]]; then
+    ui_info "$optionals_result"
+    return
+  fi
   if [[ -n $rebuild_operation ]]; then
     ui_outcome 'Validação (dry-build)' "${validation_result[@]}"
     if [[ $rebuild_operation == switch ]]; then
@@ -93,6 +99,7 @@ finish_operation() {
   if [[ -n $rebuild_lock_fd ]]; then exec {rebuild_lock_fd}<&-; fi
   if [[ -n $prepared ]]; then rm -rf -- "$prepared"; fi
   if [[ -n $new_local ]]; then rm -f -- "$new_local"; fi
+  if [[ -n $new_choices ]]; then rm -f -- "$new_choices"; fi
   if [[ -n ${ui_dialog_dir:-} ]]; then
     ui_dialog_result "$status"
     rm -f -- "$ui_dialog_dir/error"
@@ -211,7 +218,7 @@ show_remote_changes() {
 }
 
 sync_checkout() {
-  local branch remote upstream status head base address count
+  local branch remote upstream status head base address count path
   local -a summary
   branch=$(git symbolic-ref --quiet --short HEAD) || die "Abra uma branch local antes de instalar."
   remote=$(git config --get "branch.$branch.remote") && [[ -n $remote && $remote != . ]] ||
@@ -267,10 +274,12 @@ sync_checkout() {
       die "As branches divergiram e o fast-forward é impossível. Resolva a divergência no checkout."
     die "O checkout contém commits ainda ausentes no remoto. Sincronize a branch antes de instalar."
   fi
-  if git ls-files --error-unmatch -- config/local.nix >/dev/null 2>&1 ||
-     git cat-file -e "$source_commit:config/local.nix" 2>/dev/null; then
-    die "config/local.nix aparece no histórico a usar. Preserve suas escolhas e retire o arquivo do controle de versão antes de instalar."
-  fi
+  for path in config/local.nix config/optionals.json; do
+    if git ls-files --error-unmatch -- "$path" >/dev/null 2>&1 ||
+       git cat-file -e "$source_commit:$path" 2>/dev/null; then
+      die "$path deve ficar fora do controle de versão."
+    fi
+  done
   if [[ $head == "$source_commit" ]]; then
     git_result=(ok 'Já atualizado')
     ui_fields 'Arquivos modificados' 'Nenhum'
@@ -364,6 +373,115 @@ validate_local() {
     )) "A identidade do arquivo difere da informada. Confira username, git.userName e git.userEmail.";
     builtins.deepSeq cfg "${cfg.username} ${if cfg.desktop == null then "machine" else cfg.desktop}"
   ' || fail_command "$?" "Revise $file conforme config/local.example.nix e execute novamente."
+}
+
+read_optionals() {
+  local tree=$1 local_file=$2 choices=$3 result
+  local state_pattern='^"((on|off) (on|off) (on|off))"$'
+  result=$(nix-instantiate --eval --strict --json \
+    --argstr options "$tree/config/options.nix" --argstr localFile "$local_file" \
+    --argstr module "$tree/config/noir-optionals.nix" --argstr choices "$choices" --expr '
+    { options, localFile, module, choices }:
+    let
+      inherit (import <nixpkgs> { }) lib;
+      local = builtins.toPath localFile;
+      evaluated = lib.evalModules {
+        modules = [
+          { inherit (import (builtins.toPath options) { inherit lib; config = { }; }) options; }
+          (import (builtins.toPath module) (builtins.toPath choices))
+        ] ++ lib.optional (builtins.pathExists local) local;
+      };
+      cfg = evaluated.config.personalConfig;
+    in
+    builtins.concatStringsSep " " (map (enabled: if enabled then "on" else "off") [
+      cfg.cron.enable cfg.virtualization.enable cfg.codex.enable
+    ])
+  ') || fail_command "$?" "Falha ao avaliar as escolhas dos opcionais."
+  [[ $result =~ $state_pattern ]] || die 'A avaliação deve retornar os três estados dos opcionais.'
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+evaluate_codex_package() {
+  nix-instantiate --eval --strict --argstr package "$1" --expr '
+    { package }:
+    let
+      pkgs = import <nixpkgs> { };
+      codex = import (builtins.toPath package) { inherit pkgs; };
+    in
+    builtins.seq codex.drvPath codex.version
+  ' >/dev/null || fail_command "$?" 'Falha ao avaliar o pacote Codex CLI.'
+}
+
+validate_optionals() {
+  local tree=$1 states
+  states=$(read_optionals "$@") || return "$?"
+  if [[ $states == *' on' ]]; then
+    evaluate_codex_package "$tree/modules/optional/codex-package.nix"
+  fi
+}
+
+check_regular_file() {
+  if [[ -e $1 || -L $1 ]]; then
+    [[ -f $1 && ! -L $1 && -r $1 ]] || die "Use um arquivo regular e legível em $1."
+  fi
+}
+
+show_optionals_diff() {
+  local index
+  for index in "${!names[@]}"; do
+    if [[ ${before[index]} != "${after[index]}" ]]; then
+      ui_fields "${names[index]}" "${labels[${before[index]}]} → ${labels[${after[index]}]}"
+    fi
+  done
+}
+
+manage_optionals() {
+  local checkout=$1 destination=$2 state selection index tag choices_lock file
+  local choices=$checkout/config/optionals.json source=$checkout/config/optionals.json
+  local -a names=('CRON' 'Virtualization' 'Codex CLI') before after items=()
+  local -A labels=([on]='ativado' [off]='desativado') booleans=([on]=true [off]=false)
+  wizard_started=true
+  ui_section_title='Gerenciar opcionais'
+  destination=$(realpath -ms -- "$destination")
+  [[ -d $checkout/config && ! -L $checkout/config ]] || die "Diretório config inválido no checkout."
+  exec {choices_lock}< "$checkout/config"
+  flock -n -x "$choices_lock" || die 'Outra edição de opcionais está em andamento neste checkout.'
+  check_regular_file "$choices"
+  file=$checkout/config/local.nix
+  if [[ -f $destination/config/local.nix && ! -L $destination/config/local.nix ]]; then
+    file=$destination/config/local.nix
+    if [[ ! -f $choices ]]; then source=$destination/config/optionals.json; fi
+  fi
+  check_regular_file "$file"
+  check_regular_file "$source"
+  state=$(read_optionals "$checkout" "$file" "$source")
+  read -r -a before <<< "$state"
+  after=(off off off)
+  for index in "${!names[@]}"; do
+    items+=("$((index + 1))" "${names[index]}" "${before[index]}")
+  done
+  selection=$(ui_dialog_optionals "${items[@]}") || cancel "$?" 'Edição dos opcionais cancelada.'
+  for tag in $selection; do
+    [[ $tag =~ ^[1-3]$ ]] || die 'Seleção de opcionais inválida.'
+    after[tag - 1]=on
+  done
+  if [[ ${before[*]} == "${after[*]}" ]]; then
+    optionals_result='Nenhuma escolha foi alterada.'
+    return
+  fi
+  ui_review 'Revisar opcionais' show_optionals_diff || cancel "$?" 'Edição dos opcionais cancelada.'
+  ui_confirm 'Salvar as escolhas para a próxima publicação?' ||
+    cancel "$?" 'Edição dos opcionais cancelada.'
+
+  new_choices=$(mktemp -- "$checkout/config/.optionals.XXXXXXXX")
+  printf '{\n  "cron": %s,\n  "virtualization": %s,\n  "codex": %s\n}\n' \
+    "${booleans[${after[0]}]}" "${booleans[${after[1]}]}" "${booleans[${after[2]}]}" > "$new_choices"
+  ui_progress 'Validando opcionais'
+  validate_optionals "$checkout" "$file" "$new_choices"
+  chmod 644 -- "$new_choices"
+  mv -fT -- "$new_choices" "$choices" || die 'Falha ao salvar as escolhas dos opcionais.'
+  new_choices=''
+  optionals_result='Escolhas salvas. Use Instalar ou atualizar para publicá-las.'
 }
 
 publish() (
@@ -871,6 +989,7 @@ main() {
   fi
   [[ $revision =~ ^[a-zA-Z0-9._/-]+$ ]] || revision=''
   if [[ $destination == "$default_destination" ]]; then menu+=('Gerenciar sistema'); fi
+  if [[ -n $ui_dialog ]]; then menu+=('Gerenciar opcionais'); fi
   while :; do
     status=0
     case $screen in
@@ -909,8 +1028,14 @@ main() {
         return "$last_status"
         ;;
       main:2)
-        [[ $destination == "$default_destination" ]] || die 'Selecione uma opção do menu.'
-        screen=system; continue ;;
+        if [[ $destination == "$default_destination" ]]; then
+          screen=system; continue
+        fi
+        [[ -n $ui_dialog ]] || die 'Selecione uma opção do menu.'
+        operation=optionals ;;
+      main:3)
+        [[ $destination == "$default_destination" && -n $ui_dialog ]] || die 'Selecione uma opção do menu.'
+        operation=optionals ;;
       system:back|published:2|published:back|switch-result:1|switch-result:back|alternate-publication:1|alternate-publication:back)
         screen=main; continue ;;
       validated:2|validated:back|dry-result:1|dry-result:back)
@@ -924,11 +1049,11 @@ main() {
     # Chame diretamente para que o errexit continue ativo dentro da operação.
     set +e
     trap ':' INT
-    if [[ $operation == install ]]; then
-      run_operation install_configuration "$checkout" "$destination"
-    else
-      run_operation rebuild_configuration "$operation" "$interactive"
-    fi
+    case $operation in
+      install) run_operation install_configuration "$checkout" "$destination" ;;
+      optionals) run_operation manage_optionals "$checkout" "$destination" ;;
+      *) run_operation rebuild_configuration "$operation" "$interactive" ;;
+    esac
     status=$?
     last_status=$status
     trap 'cancel 130' INT
@@ -946,6 +1071,7 @@ main() {
         if (( status == 0 )); then screen=validated; fi
         ;;
       switch) screen=switch-result ;;
+      optionals) screen=main ;;
     esac
   done
 }
@@ -953,7 +1079,7 @@ main() {
 install_configuration() {
   local checkout=$1 destination=$2 parent expected=absent source_commit
   local username git_name git_email git_target tree entry mode file checkout_local root_script
-  local local_info account profile previous backup status shell_options=$-
+  local local_info account profile previous backup status shell_options=$- choices_source
   local +x password
   local -a identity_args=() nix_files=() identity_summary=()
 
@@ -996,8 +1122,10 @@ install_configuration() {
   ui_section 'Sincronização Git'
   ui_confirm 'Consultar remoto?' || cancel "$?"
   sync_checkout
-  git check-ignore --quiet -- config/local.nix ||
-    die "Inclua config/local.nix nas regras de exclusão do Git antes de continuar."
+  for file in config/local.nix config/optionals.json; do
+    git check-ignore --quiet -- "$file" ||
+      die "Inclua $file nas regras de exclusão do Git antes de continuar."
+  done
 
   ui_progress 'Preparando arquivos'
   prepared=$(mktemp -d)
@@ -1007,7 +1135,7 @@ install_configuration() {
   while IFS= read -r -d '' entry; do
     mode=${entry%% *}
     file=${entry#*$'\t'}
-    [[ ( $mode == 100644 || $mode == 100755 ) && $file != config/local.nix ]] ||
+    [[ ( $mode == 100644 || $mode == 100755 ) && $file != config/local.nix && $file != config/optionals.json ]] ||
       die "Arquivo versionado incompatível com a implantação: $file."
   done < "$prepared/files"
   git -c tar.umask=0022 archive --format=tar "$source_commit" | tar -xf - -C "$tree" ||
@@ -1046,6 +1174,17 @@ install_configuration() {
     fi
   fi
   local_info=$(validate_local "$tree/config/options.nix" "$tree/config/local.nix" "${identity_args[@]}")
+  choices_source=$checkout/config/optionals.json
+  check_regular_file "$choices_source"
+  if [[ ! -f $choices_source && $expected != absent ]]; then
+    choices_source=$destination/config/optionals.json
+    check_regular_file "$choices_source"
+  fi
+  if [[ -f $choices_source ]]; then
+    cp -- "$choices_source" "$tree/config/optionals.json"
+    chmod 644 -- "$tree/config/optionals.json"
+  fi
+  validate_optionals "$tree" "$tree/config/local.nix" "$tree/config/optionals.json"
   # A saída é composta apenas pelo nome de conta validado e pelo enum do perfil.
   read -r account profile <<< "${local_info:1:-1}"
   case $profile in

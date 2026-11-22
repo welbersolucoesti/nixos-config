@@ -14,6 +14,7 @@ in
 
     cron.enable = lib.mkEnableOption "o agendamento diário de tarefas privadas";
     virtualization.enable = lib.mkEnableOption "as ferramentas de virtualização e contêineres";
+    codex.enable = lib.mkEnableOption "o Codex CLI gerenciado pelo Noir";
 
     zsh.theme = lib.mkOption {
       type = lib.types.nullOr lib.types.nonEmptyStr;

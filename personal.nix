@@ -7,6 +7,7 @@ in
   imports = [
     ./config/options.nix
     ./config/local.nix
+    (import ./config/noir-optionals.nix ./config/optionals.json)
     ./modules/applications/firefox.nix
     # A ordem destes imports mantém a precedência anterior na lista de pacotes do sistema.
     ./modules/applications/temurin.nix
@@ -28,8 +29,11 @@ in
     ./modules/applications/zsh.nix
     ./modules/applications/terminal.nix
     ./modules/applications/noir.nix
+    ./modules/applications/vim.nix
+    ./modules/system/fonts.nix
     ./modules/optional/cron.nix
     ./modules/optional/virtualization.nix
+    ./modules/optional/codex.nix
     ./modules/optional/zsh-theme.nix
     ./modules/desktops/numlock.nix
     ./modules/desktops/launcher-icon.nix
