@@ -12,6 +12,7 @@ let
 
   # O separador sem expansão tem largura nativa fixa. Estilo 0 é transparente e 1 é linha.
   rightSeparators = { "10" = "0"; "11" = "0"; "12" = "1"; "13" = "0"; };
+  trailingSpacer = "14";
 
   defaults = {
     panels = {
@@ -93,11 +94,25 @@ let
       current=$(get "$1") && [ "$current" != "$2" ]
     }
 
-    # O modelo novo fica a cargo do migrador nativo. O marcador v2 diferencia
+    add_trailing_space() {
+      local spacer=/plugins/plugin-${trailingSpacer} id
+      local args=()
+      set_default "$spacer" string separator || return 1
+      set_default "$spacer/style" uint 0 || return 1
+      set_default "$spacer/expand" bool false || return 1
+      for id in 1 2 3 4 5 "''${audio[@]}" 6 10 9 11 12 13 7 ${trailingSpacer}; do
+        args+=(-t int -s "$id")
+      done
+      query -p "$panel/plugin-ids" -a "''${args[@]}" || return 1
+      query -p "$marker" -t bool -s true
+    }
+
+    # O modelo novo fica a cargo do migrador nativo. O marcador v3 diferencia
     # uma migração em andamento de um painel que já nasceu com a nova ordem.
-    marker=/noir/panel-layout-v2-complete
+    marker=/noir/panel-layout-v3-complete
     state=$(get "$marker")
     [ "$state" = true ] && exit 0
+    v2=$(get /noir/panel-layout-v2-complete)
     [ "$(get_array /panels)" = 1 ] || exit 0
     panel=/panels/panel-1
     ids=$(get_array "$panel/plugin-ids") || exit 0
@@ -108,15 +123,22 @@ let
       audio=(8)
       ids="''${ids/5 8 /5 }"
     fi
+    v2_layout=false
     case "$ids" in
       '1 2 3 4 5 6 7')
+        [ "$v2" != true ] || exit 0
         # O marcador v1 indica que Mostrar área de trabalho foi removido depois.
         get /noir/panel-defaults-version >/dev/null && exit 0
         ;;
       '1 2 3 4 5 6 7 9')
+        [ "$v2" != true ] || exit 0
         [ "$(get /plugins/plugin-9)" = showdesktop ] || exit 0
         ;;
       '1 2 3 4 5 6 10 9 11 12 13 7')
+        v2_layout=true
+        [ "$(get /plugins/plugin-9)" = showdesktop ] || exit 0
+        ;;
+      "1 2 3 4 5 6 10 9 11 12 13 7 ${trailingSpacer}")
         [ "$state" = false ] || exit 0
         query -p "$marker" -t bool -s true
         exit $?
@@ -140,11 +162,20 @@ let
     [ -z "$existing" ] || [ "$existing" = showdesktop ] || exit 0
 
     for id in ${toString (builtins.attrNames rightSeparators)}; do
-      if existing=$(get "/plugins/plugin-$id"); then
-        [ "$state" = false ] && [ "$existing" = separator ] || exit 0
+      if [ "$v2_layout" = true ]; then
+        [ "$(get "/plugins/plugin-$id")" = separator ] || exit 0
+      elif existing=$(get "/plugins/plugin-$id"); then
+        { [ "$state" = false ] || [ "$v2" = false ]; } && [ "$existing" = separator ] || exit 0
       fi
     done
+    if existing=$(get /plugins/plugin-${trailingSpacer}); then
+      [ "$state" = false ] && [ "$existing" = separator ] || exit 0
+    fi
     set_default "$marker" bool false || exit 1
+    if [ "$v2_layout" = true ]; then
+      add_trailing_space
+      exit $?
+    fi
 
     ${lib.concatMapStringsSep "\n    " (group:
       let
@@ -180,12 +211,7 @@ let
       set_default /plugins/plugin-${id}/expand bool false || exit 1
     '') rightSeparators)}
 
-    args=()
-    for id in 1 2 3 4 5 "''${audio[@]}" 6 10 9 11 12 13 7; do
-      args+=(-t int -s "$id")
-    done
-    query -p "$panel/plugin-ids" -a "''${args[@]}" || exit 1
-    query -p "$marker" -t bool -s true
+    add_trailing_space
   '';
 
   separatorPlugins = lib.concatStrings (lib.mapAttrsToList (id: style: ''
@@ -193,7 +219,7 @@ let
       <property name="style" type="uint" value="${style}"/>
       <property name="expand" type="bool" value="false"/>
     </property>
-  '') rightSeparators);
+  '') (rightSeparators // { "${trailingSpacer}" = "0"; }));
 
   volumePlugin = ''
     <property name="plugin-8" type="string" value="pulseaudio">
