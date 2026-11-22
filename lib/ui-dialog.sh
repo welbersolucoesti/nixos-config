@@ -60,7 +60,7 @@ ui_dialog_run() (
   if [[ -n $ui_dialog_theme ]]; then export DIALOGRC=$ui_dialog_theme; fi
   if [[ -n $ui_dialog_backtitle ]]; then header=(--backtitle "$ui_dialog_backtitle"); fi
   "$ui_dialog" "${header[@]}" --no-shadow --output-fd 3 "$@" \
-    3>&1 >/dev/tty </dev/tty || status=$?
+    3>&1 >/dev/tty <"${ui_dialog_stdin:-/dev/tty}" || status=$?
   case $status in
     0|3|130|143) return "$status" ;;
     10|11) return 1 ;;
@@ -166,6 +166,12 @@ ui_dialog_review() (
 ui_dialog_progress() {
   ui_dialog_run --title 'Em andamento' --hline 'Ctrl+C Interromper' \
     --infobox -- "$1" 7 "$ui_dialog_width"
+}
+
+ui_dialog_switch_progress() {
+  local ui_dialog_stdin=/dev/stdin
+  ui_dialog_run --title 'Em andamento' --hline 'Ctrl+C Interromper' \
+    --progressbox 'Aplicando configuração (switch)' 7 "$ui_dialog_width"
 }
 
 ui_dialog_password() {

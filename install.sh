@@ -476,37 +476,65 @@ publish() (
   printf 'Cópia anterior para recuperação: %s\n' "$previous"
 )
 
+start_switch_progress() {
+  # A substituição é criada antes de o relay abrir a ponta de escrita.
+  exec {progress_fd}> >(ui_dialog_switch_progress >/dev/null) || return "$?"
+  progress_pid=$!
+}
+
+stop_switch_progress() {
+  exec {progress_fd}>&-
+  wait "$progress_pid" || :
+  progress_pid=''
+}
+
 relay_sudo_dialog() {
   local prompt=$1 started=$2 mode=$3 line result=0 pending=true
+  local progress_fd progress_pid='' relay_status
   set +x +a
+  # Executado no coproc. Enquanto a ponta de escrita está aberta, o relay
+  # usa só builtins. Feche-a também antes de criar o subprocesso da senha.
+  if [[ $mode == on-demand ]]; then
+    trap '
+      relay_status=$?
+      if [[ -n $progress_pid ]]; then stop_switch_progress; fi
+      exit "$relay_status"
+    ' EXIT
+    # Deixe printf devolver o erro do pipe para que o EXIT faça a limpeza.
+    trap ':' PIPE
+    trap 'exit 143' TERM
+    start_switch_progress || exit "$?"
+  fi
   while IFS= read -r line || [[ -n $line ]]; do
     case $line in
       "$prompt")
         if "$pending"; then
           if [[ $mode == on-demand ]]; then
+            stop_switch_progress
             local +x password
             password=$(ui_dialog_password) || result=$?
             if (( result == 1 )); then result=125; fi
           fi
-          if (( result == 0 )); then printf '%s\n' "$password" || return "$?"; fi
+          if (( result == 0 )); then printf '%s\n' "$password" || exit "$?"; fi
           pending=false
           exec 1>&-
           unset -v password
+          if [[ $mode == on-demand ]] && (( result == 0 )); then start_switch_progress || exit "$?"; fi
         fi
         ;;
       "$started")
         if [[ -z $started ]]; then
-          printf '\n' >&2 || return "$?"
+          printf '\n' >&2 || exit "$?"
         elif "$pending"; then
           pending=false
           exec 1>&-
           unset -v password
         fi
         ;;
-      *) printf '%s\n' "$line" >&2 || return "$?" ;;
+      *) printf '%s\n' "$line" >&2 || exit "$?" ;;
     esac
   done
-  return "$result"
+  exit "$result"
 }
 
 sudo_dialog() (
@@ -526,9 +554,9 @@ sudo_dialog() (
       wait "$relay" || {
         relay_status=$?
         if (( relay_status != 125 )); then
-          printf "Falha no auxiliar de autenticação (código %s).\n" "$relay_status" >&2
+          (printf "Falha no auxiliar de autenticação (código %s).\n" "$relay_status" >&2) || :
         fi
-        status=$relay_status
+        if (( status == 0 || (status == 1 && relay_status == 125) )); then status=$relay_status; fi
       }
     fi
     exit "$status"
@@ -583,7 +611,12 @@ run_logged_rebuild() {
   shift
   local -a statuses=()
 
-  ui_progress "$title" || return "$?"
+  if [[ -n $ui_dialog && $1 == sudo_dialog ]]; then
+    # O relay mantém a tela do switch e a pausa durante a autenticação.
+    ui_message "$ui_accent" '›' "$title" || return "$?"
+  else
+    ui_progress "$title" || return "$?"
+  fi
   printf '\n%s\n' "$title" >> "$rebuild_log" || return "$?"
   if [[ -n $ui_dialog ]]; then
     "$@" >> "$rebuild_log" 2>&1
