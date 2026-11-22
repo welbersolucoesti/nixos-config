@@ -41,7 +41,7 @@ in
           <property name="workspace_count" type="int" value="2"/>
           <property name="use_compositing" type="bool" value="false" unlocked="root"/>
           <!-- Aplica as margens também a contas com valores locais gravados. -->
-          <property name="margin_top" type="int" value="12" unlocked="root"/>
+          <property name="margin_top" type="int" value="49" unlocked="root"/>
           <property name="margin_right" type="int" value="12" unlocked="root"/>
           <property name="margin_bottom" type="int" value="12" unlocked="root"/>
           <property name="margin_left" type="int" value="12" unlocked="root"/>
