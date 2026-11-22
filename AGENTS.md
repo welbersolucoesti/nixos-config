@@ -54,9 +54,9 @@ Essa proibição vale com ou sem `sudo`, mesmo mediante
 aprovação genérica para executar comandos.
 
 Somente o proprietário da máquina executa comandos de ativação da configuração.
-A segunda confirmação interativa do Noir autoriza a ativação somente quando
-respondida pelo proprietário. Agentes devem testar as duas confirmações com
-comandos simulados e nunca selecionar uma ativação real no Noir.
+A confirmação interativa do Noir após o dry-build autoriza a ativação somente
+quando respondida pelo proprietário. Agentes devem testar o fluxo com comandos
+simulados e nunca selecionar uma ativação real no Noir.
 
 ## Conclusão das tarefas
 

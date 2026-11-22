@@ -755,7 +755,7 @@ rebuild_configuration() {
   rebuild_operation=$operation
   wizard_started=true
   if [[ $operation == switch ]] && ! "$interactive"; then
-    die 'A ativação exige um terminal interativo para as duas confirmações.'
+    die 'A ativação exige um terminal interativo para a confirmação.'
   fi
   [[ -x $system_rebuild ]] || die 'nixos-rebuild indisponível na configuração atual do sistema.'
   for tool in flock mkdir mktemp realpath tee; do
@@ -764,7 +764,6 @@ rebuild_configuration() {
   if [[ $operation == switch ]]; then
     command -v sudo >/dev/null || die 'A ativação requer sudo.'
     ui_section 'Ativação do NixOS'
-    ui_confirm 'O switch altera o sistema e pode afetar a sessão. Validar primeiro?' || cancel "$?"
   fi
 
   cd -- "$machine_dir" || die "Diretório da configuração indisponível: $machine_dir."
@@ -792,7 +791,7 @@ rebuild_configuration() {
   validation_result=(ok 'Concluída')
   ui_success 'Validação (dry-build) concluída.'
   if [[ $operation == switch ]]; then
-    ui_confirm 'A validação passou. Ativar agora? Serviços podem reiniciar.' || cancel "$?" 'Ativação cancelada.'
+    ui_confirm $'Aplicar configuração agora?\nServiços podem reiniciar.' || cancel "$?" 'Ativação cancelada.'
     activation_result=(error 'Interrompida ou com falha. Confira a geração atual e o registro.')
     local -a elevate=(sudo --)
     if [[ -n $ui_dialog ]]; then elevate=(sudo_dialog on-demand ''); fi
