@@ -160,7 +160,7 @@ Os padrões de ambos os terminais ficam em `modules/applications/terminal.nix`. 
 O comando `noir` abre o configurador executável em `~/nixos-config/config.sh` pela conta da sessão, inclusive com outro shell ou desktop. Com o perfil KDE ou XFCE selecionado, `Super+N` abre uma janela de Konsole ou XFCE Terminal, respectivamente. Se o Noir falhar, a janela espera Enter antes de fechar. No KDE, o KGlobalAccel carrega o atalho padrão do aplicativo **Noir**. No XFCE X11, o perfil registra a combinação livre em Xfconf. Atalhos personalizados já atribuídos têm precedência. Em um TTY ou com outro desktop escolhido pela máquina, execute `noir` no terminal ou configure o atalho no gerenciador da sessão. [Implementação do KGlobalAccel](https://github.com/KDE/kglobalacceld/blob/v6.6.6/src/globalshortcutsregistry.cpp)
 
 - **KDE** usa Konsole com o perfil de sistema **Noir** quando a conta não tem outro perfil padrão. `Ctrl+Shift+M` alterna a barra de menus. [Manual do Konsole](https://docs.kde.org/stable_kf6/en/konsole/konsole/)
-- **XFCE** usa XFCE Terminal com DejaVu Sans Mono 11, opacidade inicial de 90% e o atalho padrão `Ctrl+Alt+T`. O menu de contexto permite reexibir a barra de menus. O Xfwm4 oferece composição em X11. [Compositor do Xfwm4](https://github.com/xfce-mirror/xfwm4/blob/master/COMPOSITOR)
+- **XFCE** usa XFCE Terminal com DejaVu Sans Mono 11, opacidade inicial de 90% e o atalho padrão `Ctrl+Alt+T`. O menu de contexto permite reexibir a barra de menus. Na sessão XFCE X11, o Xfwm4 gerencia as janelas e o Picom faz a composição com XRender e VSync.
 
 ## Aplicativos e serviços
 
