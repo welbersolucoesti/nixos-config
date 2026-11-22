@@ -10,6 +10,9 @@ let
     package: lib.getName package == lib.getName pkgs.pavucontrol
   ) config.environment.xfce.excludePackages;
 
+  # O separador sem expansão tem largura nativa fixa. Estilo 0 é transparente e 1 é linha.
+  rightSeparators = { "10" = "0"; "11" = "0"; "12" = "1"; "13" = "0"; };
+
   defaults = {
     panels = {
       path = "/panels";
@@ -21,6 +24,7 @@ let
       path = "/panels/panel-1";
       properties = [
         [ "icon-size" "uint" "22" ]
+        [ "position-locked" "bool" "true" ]
       ];
     };
     tray = {
@@ -89,27 +93,58 @@ let
       current=$(get "$1") && [ "$current" != "$2" ]
     }
 
-    # O modelo novo fica a cargo do migrador nativo do painel. Aqui só entra
-    # o painel único com a mesma ordem e os mesmos plugins do modelo anterior.
-    marker=/noir/panel-defaults-version
-    get "$marker" >/dev/null && exit 0
+    # O modelo novo fica a cargo do migrador nativo. O marcador v2 diferencia
+    # uma migração em andamento de um painel que já nasceu com a nova ordem.
+    marker=/noir/panel-layout-v2-complete
+    state=$(get "$marker")
+    [ "$state" = true ] && exit 0
     [ "$(get_array /panels)" = 1 ] || exit 0
-    ids=$(get_array /panels/panel-1/plugin-ids) || exit 0
+    panel=/panels/panel-1
+    ids=$(get_array "$panel/plugin-ids") || exit 0
+    ids="''${ids//$'\n'/ }"
+    audio=()
+    if [[ "$ids" == '1 2 3 4 5 8 '* ]]; then
+      [ "$(get /plugins/plugin-8)" = pulseaudio ] || exit 0
+      audio=(8)
+      ids="''${ids/5 8 /5 }"
+    fi
     case "$ids" in
-      $'1\n2\n3\n4\n5\n6\n7'|$'1\n2\n3\n4\n5\n8\n6\n7') ;;
+      '1 2 3 4 5 6 7')
+        # O marcador v1 indica que Mostrar área de trabalho foi removido depois.
+        get /noir/panel-defaults-version >/dev/null && exit 0
+        ;;
+      '1 2 3 4 5 6 7 9')
+        [ "$(get /plugins/plugin-9)" = showdesktop ] || exit 0
+        ;;
+      '1 2 3 4 5 6 10 9 11 12 13 7')
+        [ "$state" = false ] || exit 0
+        query -p "$marker" -t bool -s true
+        exit $?
+        ;;
       *) exit 0 ;;
     esac
+
+    [ "$(get "$panel/position")" = 'p=6;x=0;y=0' ] || exit 0
+    [ "$(get "$panel/length")" = 100 ] || exit 0
+    [ "$(get "$panel/size")" = 36 ] || exit 0
+    has_other_value "$panel/mode" 0 && exit 0
+    [ "$(get /plugins/plugin-3/expand)" = true ] || exit 0
+    [ "$(get /plugins/plugin-3/style)" = 0 ] || exit 0
 
     id=0
     for plugin in whiskermenu docklike separator pager systray clock actions; do
       ((id += 1))
       [ "$(get "/plugins/plugin-$id")" = "$plugin" ] || exit 0
     done
-    if [[ "$ids" == *$'\n8\n'* ]]; then
-      [ "$(get /plugins/plugin-8)" = pulseaudio ] || exit 0
-    fi
     existing=$(get /plugins/plugin-9)
     [ -z "$existing" ] || [ "$existing" = showdesktop ] || exit 0
+
+    for id in ${toString (builtins.attrNames rightSeparators)}; do
+      if existing=$(get "/plugins/plugin-$id"); then
+        [ "$state" = false ] && [ "$existing" = separator ] || exit 0
+      fi
+    done
+    set_default "$marker" bool false || exit 1
 
     ${lib.concatMapStringsSep "\n    " (group:
       let
@@ -132,14 +167,33 @@ let
       '' else assignments
     ) (builtins.attrValues defaults)}
 
+    workspace=/general/workspace_count
+    # Quatro era o padrão anterior do Xfwm4, inclusive quando já gravado na conta.
+    if [ "$(${pkgs.xfconf}/bin/xfconf-query -c xfwm4 -p "$workspace" 2>/dev/null)" = 4 ]; then
+      ${pkgs.xfconf}/bin/xfconf-query -c xfwm4 -p "$workspace" -t int -s 2 || exit 1
+    fi
+
     set_default /plugins/plugin-9 string showdesktop || exit 1
+    ${lib.concatStringsSep "\n    " (lib.mapAttrsToList (id: style: ''
+      set_default /plugins/plugin-${id} string separator || exit 1
+      set_default /plugins/plugin-${id}/style uint ${style} || exit 1
+      set_default /plugins/plugin-${id}/expand bool false || exit 1
+    '') rightSeparators)}
+
     args=()
-    while IFS= read -r id; do
+    for id in 1 2 3 4 5 "''${audio[@]}" 6 10 9 11 12 13 7; do
       args+=(-t int -s "$id")
-    done <<< "$ids"
-    query -p /panels/panel-1/plugin-ids -a "''${args[@]}" -t int -s 9 || exit 1
-    query -p "$marker" -n -t uint -s 1
+    done
+    query -p "$panel/plugin-ids" -a "''${args[@]}" || exit 1
+    query -p "$marker" -t bool -s true
   '';
+
+  separatorPlugins = lib.concatStrings (lib.mapAttrsToList (id: style: ''
+    <property name="plugin-${id}" type="string" value="separator">
+      <property name="style" type="uint" value="${style}"/>
+      <property name="expand" type="bool" value="false"/>
+    </property>
+  '') rightSeparators);
 
   volumePlugin = ''
     <property name="plugin-8" type="string" value="pulseaudio">
@@ -159,11 +213,12 @@ in
 
     # O migrador do painel usa o modelo somente quando o xfconf ainda não tem /panels.
     environment.etc."xdg/xfce4/panel/default.xml".text = lib.replaceStrings
-      ([ "<!-- volume-id -->" "<!-- volume-plugin -->" ]
+      ([ "<!-- volume-id -->" "<!-- volume-plugin -->" "<!-- right-separators -->" ]
         ++ map (name: "<!-- ${name}-defaults -->") (builtins.attrNames defaults))
       ([
         (lib.optionalString audioAvailable ''<value type="int" value="8"/>'')
         (lib.optionalString audioAvailable volumePlugin)
+        separatorPlugins
       ] ++ map renderProperties (builtins.attrValues defaults))
       (builtins.readFile ./panel-default.xml);
 

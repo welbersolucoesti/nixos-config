@@ -38,6 +38,7 @@ in
       <channel name="xfwm4" version="1.0">
         <property name="general" type="empty">
           <property name="theme" type="string" value="${theme.name}"/>
+          <property name="workspace_count" type="int" value="2"/>
         </property>
       </channel>
     '';
