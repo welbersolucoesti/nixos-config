@@ -9,6 +9,11 @@ let
   mixerAvailable = !builtins.any (
     package: lib.getName package == lib.getName pkgs.pavucontrol
   ) config.environment.xfce.excludePackages;
+  batteryAvailable = config.powerManagement.enable && !builtins.any (
+    package: lib.getName package == lib.getName pkgs.xfce4-power-manager
+  ) config.environment.xfce.excludePackages;
+  batteryPlugin = "power-manager-plugin";
+  batteryId = 19;
 
   # O separador sem expansão tem largura nativa fixa. Estilo 0 é transparente e 1 é linha.
   rightSeparators = { "10" = "0"; "11" = "0"; "12" = "1"; "13" = "0"; };
@@ -222,6 +227,7 @@ let
     # Reaproveita a migração anterior para contas que ainda estão em v1 ou v2.
     migrate_v3 || exit 1
 
+    migrate_v4() (
     marker=/noir/panel-layout-v4-complete
     state=$(get "$marker")
     [ "$state" = true ] && exit 0
@@ -270,6 +276,95 @@ let
     done
     query -p "$panel/plugin-ids" -a "''${args[@]}" || exit 1
     query -p "$marker" -t bool -s true
+    )
+
+    migrate_v4 || exit 1
+
+    ${lib.optionalString batteryAvailable ''
+      marker=/noir/panel-battery-configured
+      [ "$(get "$marker")" = true ] && exit 0
+      panels=$(get_array /panels) || exit 0
+      [[ $'\n'"$panels"$'\n' == *$'\n1\n'* ]] || exit 0
+      panel=/panels/panel-1
+      case "$(get "$panel/position")" in
+        p=2\;*|p=6\;*|p=9\;*|p=11\;*) ;;
+        *) exit 0 ;;
+      esac
+      has_other_value "$panel/mode" 0 && exit 0
+      ids=$(get_array "$panel/plugin-ids") || exit 0
+
+      # Reserva também IDs de plugins inativos, que ainda podem ter preferências.
+      properties=$(query -l) || exit 1
+      declare -A used=()
+      battery=
+      while IFS= read -r property; do
+        [[ "$property" =~ ^/plugins/plugin-([0-9]+)(/|$) ]] || continue
+        id="''${BASH_REMATCH[1]}"
+        used[$id]=1
+        if [ "$property" = "/plugins/plugin-$id" ] && [ "$(get "$property")" = ${batteryPlugin} ]; then
+          [ -z "$battery" ] || exit 0
+          battery=$id
+        fi
+      done <<< "$properties"
+
+      if [ -n "$battery" ]; then
+        # A instância é única. Respeita uma escolha explícita por outro painel.
+        for other in $panels; do
+          [ "$other" != 1 ] || continue
+          other_ids=$(get_array "/panels/panel-$other/plugin-ids") || continue
+          [[ $'\n'"$other_ids"$'\n' != *$'\n'"$battery"$'\n'* ]] || exit 0
+        done
+      fi
+
+      order=()
+      volume=
+      clock=
+      previous=
+      for id in $ids; do
+        [ "$id" != "$battery" ] || continue
+        used[$id]=1
+        case "$(get "/plugins/plugin-$id")" in
+          pulseaudio)
+            [ -z "$volume" ] || exit 0
+            volume=$id
+            ;;
+          clock)
+            [ -z "$clock" ] || exit 0
+            clock=$id
+            before_clock=$previous
+            ;;
+        esac
+        order+=("$id")
+        previous=$id
+      done
+      [ -n "$clock" ] || exit 0
+      # Com volume, a inserção preserva a ordem se os dois itens forem vizinhos.
+      [ -z "$volume" ] || [ "$before_clock" = "$volume" ] || exit 0
+
+      if [ -z "$battery" ]; then
+        battery=${toString batteryId}
+        while [[ -v used[$battery] ]]; do
+          ((battery += 1))
+        done
+        query -p "/plugins/plugin-$battery" -n -t string -s ${batteryPlugin} || exit 1
+      fi
+
+      updated=()
+      for id in "''${order[@]}"; do
+        if [ "$id" = "$clock" ]; then
+          updated+=("$battery")
+        fi
+        updated+=("$id")
+      done
+      if [ "$(printf '%s\n' "''${updated[@]}")" != "$ids" ]; then
+        args=()
+        for id in "''${updated[@]}"; do
+          args+=(-t int -s "$id")
+        done
+        query -p "$panel/plugin-ids" -a "''${args[@]}" || exit 1
+      fi
+      set_default "$marker" bool true
+    ''}
   '';
 
   separatorPlugins = lib.concatStrings (lib.mapAttrsToList (id: style: ''
@@ -297,12 +392,22 @@ in
 
     # O migrador do painel usa o modelo somente quando o xfconf ainda não tem /panels.
     environment.etc."xdg/xfce4/panel/default.xml".text = lib.replaceStrings
-      ([ "<!-- volume-id -->" "<!-- volume-plugin -->" "<!-- fixed-separators -->" ]
+      ([
+        "<!-- volume-id -->" "<!-- volume-plugin -->" "<!-- fixed-separators -->"
+        "<!-- battery-id -->" "<!-- battery-plugin -->" "<!-- battery-configured -->"
+      ]
         ++ map (name: "<!-- ${name}-defaults -->") (builtins.attrNames defaults))
       ([
         (lib.optionalString audioAvailable ''<value type="int" value="8"/>'')
         (lib.optionalString audioAvailable volumePlugin)
         separatorPlugins
+        (lib.optionalString batteryAvailable ''<value type="int" value="${toString batteryId}"/>'')
+        (lib.optionalString batteryAvailable ''<property name="plugin-${toString batteryId}" type="string" value="${batteryPlugin}"/>'')
+        (lib.optionalString batteryAvailable ''
+          <property name="noir" type="empty">
+            <property name="panel-battery-configured" type="bool" value="true"/>
+          </property>
+        '')
       ] ++ map renderProperties (builtins.attrValues defaults))
       (builtins.readFile ./panel-default.xml);
 

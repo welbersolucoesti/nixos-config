@@ -20,6 +20,7 @@
         <value type="int" value="3"/>
         <value type="int" value="5"/>
         <!-- volume-id -->
+        <!-- battery-id -->
         <value type="int" value="6"/>
         <value type="int" value="10"/>
         <value type="int" value="9"/>
@@ -48,7 +49,9 @@
       <!-- actions-defaults -->
     </property>
     <!-- volume-plugin -->
+    <!-- battery-plugin -->
     <property name="plugin-9" type="string" value="showdesktop"/>
     <!-- fixed-separators -->
   </property>
+  <!-- battery-configured -->
 </channel>
