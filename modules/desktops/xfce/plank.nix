@@ -1,0 +1,36 @@
+{ config, lib, pkgs, ... }:
+
+let
+  startPlank = pkgs.writeShellScript "xfce-noir-plank" ''
+    [ "''${XDG_SESSION_TYPE:-}" = x11 ] && [ -n "''${DISPLAY:-}" ] || exit 0
+    exec ${lib.getExe pkgs.plank}
+  '';
+in
+{
+  config = lib.mkIf (config.personalConfig.desktop == "xfce") {
+    environment.systemPackages = [ pkgs.plank ];
+    services.dbus.packages = [ pkgs.bamf ];
+    systemd.packages = [ pkgs.bamf ];
+
+    environment.etc."xdg/autostart/plank.desktop".text = ''
+      [Desktop Entry]
+      Type=Application
+      Name=Plank
+      Exec=${startPlank}
+      OnlyShowIn=XFCE;
+    '';
+
+    # Padrões sem bloqueio, abaixo do banco pessoal na ordem do dconf.
+    programs.dconf.profiles.user.databases = lib.mkAfter [
+      {
+        settings."net/launchpad/plank/docks/dock1" = {
+          position = "bottom";
+          alignment = "center";
+          hide-mode = "intelligent";
+          icon-size = lib.gvariant.mkInt32 36;
+          theme = "Default";
+        };
+      }
+    ];
+  };
+}

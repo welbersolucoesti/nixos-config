@@ -8,6 +8,7 @@
     ./xfce/login.nix
     ./xfce/mugshot.nix
     ./xfce/panel.nix
+    ./xfce/plank.nix
     ./xfce/shortcuts.nix
     ./xfce/thunar.nix
   ];

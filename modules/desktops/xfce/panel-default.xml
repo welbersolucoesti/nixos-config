@@ -11,10 +11,13 @@
       <property name="size" type="uint" value="36"/>
       <!-- panel-defaults -->
       <property name="plugin-ids" type="array">
+        <value type="int" value="15"/>
         <value type="int" value="1"/>
-        <value type="int" value="2"/>
-        <value type="int" value="3"/>
+        <value type="int" value="16"/>
+        <value type="int" value="17"/>
+        <value type="int" value="18"/>
         <value type="int" value="4"/>
+        <value type="int" value="3"/>
         <value type="int" value="5"/>
         <!-- volume-id -->
         <value type="int" value="6"/>
@@ -30,7 +33,6 @@
   </property>
   <property name="plugins" type="empty">
     <property name="plugin-1" type="string" value="whiskermenu"/>
-    <property name="plugin-2" type="string" value="docklike"/>
     <property name="plugin-3" type="string" value="separator">
       <property name="expand" type="bool" value="true"/>
       <property name="style" type="uint" value="0"/>
@@ -47,6 +49,6 @@
     </property>
     <!-- volume-plugin -->
     <property name="plugin-9" type="string" value="showdesktop"/>
-    <!-- right-separators -->
+    <!-- fixed-separators -->
   </property>
 </channel>

@@ -13,6 +13,7 @@ let
   # O separador sem expansão tem largura nativa fixa. Estilo 0 é transparente e 1 é linha.
   rightSeparators = { "10" = "0"; "11" = "0"; "12" = "1"; "13" = "0"; };
   trailingSpacer = "14";
+  leftSeparators = { "15" = "0"; "16" = "0"; "17" = "1"; "18" = "0"; };
 
   defaults = {
     panels = {
@@ -94,6 +95,20 @@ let
       current=$(get "$1") && [ "$current" != "$2" ]
     }
 
+    matches_noir_panel() {
+      local id=0 plugin
+      [ "$(get "$panel/position")" = 'p=6;x=0;y=0' ] || return 1
+      [ "$(get "$panel/length")" = 100 ] || return 1
+      [ "$(get "$panel/size")" = 36 ] || return 1
+      has_other_value "$panel/mode" 0 && return 1
+      [ "$(get /plugins/plugin-3/expand)" = true ] || return 1
+      [ "$(get /plugins/plugin-3/style)" = 0 ] || return 1
+      for plugin in whiskermenu docklike separator pager systray clock actions; do
+        ((id += 1))
+        [ "$(get "/plugins/plugin-$id")" = "$plugin" ] || return 1
+      done
+    }
+
     add_trailing_space() {
       local spacer=/plugins/plugin-${trailingSpacer} id
       local args=()
@@ -107,6 +122,7 @@ let
       query -p "$marker" -t bool -s true
     }
 
+    migrate_v3() (
     # O modelo novo fica a cargo do migrador nativo. O marcador v3 diferencia
     # uma migração em andamento de um painel que já nasceu com a nova ordem.
     marker=/noir/panel-layout-v3-complete
@@ -146,18 +162,7 @@ let
       *) exit 0 ;;
     esac
 
-    [ "$(get "$panel/position")" = 'p=6;x=0;y=0' ] || exit 0
-    [ "$(get "$panel/length")" = 100 ] || exit 0
-    [ "$(get "$panel/size")" = 36 ] || exit 0
-    has_other_value "$panel/mode" 0 && exit 0
-    [ "$(get /plugins/plugin-3/expand)" = true ] || exit 0
-    [ "$(get /plugins/plugin-3/style)" = 0 ] || exit 0
-
-    id=0
-    for plugin in whiskermenu docklike separator pager systray clock actions; do
-      ((id += 1))
-      [ "$(get "/plugins/plugin-$id")" = "$plugin" ] || exit 0
-    done
+    matches_noir_panel || exit 0
     existing=$(get /plugins/plugin-9)
     [ -z "$existing" ] || [ "$existing" = showdesktop ] || exit 0
 
@@ -212,6 +217,59 @@ let
     '') rightSeparators)}
 
     add_trailing_space
+    )
+
+    # Reaproveita a migração anterior para contas que ainda estão em v1 ou v2.
+    migrate_v3 || exit 1
+
+    marker=/noir/panel-layout-v4-complete
+    state=$(get "$marker")
+    [ "$state" = true ] && exit 0
+    [ "$(get_array /panels)" = 1 ] || exit 0
+    panel=/panels/panel-1
+    ids=$(get_array "$panel/plugin-ids") || exit 0
+    ids="''${ids//$'\n'/ }"
+    audio=()
+    if [[ "$ids" == *' 5 8 6 '* ]]; then
+      [ "$(get /plugins/plugin-8)" = pulseaudio ] || exit 0
+      audio=(8)
+      ids="''${ids/5 8 6/5 6}"
+    fi
+    case "$ids" in
+      "1 2 3 4 5 6 10 9 11 12 13 7 ${trailingSpacer}") ;;
+      "15 1 16 17 18 4 3 5 6 10 9 11 12 13 7 ${trailingSpacer}")
+        [ "$state" = false ] || exit 0
+        query -p "$marker" -t bool -s true
+        exit $?
+        ;;
+      *) exit 0 ;;
+    esac
+
+    matches_noir_panel || exit 0
+    [ "$(get /plugins/plugin-9)" = showdesktop ] || exit 0
+    for id in ${toString (builtins.attrNames rightSeparators)} ${trailingSpacer}; do
+      [ "$(get "/plugins/plugin-$id")" = separator ] || exit 0
+    done
+    for id in ${toString (builtins.attrNames leftSeparators)}; do
+      if existing=$(get "/plugins/plugin-$id"); then
+        [ "$state" = false ] && [ "$existing" = separator ] || exit 0
+      fi
+    done
+
+    set_default "$marker" bool false || exit 1
+    ${lib.concatStringsSep "\n    " (lib.mapAttrsToList (id: style: ''
+      set_default /plugins/plugin-${id} string separator || exit 1
+      set_default /plugins/plugin-${id}/style uint ${style} || exit 1
+      set_default /plugins/plugin-${id}/expand bool false || exit 1
+    '') leftSeparators)}
+
+    # Só retira a instância Docklike da ordem do painel. Seus dados são preservados.
+    args=()
+    for id in 15 1 16 17 18 4 3 5 "''${audio[@]}" 6 10 9 11 12 13 7 ${trailingSpacer}; do
+      args+=(-t int -s "$id")
+    done
+    query -p "$panel/plugin-ids" -a "''${args[@]}" || exit 1
+    query -p "$marker" -t bool -s true
   '';
 
   separatorPlugins = lib.concatStrings (lib.mapAttrsToList (id: style: ''
@@ -219,7 +277,7 @@ let
       <property name="style" type="uint" value="${style}"/>
       <property name="expand" type="bool" value="false"/>
     </property>
-  '') (rightSeparators // { "${trailingSpacer}" = "0"; }));
+  '') (rightSeparators // { "${trailingSpacer}" = "0"; } // leftSeparators));
 
   volumePlugin = ''
     <property name="plugin-8" type="string" value="pulseaudio">
@@ -230,7 +288,7 @@ let
 in
 {
   config = lib.mkIf (config.personalConfig.desktop == "xfce") {
-    # Os itens ficam disponíveis no painel. Clipman requer escolha explícita pois guarda histórico.
+    # Mantém Docklike disponível para painéis personalizados e Clipman como item opcional.
     environment.systemPackages = with pkgs; [
       xfce4-whiskermenu-plugin
       xfce4-clipman-plugin
@@ -239,7 +297,7 @@ in
 
     # O migrador do painel usa o modelo somente quando o xfconf ainda não tem /panels.
     environment.etc."xdg/xfce4/panel/default.xml".text = lib.replaceStrings
-      ([ "<!-- volume-id -->" "<!-- volume-plugin -->" "<!-- right-separators -->" ]
+      ([ "<!-- volume-id -->" "<!-- volume-plugin -->" "<!-- fixed-separators -->" ]
         ++ map (name: "<!-- ${name}-defaults -->") (builtins.attrNames defaults))
       ([
         (lib.optionalString audioAvailable ''<value type="int" value="8"/>'')
