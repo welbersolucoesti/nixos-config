@@ -39,6 +39,11 @@ in
         <property name="general" type="empty">
           <property name="theme" type="string" value="${theme.name}"/>
           <property name="workspace_count" type="int" value="2"/>
+          <!-- Aplica as margens também a contas com valores locais gravados. -->
+          <property name="margin_top" type="int" value="12" unlocked="root"/>
+          <property name="margin_right" type="int" value="12" unlocked="root"/>
+          <property name="margin_bottom" type="int" value="12" unlocked="root"/>
+          <property name="margin_left" type="int" value="12" unlocked="root"/>
         </property>
       </channel>
     '';
