@@ -6,10 +6,17 @@ let
 in
 {
   config = lib.mkIf (config.personalConfig.desktop == "xfce") {
-    # Normalmente o greeter GTK já disponibiliza os três pacotes.
-    environment.systemPackages = lib.optionals
-      (!config.services.xserver.displayManager.lightdm.greeters.gtk.enable)
-      [ theme.package iconTheme.package cursorTheme.package ];
+    environment.systemPackages = [
+      theme.package
+      iconTheme.package
+      cursorTheme.package
+      pkgs.tela-icon-theme # Mantém disponível o tema anterior para quem o selecionou explicitamente.
+    ];
+
+    # Aplicativos que seguem o esquema de cores do desktop, como os que usam libadwaita.
+    programs.dconf.profiles.user.databases = lib.mkAfter [
+      { settings."org/gnome/desktop/interface".color-scheme = "prefer-dark"; }
+    ];
 
     # Thunar, painel e menus herdam a aparência GTK da sessão.
     environment.etc."${xfconf}/xsettings.xml".text = ''

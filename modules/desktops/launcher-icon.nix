@@ -2,7 +2,7 @@
 
 let
   inherit (config.personalConfig) desktop;
-  # O Tela-dark oferece este nome e o módulo gráfico do NixOS o fornece em hicolor.
+  # O módulo gráfico do NixOS fornece este nome em hicolor.
   icon = "nix-snowflake";
   kickoffScript = pkgs.writeText "noir-kickoff-icon.js" ''
     const desktopPanels = panels();

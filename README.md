@@ -122,11 +122,11 @@ A rolagem natural é o padrão para touchpads compatíveis. Em Wayland, o KWin l
 
 O NumLock é ativado no início da sessão. No XFCE, o `xfsettingsd` lê os valores `Numlock` e `RestoreNumlock` do canal `keyboards`, que o perfil fixa como verdadeiros. A tecla NumLock continua disponível durante a sessão. No Plasma, a opção nativa também funciona em Wayland e uma configuração de NumLock já gravada pela conta tem precedência.
 
-Kickoff e Whisker usam o nome de ícone `nix-snowflake`. Ao iniciar a sessão Plasma, o perfil repõe esse ícone em cada Kickoff do painel, inclusive se a conta tiver escolhido outro. No XFCE, esse nome aponta para `distributor-logo-nixos.svg` no Tela-dark. O tema `hicolor` também oferece o floco oficial pelo pacote `nixos-icons`. Novas instâncias do Whisker recebem o ícone por padrão. Na abertura de uma sessão XFCE, as instâncias existentes têm somente a propriedade `button-icon` atualizada. [Arte oficial do NixOS](https://github.com/NixOS/nixos-artwork)
+Kickoff e Whisker usam o nome de ícone `nix-snowflake`. Ao iniciar a sessão Plasma, o perfil repõe esse ícone em cada Kickoff do painel, inclusive se a conta tiver escolhido outro. O tema `hicolor` oferece o floco oficial pelo pacote `nixos-icons`. Novas instâncias do Whisker recebem o ícone por padrão. Na abertura de uma sessão XFCE, as instâncias existentes têm somente a propriedade `button-icon` atualizada. [Arte oficial do NixOS](https://github.com/NixOS/nixos-artwork)
 
 ### XFCE Noir
 
-O perfil usa `Orchis-Dark` no GTK e no Xfwm4, `Tela-dark` para os ícones e `Bibata-Modern-Ice` para o cursor. Thunar, painel e menus usam o tema GTK da sessão. As preferências de aparência já gravadas no xfconf têm precedência sobre os padrões do sistema, com a atualização do ícone do Whisker descrita acima.
+O perfil usa `Orchis-Dark` no GTK e no Xfwm4, `Papirus-Dark` para os ícones e `Bibata-Modern-Ice` para o cursor. Thunar, painel e menus usam o tema GTK da sessão. Aplicativos que seguem o esquema de cores do desktop, como os que usam libadwaita, recebem a preferência por modo escuro via dconf. As escolhas existentes da conta têm precedência sobre esses padrões, com a atualização do ícone do Whisker descrita acima. O `Tela-dark` continua disponível para contas que o selecionaram explicitamente.
 
 A tela do LightDM usa o GTK Greeter com os mesmos temas e um fundo grafite. A barra apresenta relógio em formato de 24 horas, seleção de sessão, acessibilidade e ações de energia conforme disponíveis.
 
@@ -140,7 +140,9 @@ A tela do LightDM usa o GTK Greeter com os mesmos temas e um fundo grafite. A ba
 | Clipman | Histórico da área de transferência | Adicione manualmente se quiser guardar o histórico. |
 | Thunar com Xarchiver | Compactação e extração no gerenciador de arquivos | Use o menu do botão direito. Se for solicitado um gerenciador de arquivos compactados, escolha Xarchiver. |
 
-O XFCE carrega o modelo do projeto quando ainda não há um painel configurado. O modelo inclui Whisker, Docklike, seletor de áreas de trabalho, bandeja, áudio quando disponível, relógio e ações da sessão. A bandeja recebe o Blueman e o applet do NetworkManager quando este estiver habilitado. Em painéis personalizados, os complementos podem ser adicionados em **Painel → Preferências do painel → Itens**. [Preferências do painel](https://docs.xfce.org/xfce/xfce4-panel/preferences)
+O XFCE carrega o modelo do projeto quando ainda não há um painel configurado. O modelo inclui Whisker, Docklike, seletor de áreas de trabalho, bandeja, áudio quando disponível, relógio, ações da sessão e **Mostrar área de trabalho** na extremidade direita. A bandeja recebe o Blueman e o applet do NetworkManager quando este estiver habilitado. Ela segue o tamanho de 22 px dos ícones do painel e prefere ícones simbólicos quando o applet os oferece. O relógio exibe apenas `HH:mm`, mostra a data ao passar o mouse e abre o calendário ao clicar. O menu de sessão usa o símbolo `⏻` como título do botão.
+
+No primeiro login após a atualização, um painel único com a ordem e os plugins do modelo anterior recebe os novos padrões nas propriedades ainda livres e o botão **Mostrar área de trabalho**. Em outros layouts, ajuste o relógio e as ações da sessão pelas propriedades de cada item e adicione o botão em **Painel → Preferências do painel → Itens**. [Preferências do painel](https://docs.xfce.org/xfce/xfce4-panel/preferences)
 
 Ao iniciar a sessão X11, o atalho usa `Shift+Alt+F11` para abrir o Whisker. Se a combinação ou a própria Super esquerda já estiver atribuída a outra ação no XFCE, a atribuição pessoal tem precedência.
 
