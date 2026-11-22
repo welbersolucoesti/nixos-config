@@ -49,11 +49,12 @@ fail_command() {
   local status=$1
   shift
   if (( status >= 128 )); then cancel "$status"; fi
-  if [[ -n ${ui_dialog:-} ]]; then
-    ui_error "$*"
-    exit "$status"
-  fi
-  die "$*"
+  ui_error "$*"
+  exit "$status"
+}
+
+partial_publication() {
+  (( $1 != 0 && $1 < 128 )) && [[ -n $published_destination && -z ${ui_dialog_cancelled:-} ]]
 }
 
 show_result() {
@@ -78,17 +79,40 @@ show_result() {
 }
 
 finish() {
+  local status=$1 report=${2:-true}
+  if [[ -n ${ui_dialog_dir:-} ]]; then
+    if "$report" && (( status != 0 )); then ui_dialog_result "$status"; fi
+    rm -rf -- "$ui_dialog_dir"
+  fi
+  return "$status"
+}
+
+finish_operation() {
   local status=$1
+  if (( status == 0 )) && [[ -n ${ui_dialog_cancelled:-} ]]; then status=1; fi
   if [[ -n $rebuild_lock_fd ]]; then exec {rebuild_lock_fd}<&-; fi
   if [[ -n $prepared ]]; then rm -rf -- "$prepared"; fi
   if [[ -n $new_local ]]; then rm -f -- "$new_local"; fi
   if [[ -n ${ui_dialog_dir:-} ]]; then
-    ui_dialog_finish "$status"
+    ui_dialog_result "$status"
+    rm -f -- "$ui_dialog_dir/error"
   elif "$wizard_started"; then
+    if partial_publication "$status"; then
+      ui_warning "Publicação parcial. Os arquivos foram publicados, mas uma etapa falhou (código $status)."
+    fi
     show_result
   fi
-  return "$status"
+  exit "$status"
 }
+
+run_operation() (
+  # O chamador coleta o status. A operação mantém seu próprio errexit e limpeza.
+  set -e
+  trap 'finish_operation "$?"' EXIT
+  trap 'cancel 130' INT
+  trap 'cancel 143' TERM
+  "$@"
+)
 
 prepare_ui() {
   local backend=$1 candidate status=0
@@ -436,25 +460,45 @@ publish() (
     die "Falha na troca em $target. A instalação anterior continua em uso."
   fi
 
+  local backup_failed=false
   if [[ -d $previous ]]; then
-    mv -T --exchange --no-copy -- "$tree" "$previous" ||
-      die "A nova cópia está instalada. A cópia que estava em uso está em $tree. O backup em $previous foi mantido."
+    mv -T --exchange --no-copy -- "$tree" "$previous" || backup_failed=true
   else
-    mv -Tn --no-copy -- "$tree" "$previous" && [[ ! -e $tree ]] ||
-      die "A nova cópia está instalada. A anterior está em $tree; falhou a criação de $previous."
+    mv -Tn --no-copy -- "$tree" "$previous" && [[ ! -e $tree ]] || backup_failed=true
+  fi
+  if "$backup_failed"; then
+    printf 'A nova cópia está instalada. A anterior está em %s. Falha ao gravar o backup em %s.\n' \
+      "$tree" "$previous" >&2
+    # EX_IOERR distingue a falha no backup após a troca das falhas anteriores.
+    return 74
   fi
   keep_stage=false
   printf 'Cópia anterior para recuperação: %s\n' "$previous"
 )
 
 relay_sudo_dialog() {
-  local prompt=$1 started=$2 line
+  local prompt=$1 started=$2 mode=$3 line result=0 pending=true
+  set +x +a
   while IFS= read -r line || [[ -n $line ]]; do
     case $line in
-      "$prompt"|"$started")
-        # NOPASSWD fecha o canal sem enviar a senha ao comando ou ao log de E/S.
-        if [[ -v password ]]; then
-          if [[ $line == "$prompt" ]]; then printf '%s\n' "$password" || return "$?"; fi
+      "$prompt")
+        if "$pending"; then
+          if [[ $mode == on-demand ]]; then
+            local +x password
+            password=$(ui_dialog_password) || result=$?
+            if (( result == 1 )); then result=125; fi
+          fi
+          if (( result == 0 )); then printf '%s\n' "$password" || return "$?"; fi
+          pending=false
+          exec 1>&-
+          unset -v password
+        fi
+        ;;
+      "$started")
+        if [[ -z $started ]]; then
+          printf '\n' >&2 || return "$?"
+        elif "$pending"; then
+          pending=false
           exec 1>&-
           unset -v password
         fi
@@ -462,13 +506,45 @@ relay_sudo_dialog() {
       *) printf '%s\n' "$line" >&2 || return "$?" ;;
     esac
   done
+  return "$result"
 }
 
-publish_dialog() (
-  local archive=$1 root_script=$2 target=$3 expected=$4
+sudo_dialog() (
+  local mode=$1 started=$2
+  shift 2
   local relay='' input='' diagnostics='' status relay_status
-  local prompt="Noir autenticação ${prepared##*/}" started="Noir publicação ${prepared##*/}"
+  local prompt="Noir autenticação $BASHPID-$RANDOM"
 
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap '
+    status=$?
+    # Feche as duas pontas do sudo antes de esperar o auxiliar.
+    if [[ -n $diagnostics ]]; then exec {diagnostics}>&-; fi
+    if [[ -n $input ]]; then exec {input}<&-; fi
+    if [[ -n $relay ]]; then
+      wait "$relay" || {
+        relay_status=$?
+        if (( relay_status != 125 )); then
+          printf "Falha no auxiliar de autenticação (código %s).\n" "$relay_status" >&2
+        fi
+        status=$relay_status
+      }
+    fi
+    exit "$status"
+  ' EXIT
+
+  coproc NOIR_RELAY { relay_sudo_dialog "$prompt" "$started" "$mode"; } || return 1
+  relay=$! input=${NOIR_RELAY[0]:-} diagnostics=${NOIR_RELAY[1]:-}
+  [[ -n $input && -n $diagnostics ]] || return 1
+
+  # O sudo permanece em primeiro plano para receber a interrupção do terminal.
+  sudo -k -S -p $'\n'"$prompt"$'\n' -- "$@" <&"$input" 2>&"$diagnostics"
+)
+
+publish_dialog() {
+  local archive=$1 root_script=$2 target=$3 expected=$4
+  local started="Noir publicação ${prepared##*/}"
   if [[ $archive != /* ]]; then archive=$PWD/$archive; fi
   [[ -f $archive && -r $archive ]] || {
     printf 'TAR de implantação indisponível: %s\n' "$archive" >&2
@@ -486,33 +562,9 @@ setpriv --reuid "$SUDO_UID" --regid "$SUDO_GID" --clear-groups --no-new-privs --
   cat -- "$3" | publish "$1" "$2"
 ROOT
   )
-
-  trap 'exit 130' INT
-  trap 'exit 143' TERM
-  trap '
-    status=$?
-    # Feche as duas pontas do sudo antes de esperar o auxiliar.
-    if [[ -n $diagnostics ]]; then exec {diagnostics}>&-; fi
-    if [[ -n $input ]]; then exec {input}<&-; fi
-    if [[ -n $relay ]]; then
-      wait "$relay" || {
-        relay_status=$?
-        printf "Falha no auxiliar de autenticação (código %s).\n" "$relay_status" >&2
-        if (( status == 0 )); then status=$relay_status; fi
-      }
-    fi
-    exit "$status"
-  ' EXIT
-
-  coproc NOIR_RELAY { relay_sudo_dialog "$prompt" "$started"; } || return 1
-  relay=$! input=${NOIR_RELAY[0]:-} diagnostics=${NOIR_RELAY[1]:-}
-  [[ -n $input && -n $diagnostics ]] || return 1
-
-  # O sudo permanece em primeiro plano para receber a interrupção do terminal.
-  sudo -k -S -p $'\n'"$prompt"$'\n' -- /run/current-system/sw/bin/bash -p -c "$root_script" \
-    -- "$target" "$expected" "$archive" "$started" \
-    <&"$input" 2>&"$diagnostics"
-)
+  sudo_dialog prepared "$started" /run/current-system/sw/bin/bash -p -c "$root_script" \
+    -- "$target" "$expected" "$archive" "$started"
+}
 
 show_next_steps() {
   local destination=$1
@@ -522,12 +574,6 @@ show_next_steps() {
 
 Em /etc/nixos/configuration.nix, adicione ./nixos-config/personal.nix a imports.
 Remova os imports antigos do projeto. Preserve os imports de hardware e os ajustes da máquina.
-
-Valide:
-  nixos-rebuild dry-build
-
-Após conferir o resultado, aplique manualmente:
-  sudo nixos-rebuild switch
 INSTRUCTIONS
   fi
 }
@@ -539,16 +585,11 @@ run_logged_rebuild() {
 
   ui_progress "$title" || return "$?"
   printf '\n%s\n' "$title" >> "$rebuild_log" || return "$?"
-  if [[ -n $ui_dialog && $1 != sudo ]]; then
+  if [[ -n $ui_dialog ]]; then
     "$@" >> "$rebuild_log" 2>&1
   else
-    # O sudo usa o terminal controlador para autenticação e a saída fica visível e registrada.
-    if [[ -n $ui_dialog ]]; then
-      printf '\n\n' > /dev/tty
-      "$@" </dev/tty 2>&1 | tee -a -- "$rebuild_log" >/dev/tty || statuses=("${PIPESTATUS[@]}")
-    else
-      "$@" 2>&1 | tee -a -- "$rebuild_log" || statuses=("${PIPESTATUS[@]}")
-    fi
+    # O comando recebe Ctrl+C. O leitor drena também os diagnósticos da limpeza.
+    "$@" 2>&1 | (trap '' INT; exec tee -a -- "$rebuild_log") || statuses=("${PIPESTATUS[@]}")
     if (( ${statuses[0]:-0} != 0 )); then return "${statuses[0]}"; fi
     return "${statuses[1]:-0}"
   fi
@@ -602,8 +643,14 @@ rebuild_configuration() {
   if [[ $operation == switch ]]; then
     ui_confirm 'A validação passou. Ativar agora? Serviços podem reiniciar.' || cancel "$?" 'Ativação cancelada.'
     activation_result=(error 'Interrompida ou com falha. Confira a geração atual e o registro.')
-    run_logged_rebuild 'Aplicando configuração (switch)' sudo -- "$system_rebuild" switch "${args[@]}" || {
+    local -a elevate=(sudo --)
+    if [[ -n $ui_dialog ]]; then elevate=(sudo_dialog on-demand ''); fi
+    run_logged_rebuild 'Aplicando configuração (switch)' "${elevate[@]}" "$system_rebuild" switch "${args[@]}" || {
       status=$?
+      if [[ -n $ui_dialog ]] && (( status == 125 )); then
+        activation_result=(neutral 'Autenticação cancelada')
+        cancel 1 'Autenticação cancelada.'
+      fi
       fail_command "$status" "A ativação falhou (código $status). Consulte o registro e confira as gerações do NixOS."
     }
     activation_result=(ok 'Concluída')
@@ -736,12 +783,9 @@ show_publication() {
 main() {
   local backend=$1 entrypoint
   shift
-  local destination=$default_destination checkout parent expected=absent source_commit plain=false
-  local username git_name git_email git_target tree entry mode file checkout_local root_script
-  local revision local_info account profile previous backup status argument_error='' shell_options=$-
-  local selection interactive=false
-  local +x password
-  local -a identity_args=() nix_files=() identity_summary=()
+  local destination=$default_destination checkout plain=false
+  local revision status last_status=0 argument_error='' selection interactive=false screen=main operation
+  local -a menu=('Instalar ou atualizar')
   case $backend in
     dialog) entrypoint=config.sh ;;
     gum) entrypoint=install.sh ;;
@@ -793,36 +837,93 @@ main() {
     if [[ $revision =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]; then revision=${revision:0:12}; fi
   fi
   [[ $revision =~ ^[a-zA-Z0-9._/-]+$ ]] || revision=''
-  local -a menu=('Instalar ou atualizar')
   if [[ $destination == "$default_destination" ]]; then menu+=('Gerenciar sistema'); fi
   while :; do
-    selection=$(ui_start "$revision" "${menu[@]}") || {
-      status=$?
-      if (( status == 1 )); then
-        if [[ -n ${ui_dialog_dir:-} ]]; then
-          rm -rf -- "$ui_dialog_dir"
-          ui_dialog_dir=''
-        fi
-        return 0
-      fi
-      cancel "$status"
-    }
-    if [[ $selection == 1 ]]; then break; fi
-    [[ $selection == 2 && $destination == "$default_destination" ]] || die 'Selecione uma opção do menu.'
-    ui_section_title='Gerenciar sistema'
-    selection=$(ui_choose 'Selecione uma operação.' 'Validar configuração (dry-build)' \
-      'Aplicar configuração (switch)') || {
-      status=$?
-      if (( status == 1 )); then continue; fi
-      cancel "$status"
-    }
-    case $selection in
-      1) rebuild_configuration dry-build "$interactive" ;;
-      2) rebuild_configuration switch "$interactive" ;;
+    status=0
+    case $screen in
+      main)
+        selection=$(ui_start "$revision" "${menu[@]}") || status=$?
+        ;;
+      system)
+        ui_section_title='Gerenciar sistema'
+        selection=$(ui_choose 'Selecione uma operação.' 'Validar configuração (dry-build)' \
+          'Aplicar configuração (switch)') || status=$?
+        ;;
+      published)
+        ui_section_title='Publicação concluída'
+        selection=$(ui_choose 'O que deseja fazer agora?' 'Validar agora (dry-build)' \
+          'Voltar ao menu principal' 'Sair') || status=$?
+        ;;
+      validated)
+        ui_section_title='Validação concluída'
+        selection=$(ui_choose 'O que deseja fazer agora?' 'Aplicar configuração (switch)' \
+          'Voltar a Gerenciar sistema' 'Sair') || status=$?
+        ;;
+      dry-result)
+        ui_section_title='Validação'
+        selection=$(ui_choose 'O que deseja fazer agora?' 'Voltar a Gerenciar sistema' 'Sair') || status=$?
+        ;;
+      switch-result|alternate-publication)
+        ui_section_title='Resultado'
+        selection=$(ui_choose 'O que deseja fazer agora?' 'Voltar ao menu principal' 'Sair') || status=$?
+        ;;
+    esac
+    if (( status > 1 )); then cancel "$status"; fi
+    if (( status == 1 )); then selection=back; fi
+    case $screen:$selection in
+      main:back|published:3|validated:3|dry-result:2|switch-result:2|alternate-publication:2)
+        trap 'finish "$?" false' EXIT
+        return "$last_status"
+        ;;
+      main:2)
+        [[ $destination == "$default_destination" ]] || die 'Selecione uma opção do menu.'
+        screen=system; continue ;;
+      system:back|published:2|published:back|switch-result:1|switch-result:back|alternate-publication:1|alternate-publication:back)
+        screen=main; continue ;;
+      validated:2|validated:back|dry-result:1|dry-result:back)
+        screen=system; continue ;;
+      main:1) operation=install ;;
+      system:1|published:1) operation=dry-build ;;
+      system:2|validated:1) operation=switch ;;
       *) die 'Selecione uma opção do menu.' ;;
     esac
-    return
+
+    # Chame diretamente para que o errexit continue ativo dentro da operação.
+    set +e
+    trap ':' INT
+    if [[ $operation == install ]]; then
+      run_operation install_configuration "$checkout" "$destination"
+    else
+      run_operation rebuild_configuration "$operation" "$interactive"
+    fi
+    status=$?
+    last_status=$status
+    trap 'cancel 130' INT
+    set -e
+    case $operation in
+      install)
+        screen=main
+        if (( status == 0 )); then
+          screen=published
+          if [[ $destination != "$default_destination" ]]; then screen=alternate-publication; fi
+        fi
+        ;;
+      dry-build)
+        screen=dry-result
+        if (( status == 0 )); then screen=validated; fi
+        ;;
+      switch) screen=switch-result ;;
+    esac
   done
+}
+
+install_configuration() {
+  local checkout=$1 destination=$2 parent expected=absent source_commit
+  local username git_name git_email git_target tree entry mode file checkout_local root_script
+  local local_info account profile previous backup status shell_options=$-
+  local +x password
+  local -a identity_args=() nix_files=() identity_summary=()
+
   ui_section_title=''
   ui_progress 'Verificando pré-requisitos'
   check_requirements
@@ -948,37 +1049,49 @@ main() {
   tar -cf "$prepared/deployment.tar" -C "$tree" . || die "Falha ao preparar a cópia para publicação."
   publication_result=(error 'Interrompida ou com falha')
   ui_progress 'Publicando configuração'
+  status=0
   if [[ $destination == "$default_destination" ]]; then
     root_script="PATH=$system_path"$'\n'
     root_script+=$(declare -f die publish)
     if [[ -n $ui_dialog ]]; then
-      status=0
       publish_dialog "$prepared/deployment.tar" "$root_script" "$destination" "$expected" || status=$?
       unset -v password
       if [[ $shell_options == *a* ]]; then set -a; fi
       if [[ $shell_options == *x* ]]; then set -x; fi
-      if (( status != 0 )); then fail_command "$status" "Falha na publicação. Consulte os diagnósticos."; fi
     else
       root_script+=$'\npublish "$@"'
       sudo -- /run/current-system/sw/bin/bash -p -c "$root_script" -- "$destination" "$expected" \
-        < "$prepared/deployment.tar" ||
-        fail_command "$?" "Falha na publicação. Consulte os diagnósticos."
+        < "$prepared/deployment.tar" || status=$?
     fi
   else
+    # Colete o status sem suprimir o errexit do publicador.
+    set +e
     publish "$destination" "$expected" < "$prepared/deployment.tar"
+    status=$?
+    set -e
   fi
 
+  if (( status != 0 && status != 74 )); then
+    fail_command "$status" 'Falha na publicação. Consulte os diagnósticos.'
+  fi
   published_destination=$destination
   publication_result=(ok "Concluída em $destination")
   if [[ ${local_result[0]} == warning ]]; then local_result=(ok 'Gerada e publicada'); fi
+  if (( status == 74 )); then
+    backup_result=(error 'Falha ao gravar. Consulte os registros para recuperar a cópia anterior.')
+    return "$status"
+  fi
   if [[ $expected != absent && -d $backup ]]; then backup_result=(ok "$backup"); fi
-  if [[ $expected == absent ]] && ! configure_git; then
+  if [[ $expected == absent ]]; then
+    configure_git || status=$?
+  fi
+  if (( status != 0 )); then
     identity_result=(error 'Ajuste manual pendente')
     ui_section 'AJUSTE MANUAL DO GIT' >&2
     ui_info "Conta $username. Execute os comandos pendentes." >&2
     printf '  git config --global user.name %q\n  git config --global user.email %q\n  git config --global init.defaultBranch main\n' \
       "$git_name" "$git_email" >&2
-    return 1
+    return "$status"
   fi
   if [[ $expected == absent ]]; then identity_result=(ok 'Aplicada'); fi
 }

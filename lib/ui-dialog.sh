@@ -91,6 +91,10 @@ ui_dialog_list() {
         if (( $# < 2 )); then continue; fi
         selection=2
         ;;
+      51)
+        if (( $# < 3 )); then continue; fi
+        selection=3
+        ;;
     esac
     [[ $selection =~ ^[1-9][0-9]*$ ]] && (( selection <= $# )) || return 2
     printf '%s\n' "$selection"
@@ -129,7 +133,7 @@ ui_dialog_git_identity() {
 ui_dialog_choose() {
   local prompt=$1
   shift
-  ui_dialog_list "$ui_section_title" "$prompt" '↑↓ 1–2/Enter Esc Voltar' "$@"
+  ui_dialog_list "$ui_section_title" "$prompt" "↑↓ 1–$#/Enter Esc Voltar" "$@"
 }
 
 ui_dialog_confirm() {
@@ -171,7 +175,7 @@ ui_dialog_password() {
     --passwordbox 'Senha da sua conta Linux' 0 "$ui_dialog_width"
 }
 
-ui_dialog_finish() {
+ui_dialog_result() {
   local status=$1 title='Resultado' message='Operação concluída.' action=0
   local diagnostics=${rebuild_log:-$ui_dialog_dir/log}
   if [[ -n $ui_dialog_cancelled ]]; then
@@ -181,6 +185,10 @@ ui_dialog_finish() {
   elif (( status != 0 )); then
     title='Falha na operação'
     message="Código de saída: $status."
+    if partial_publication "$status"; then
+      title='Publicação parcial'
+      message=$'Arquivos publicados. Uma etapa posterior falhou.\n'"$message"
+    fi
     if [[ -s $ui_dialog_dir/error ]]; then message+=$'\n'"$(<"$ui_dialog_dir/error")"; fi
   fi
   {
@@ -188,7 +196,7 @@ ui_dialog_finish() {
     if "$wizard_started"; then show_result; fi
   } | fold -s -w "$((ui_dialog_report_width - 5))" > "$ui_dialog_dir/result" || action=2
   while (( action == 0 )); do
-    ui_dialog_textbox "$title" "$ui_dialog_dir/result" --ok-label 'Fechar' \
+    ui_dialog_textbox "$title" "$ui_dialog_dir/result" --ok-label 'Continuar' \
       --extra-button --extra-label 'Registros' --hline '↑↓ Rolar Tab Enter/Esc' \
       --erase-on-exit || action=$?
     if (( action != 3 )); then break; fi
@@ -201,5 +209,4 @@ ui_dialog_finish() {
     printf 'Falha ao exibir os diagnósticos no Dialog. Código da operação: %s.\n' "$status" >&"$ui_dialog_stderr"
     cat -- "$ui_dialog_dir/result" "$diagnostics" >&"$ui_dialog_stderr" || :
   fi
-  rm -rf -- "$ui_dialog_dir"
 }
