@@ -134,9 +134,10 @@ A tela do LightDM usa o GTK Greeter com os mesmos temas e um fundo grafite. A ba
 | Complemento | Função | Quando entra em uso |
 | --- | --- | --- |
 | Whisker Menu | Menu de aplicativos pesquisável | Abra pelo painel ou toque e solte a tecla Super esquerda. Em painéis existentes, adicione o Whisker pelo editor do painel, se necessário. |
-| Plank | Dock inferior para janelas abertas e favoritos | Inicia no XFCE X11, centralizada, com ocultação inteligente, ícones de 36 px e tema Default. Cada usuário gerencia manualmente os lançadores fixados e a ordem deles na própria sessão. |
+| Plank | Dock inferior para janelas abertas e favoritos | Inicia no XFCE X11, centralizada, com ocultação inteligente, ícones de 36 px e tema Default. Na primeira execução, gera um favorito por aplicativo encontrado nas associações padrão. Cada usuário gerencia os lançadores fixados e a ordem deles na própria sessão. |
 | Blueman | Gerenciador e applet Bluetooth | Use o menu de aplicativos ou a bandeja para parear, conectar e desconectar dispositivos. |
 | Áudio | Volume, entradas e saídas no painel e no Pavucontrol | Abra o controle no painel. Os seletores aparecem quando há mais de um dispositivo disponível. Use **Mixer de áudio** para abrir o Pavucontrol. |
+| Bateria | Ícone entre o volume e o relógio no painel padrão | Passe o cursor sobre o ícone ou abra seu menu para consultar a carga. O percentual ao lado do ícone fica oculto por padrão. A escolha feita nas propriedades do indicador tem precedência. |
 | Mugshot | Editor de perfil pessoal | Abra pelo item de perfil no menu. Os campos disponíveis dependem do AccountsService e das permissões da conta. |
 | Clipman | Histórico da área de transferência | Adicione manualmente se quiser guardar o histórico. |
 | Thunar com Xarchiver | Compactação e extração no gerenciador de arquivos | Use o menu do botão direito. Se for solicitado um gerenciador de arquivos compactados, escolha Xarchiver. |
@@ -200,6 +201,13 @@ nixos-config/
 | Teclado | O keyd transforma `leftshift+leftmeta+f23` em reproduzir ou pausar. Em alguns notebooks, essa combinação é emitida pela tecla Copilot. A regra vale para todos os teclados gerenciados. Teste no seu teclado, pois o evento pode variar. |
 
 As Microsoft Core Fonts são extraídas localmente dos instaladores originais com hash já declarados no Nixpkgs. O visualizador do Word e a fonte Tahoma ficam fora. A derivação inclui a EULA ao lado das fontes. Consulte a licença antes de usar as fontes e mantenha a saída extraída fora de caches públicos e imagens distribuídas. [EULA Microsoft Core Fonts](https://corefonts.sourceforge.net/eula.htm)
+
+### Idioma e aparência do WPS Office
+
+O pacote Linux `11.1.0.11723` inclui o tema escuro `2019dark`. O catálogo do seletor lista **Português (Brasil)** como idioma online, mas os arquivos de tradução `pt_BR` precisam ser obtidos à parte. As preferências da suíte ficam em `$XDG_CONFIG_HOME/Kingsoft/Office.conf` (por padrão, `~/.config/Kingsoft/Office.conf`) e permanecem na conta entre sessões e reconstruções do NixOS.
+
+- **Idioma da interface**. Na página inicial, abra **Configurações globais → Alterar idioma**. Se **Português (Brasil)** estiver disponível, selecione-o, conclua o download, aplique e reinicie o WPS. Se a opção ou o download estiver indisponível nessa edição Linux, a tradução depende de uma edição ou de um pacote de idioma `pt_BR` compatível fornecido pela WPS. [Seletor de idioma do WPS](https://help.wps.com/c/software-installation-faq/2089983327927615490-guide-to-using-language-change-feature-in-wps-client)
+- **Tema da interface**. Na página inicial, abra a **Central de temas** (*Skin Center*) e escolha o tema escuro. O nome e o local do controle podem variar entre edições. [Guia de aparência do WPS](https://help.wps.com/d/2089984791198646273)
 
 ### Impressões digitais
 

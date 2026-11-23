@@ -411,6 +411,19 @@ in
       ] ++ map renderProperties (builtins.attrValues defaults))
       (builtins.readFile ./panel-default.xml);
 
+    # O xfconf dá precedência à configuração pessoal quando o canal não está bloqueado.
+    environment.etc."xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml" =
+      lib.mkIf batteryAvailable {
+        text = ''
+          <?xml version="1.0" encoding="UTF-8"?>
+          <channel name="xfce4-power-manager" version="1.0">
+            <property name="xfce4-power-manager" type="empty">
+              <property name="show-panel-label" type="int" value="0"/>
+            </property>
+          </channel>
+        '';
+      };
+
     services.xserver.displayManager.sessionCommands = ''
       if [ "''${XDG_SESSION_DESKTOP:-}" = xfce ]; then
         ${migratePanel} || :

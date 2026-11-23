@@ -1,0 +1,27 @@
+--- a/lib/Factories/ItemFactory.vala
++++ b/lib/Factories/ItemFactory.vala
+@@ -287,14 +287,10 @@
+-			if (browser != null)
+-				make_dock_item_for_desktop_id (browser.get_id ());
+-			if (mail != null)
+-				make_dock_item_for_desktop_id (mail.get_id ());
+-			if (terminal != null)
+-				make_dock_item_for_desktop_id (terminal.get_id ());
+-			if (calendar != null)
+-				make_dock_item_for_desktop_id (calendar.get_id ());
+-			if (audio != null)
+-				make_dock_item_for_desktop_id (audio.get_id ());
+-			if (video != null)
+-				make_dock_item_for_desktop_id (video.get_id ());
+-			if (photo != null)
+-				make_dock_item_for_desktop_id (photo.get_id ());
++			// An application can be the default for more than one content type.
++			var launcher_ids = new Gee.HashSet<string> ();
++			AppInfo?[] defaults = { browser, mail, terminal, calendar, audio, video, photo };
++			foreach (var app in defaults) {
++				if (app == null)
++					continue;
++				unowned string? id = app.get_id ();
++				if (id != null && launcher_ids.add (id))
++					make_dock_item_for_desktop_id (id);
++			}

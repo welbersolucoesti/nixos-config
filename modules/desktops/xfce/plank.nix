@@ -1,14 +1,17 @@
 { config, lib, pkgs, ... }:
 
 let
+  plank = pkgs.plank.overrideAttrs (old: {
+    patches = (old.patches or [ ]) ++ [ ./plank-default-launchers.patch ];
+  });
   startPlank = pkgs.writeShellScript "xfce-noir-plank" ''
     [ "''${XDG_SESSION_TYPE:-}" = x11 ] && [ -n "''${DISPLAY:-}" ] || exit 0
-    exec ${lib.getExe pkgs.plank}
+    exec ${lib.getExe plank}
   '';
 in
 {
   config = lib.mkIf (config.personalConfig.desktop == "xfce") {
-    environment.systemPackages = [ pkgs.plank ];
+    environment.systemPackages = [ plank ];
     services.dbus.packages = [ pkgs.bamf ];
     systemd.packages = [ pkgs.bamf ];
 
