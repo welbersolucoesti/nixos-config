@@ -192,7 +192,7 @@ nixos-config/
 | --- | --- |
 | Navegadores | Google Chrome instalado. O módulo de Firefox do NixOS fica desabilitado. O projeto permite pacotes proprietários em todo o sistema, com prioridade sobre configurações comuns de outros módulos. |
 | Desenvolvimento | IntelliJ IDEA, VS Code, DBeaver, Postman e Eclipse Temurin JDK 25. |
-| Uso geral | Bitwarden, WPS Office, Inkscape, GIMP, Fastfetch, Vim, wget, usbutils, Git, htop e pv. |
+| Uso geral | Bitwarden, ONLYOFFICE Desktop Editors, Inkscape, GIMP, Fastfetch, Vim, wget, usbutils, Git, htop e pv. |
 | Vim | NERDTree (`:NERDTreeToggle`), espaços com quatro colunas, wildmenu, numeração, pesquisa incremental, margem de cinco linhas, divisões à direita e abaixo e undo persistente em `$XDG_STATE_HOME/vim/undo` (padrão `~/.local/state/vim/undo`). |
 | Fontes | JetBrainsMono Nerd Font e Microsoft Core Fonts para todas as contas. |
 | Biometria | O fprintd é compartilhado entre os perfis e depende de um leitor compatível e de digitais cadastradas. |
@@ -202,12 +202,9 @@ nixos-config/
 
 As Microsoft Core Fonts são extraídas localmente dos instaladores originais com hash já declarados no Nixpkgs. O visualizador do Word e a fonte Tahoma ficam fora. A derivação inclui a EULA ao lado das fontes. Consulte a licença antes de usar as fontes e mantenha a saída extraída fora de caches públicos e imagens distribuídas. [EULA Microsoft Core Fonts](https://corefonts.sourceforge.net/eula.htm)
 
-### Idioma e aparência do WPS Office
+### Idioma e aparência do ONLYOFFICE
 
-O pacote Linux `11.1.0.11723` inclui o tema escuro `2019dark`. O catálogo do seletor lista **Português (Brasil)** como idioma online, mas os arquivos de tradução `pt_BR` precisam ser obtidos à parte. As preferências da suíte ficam em `$XDG_CONFIG_HOME/Kingsoft/Office.conf` (por padrão, `~/.config/Kingsoft/Office.conf`) e permanecem na conta entre sessões e reconstruções do NixOS.
-
-- **Idioma da interface**. Na página inicial, abra **Configurações globais → Alterar idioma**. Se **Português (Brasil)** estiver disponível, selecione-o, conclua o download, aplique e reinicie o WPS. Se a opção ou o download estiver indisponível nessa edição Linux, a tradução depende de uma edição ou de um pacote de idioma `pt_BR` compatível fornecido pela WPS. [Seletor de idioma do WPS](https://help.wps.com/c/software-installation-faq/2089983327927615490-guide-to-using-language-change-feature-in-wps-client)
-- **Tema da interface**. Na página inicial, abra a **Central de temas** (*Skin Center*) e escolha o tema escuro. O nome e o local do controle podem variar entre edições. [Guia de aparência do WPS](https://help.wps.com/d/2089984791198646273)
+O Noir define **Português Brasileiro** (`pt-BR`) e **Escuro moderno** como padrões do ONLYOFFICE Desktop Editors no KDE e no XFCE. Para mudar o idioma ou o tema, abra **Configurações** na página inicial. O aplicativo salva suas escolhas em `$XDG_CONFIG_HOME/onlyoffice/DesktopEditors.conf` (por padrão, `~/.config/onlyoffice/DesktopEditors.conf`) e dá preferência a elas sobre os padrões do sistema. [Configurações do ONLYOFFICE](https://helpcenter.onlyoffice.com/pt-BR/desktop/getting-started)
 
 ### Impressões digitais
 

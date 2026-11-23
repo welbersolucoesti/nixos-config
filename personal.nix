@@ -11,7 +11,7 @@ in
     ./modules/applications/firefox.nix
     # A ordem destes imports mantém a precedência anterior na lista de pacotes do sistema.
     ./modules/applications/temurin.nix
-    ./modules/applications/wps-office.nix
+    ./modules/applications/onlyoffice.nix
     ./modules/applications/postman.nix
     ./modules/applications/vscode.nix
     ./modules/applications/dbeaver.nix
