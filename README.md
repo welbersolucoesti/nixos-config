@@ -84,6 +84,12 @@ O menu principal oferece **Instalar ou atualizar** e, para o destino padrão, **
 
 **Validar configuração (dry-build)** avalia `/etc/nixos/configuration.nix` e a cópia publicada em `/etc/nixos/nixos-config`. Execute pela sua conta normal. Alterações ainda no checkout precisam ser publicadas antes de aparecer nessa validação. O equivalente no terminal é `nixos-rebuild dry-build`. Depois do resultado, é possível voltar a **Gerenciar sistema** ou sair. Se a validação passou, também é possível iniciar o fluxo de aplicação.
 
+A publicação protegida inicial deixa `config/local.nix` sob controle do root e concede leitura ao UID que publicou, por ACL. Atualizações preservam as permissões do arquivo implantado. Se uma implantação antiga deixou esse arquivo em modo `0600`, sem ACL, o administrador pode conceder somente a leitura à conta que vai validar. Execute pela própria conta autorizada a ler a configuração:
+
+```bash
+sudo setfacl -m "u:$(id -u):r--" -- /etc/nixos/nixos-config/config/local.nix
+```
+
 **Aplicar configuração (switch)** exige um terminal interativo e inicia um dry-build automaticamente. Se a validação falhar, o Noir exibe o erro e encerra a operação. Se passar, o Noir pergunta **Aplicar configuração agora?**. **Sim** prossegue para a ativação, enquanto **Não** ou **Esc** cancela. A aplicação valida novamente após uma validação avulsa porque a configuração pode ter mudado entre as operações. O Dialog abre um campo oculto se o `sudo` pedir a senha da conta. Em Gum ou `--plain`, a autenticação ocorre no terminal. Use `--plain` se o PAM apresentar perguntas personalizadas, exigir mais de uma resposta ou usar outros tipos de autenticação que dependam do terminal. O switch pode reiniciar serviços e afetar a sessão gráfica. Após o resultado, é possível voltar ao menu principal ou sair. Somente o proprietário da máquina pode aprovar a ativação ou realizar o equivalente manual depois de validar a configuração.
 
 ```bash

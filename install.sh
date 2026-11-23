@@ -164,7 +164,7 @@ check_requirements() {
   if [[ $destination == "$default_destination" ]]; then
     command -v sudo >/dev/null || die "A publicação protegida requer sudo."
     [[ -x /run/current-system/sw/bin/bash ]] || die "Bash do sistema indisponível para publicar."
-    for cmd in "${publication_tools[@]}"; do
+    for cmd in "${publication_tools[@]}" setfacl; do
       PATH=$system_path command -v "$cmd" >/dev/null ||
         die "Comando necessário no ambiente da publicação protegida: $cmd."
     done
@@ -426,6 +426,19 @@ check_regular_file() {
   fi
 }
 
+require_searchable_directory() {
+  local path=$1
+  [[ -d $path ]] || die "Diretório ausente ou inválido: $path."
+  [[ -x $path ]] || die "UID $EUID sem permissão de atravessar o diretório $path."
+}
+
+require_readable_file() {
+  local path=$1
+  [[ -e $path ]] || die "Arquivo ausente ou destino do link inacessível: $path."
+  [[ -f $path ]] || die "Esperado um arquivo regular em $path."
+  [[ -r $path ]] || die "UID $EUID sem permissão de leitura em $path."
+}
+
 show_optionals_diff() {
   local index
   for index in "${!names[@]}"; do
@@ -499,6 +512,8 @@ publish() (
     [[ $target == /etc/nixos/nixos-config && -O $parent &&
        -z $(find "$parent" -maxdepth 0 -perm /022 -print) ]] ||
       die "O destino protegido exige /etc/nixos sob controle de root."
+    [[ ${SUDO_UID:-} =~ ^[1-9][0-9]*$ ]] ||
+      die "UID da conta que solicitou a publicação protegida indisponível."
   fi
 
   exec 9< "$parent"
@@ -551,6 +566,11 @@ publish() (
   chmod -R go-w -- "$tree"
 
   if [[ $expected == absent ]]; then
+    if (( EUID == 0 )); then
+      # O dry-build lê o módulo na conta que chamou o sudo.
+      setfacl --set "u::rw-,u:$SUDO_UID:r--,g::---,o::---" -- "$tree/config/local.nix" ||
+        die "Falha ao conceder leitura de config/local.nix ao UID $SUDO_UID por ACL."
+    fi
     mv -Tn --no-copy -- "$tree" "$target" && [[ ! -e $tree ]] || die "Falha ao publicar em $target."
     return
   fi
@@ -754,10 +774,11 @@ rebuild_configuration() {
 
   rebuild_operation=$operation
   wizard_started=true
+  validation_result=(error 'Bloqueada antes do dry-build')
   if [[ $operation == switch ]] && ! "$interactive"; then
     die 'A ativação exige um terminal interativo para a confirmação.'
   fi
-  [[ -x $system_rebuild ]] || die 'nixos-rebuild indisponível na configuração atual do sistema.'
+  [[ -f $system_rebuild && -x $system_rebuild ]] || die "Executável indisponível: $system_rebuild."
   for tool in flock mkdir mktemp realpath tee; do
     command -v "$tool" >/dev/null || die "Comando necessário ausente: $tool."
   done
@@ -766,13 +787,23 @@ rebuild_configuration() {
     ui_section 'Ativação do NixOS'
   fi
 
-  cd -- "$machine_dir" || die "Diretório da configuração indisponível: $machine_dir."
+  require_searchable_directory "$machine_dir"
+  [[ -r $machine_dir ]] || die "UID $EUID sem permissão de leitura para abrir a trava em $machine_dir."
+  cd -- "$machine_dir" || die "Não foi possível entrar em $machine_dir."
   # Use a mesma trava de diretório da publicação protegida, inclusive entre contas.
   exec {rebuild_lock_fd}< . || die "Não foi possível abrir $machine_dir para bloqueio."
-  flock -n -x "$rebuild_lock_fd" || die 'Outra publicação ou operação de rebuild do Noir está em andamento.'
-  [[ -r configuration.nix && -r $default_destination/personal.nix &&
-     -r $default_destination/config/local.nix ]] ||
-    die "Configuração indisponível. Confira configuration.nix e a publicação em $default_destination."
+  flock -n -E 75 -x "$rebuild_lock_fd" || {
+    status=$?
+    if (( status == 75 )); then
+      die "Outra publicação ou operação de rebuild do Noir mantém a trava em $machine_dir."
+    fi
+    die "Falha ao bloquear $machine_dir (código $status)."
+  }
+  require_readable_file "$machine_dir/configuration.nix"
+  require_searchable_directory "$default_destination"
+  require_readable_file "$default_destination/personal.nix"
+  require_searchable_directory "$default_destination/config"
+  require_readable_file "$default_destination/config/local.nix"
 
   if pinned_channel=$(realpath -e -- "$system_channel") && [[ $pinned_channel == /nix/store/* ]]; then
     args+=(-I "nixpkgs=$pinned_channel")
@@ -1099,10 +1130,13 @@ install_configuration() {
   backup=$destination.previous
   if [[ -d $backup && ! -L $backup ]]; then backup_result=(ok "$backup"); fi
   if [[ -e $destination || -L $destination ]]; then
-    [[ -d $destination && ! -L $destination && -d $destination/config && ! -L $destination/config &&
-       -f $destination/config/local.nix && ! -L $destination/config/local.nix ]] ||
-      die "Instalação incompleta em $destination. Prepare config/local.nix como arquivo regular e execute novamente."
-    expected=$(stat -c '%d:%i' -- "$destination")
+    require_searchable_directory "$destination"
+    require_searchable_directory "$destination/config"
+    for file in "$destination" "$destination/config" "$destination/config/local.nix"; do
+      [[ ! -L $file ]] || die "Link simbólico não permitido na implantação: $file."
+    done
+    require_readable_file "$destination/config/local.nix"
+    expected=$(stat -c '%d:%i' -- "$destination") || die "Não foi possível identificar a implantação em $destination."
   fi
 
   if [[ $expected == absent ]]; then
