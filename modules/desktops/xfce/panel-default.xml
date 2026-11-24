@@ -85,7 +85,7 @@
     <property name="plugin-7" type="string" value="actions">
       <property name="appearance" type="uint" value="1"/>
       <property name="button-title" type="uint" value="3"/>
-      <property name="custom-title" type="string" value="⏻"/>
+      <property name="custom-title" type="string" value="  ⏻  "/>
     </property>
     <!-- volume-plugin -->
     <property name="plugin-9" type="string" value="showdesktop"/>
