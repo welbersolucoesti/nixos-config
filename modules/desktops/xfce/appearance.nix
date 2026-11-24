@@ -34,6 +34,15 @@ in
       </channel>
     '';
 
+    environment.etc."${xfconf}/xfce4-desktop.xml".text = ''
+      <?xml version="1.0" encoding="UTF-8"?>
+      <channel name="xfce4-desktop" version="1.0">
+        <property name="desktop-icons" type="empty">
+          <property name="style" type="int" value="0"/>
+        </property>
+      </channel>
+    '';
+
     environment.etc."${xfconf}/xfwm4.xml".text = ''
       <?xml version="1.0" encoding="UTF-8"?>
       <channel name="xfwm4" version="1.0">
