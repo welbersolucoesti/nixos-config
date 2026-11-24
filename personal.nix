@@ -39,6 +39,7 @@ in
     ./modules/desktops/launcher-icon.nix
     ./modules/desktops/kde.nix
     ./modules/desktops/xfce.nix
+    ./modules/desktops/cinnamon.nix
   ];
 
   assertions = [

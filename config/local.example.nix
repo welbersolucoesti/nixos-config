@@ -5,6 +5,7 @@
     desktop = "kde";
     # null usa ColdRipple. Para personalizar, indique um PNG local legível pela conta.
     # kde.wallpaperSource = "/var/lib/noir/wallpapers/kde.png";
+    # cinnamon.wallpaperSource = "/var/lib/noir/wallpapers/cinnamon.png";
     username = "usuario";
     git = {
       userName = "Nome Exemplo";

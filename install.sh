@@ -327,11 +327,12 @@ generate_local() {
   local model=$1 output=$2 desktop line value
   local assignment='^([[:blank:]]*)(desktop|username|userName|userEmail)[[:blank:]]*='
   ui_section 'Ambiente gráfico'
-  desktop=$(ui_choose 'Selecione a sessão.' 'KDE Plasma' 'XFCE') || cancel "$?"
+  desktop=$(ui_choose 'Selecione a sessão.' 'KDE Plasma' 'XFCE' 'Cinnamon') || cancel "$?"
   case $desktop in
     ''|1) desktop=kde ;;
     2) desktop=xfce ;;
-    *) die "Escolha 1 para KDE Plasma ou 2 para XFCE." ;;
+    3) desktop=cinnamon ;;
+    *) die "Escolha 1 para KDE Plasma, 2 para XFCE ou 3 para Cinnamon." ;;
   esac
   while IFS= read -r line || [[ -n $line ]]; do
     if [[ $line =~ $assignment ]]; then
@@ -1223,6 +1224,7 @@ install_configuration() {
   case $profile in
     kde) profile='KDE Plasma' ;;
     xfce) profile='XFCE' ;;
+    cinnamon) profile='Cinnamon' ;;
     machine) profile='Definido pela máquina' ;;
   esac
   ui_success 'Configuração local'

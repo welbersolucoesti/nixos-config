@@ -1,0 +1,20 @@
+{
+  "group-apps": {
+    "override-props": true,
+    "default": true
+  },
+  "title-display": {
+    "override-props": true,
+    "default": 1
+  },
+  "pinned-apps": {
+    "override-props": true,
+    "default": [
+      "google-chrome.desktop",
+      "idea.desktop",
+      "code.desktop",
+      "dbeaver.desktop",
+      "nemo.desktop"
+    ]
+  }
+}

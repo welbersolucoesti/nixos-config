@@ -7,9 +7,18 @@ in
   # O arquivo local fornece a identidade e as escolhas da estação.
   options.personalConfig = {
     desktop = lib.mkOption {
-      type = lib.types.nullOr (lib.types.enum [ "kde" "xfce" ]);
+      type = lib.types.nullOr (lib.types.enum [ "kde" "xfce" "cinnamon" ]);
       default = null;
       description = "Perfil de desktop. Por padrão, o desktop é definido pela configuração da máquina.";
+    };
+
+    cinnamon.wallpaperSource = lib.mkOption {
+      type = lib.types.nullOr (lib.types.strMatching "/[^[:cntrl:]]+");
+      default = null;
+      description = ''
+        Caminho absoluto de um PNG local para o desktop e o bloqueio da Cinnamon.
+        Use null para aplicar o ColdRipple.
+      '';
     };
 
     cron.enable = lib.mkEnableOption "o agendamento diário de tarefas privadas";
