@@ -10,6 +10,7 @@ in
       theme.package
       iconTheme.package
       cursorTheme.package
+      pkgs.bibata-cursors # Continua disponível para quem já o escolheu.
       pkgs.tela-icon-theme # Mantém disponível o tema anterior para quem o selecionou explicitamente.
     ];
 
@@ -39,12 +40,13 @@ in
         <property name="general" type="empty">
           <property name="theme" type="string" value="${theme.name}"/>
           <property name="workspace_count" type="int" value="2"/>
+          <property name="workspace_names" type="array">
+            <value type="string" value="Work 1"/>
+            <value type="string" value="Work 2"/>
+          </property>
+          <property name="wrap_cycle" type="bool" value="false"/>
+          <property name="wrap_layout" type="bool" value="false"/>
           <property name="use_compositing" type="bool" value="false" unlocked="root"/>
-          <!-- Aplica as margens também a contas com valores locais gravados. -->
-          <property name="margin_top" type="int" value="49" unlocked="root"/>
-          <property name="margin_right" type="int" value="12" unlocked="root"/>
-          <property name="margin_bottom" type="int" value="12" unlocked="root"/>
-          <property name="margin_left" type="int" value="12" unlocked="root"/>
         </property>
       </channel>
     '';

@@ -9,8 +9,11 @@ pkgs:
     package = pkgs.papirus-icon-theme;
   };
   cursorTheme = {
-    name = "Bibata-Modern-Ice";
-    package = pkgs.bibata-cursors;
+    name = "breeze_cursors";
+    package = pkgs.runCommand "noir-breeze-cursors" { } ''
+      mkdir -p "$out/share/icons"
+      cp -r ${pkgs.kdePackages.breeze}/share/icons/breeze_cursors "$out/share/icons/"
+    '';
     size = 24;
   };
 }

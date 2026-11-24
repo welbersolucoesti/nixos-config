@@ -9,8 +9,10 @@
     ./xfce/mugshot.nix
     ./xfce/panel.nix
     ./xfce/plank.nix
+    ./xfce/session.nix
     ./xfce/shortcuts.nix
     ./xfce/thunar.nix
+    ./xfce/wallpaper.nix
   ];
 
   # O perfil seleciona a sessão X11 e deixa áudio, rede e energia a cargo da máquina e do NixOS.

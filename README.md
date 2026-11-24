@@ -129,7 +129,7 @@ A rolagem natural é o padrão para touchpads compatíveis. Em Wayland, o KWin l
 
 No XFCE, o LightDM executa `numlockx on` antes de abrir a tela de login X11. Na sessão, o `xfsettingsd` lê os valores `Numlock` e `RestoreNumlock` do canal `keyboards`, que o perfil fixa como verdadeiros. A tecla NumLock continua disponível durante a sessão. O estado físico do LED e o efeito sobre teclados sem bloco numérico dedicado dependem do hardware e do mapa XKB. No Plasma, a opção nativa também funciona em Wayland e uma configuração de NumLock já gravada pela conta tem precedência.
 
-Kickoff e Whisker usam o nome de ícone `nix-snowflake` para o floco oficial do NixOS. No Plasma, o layout inicial define o ícone do Kickoff. Novas instâncias do Whisker recebem o ícone por padrão. Na abertura de uma sessão XFCE, as instâncias existentes têm somente a propriedade `button-icon` atualizada. [Arte oficial do NixOS](https://github.com/NixOS/nixos-artwork)
+Kickoff e Whisker usam o nome de ícone `nix-snowflake` para o floco oficial do NixOS. No Plasma, o layout inicial define o ícone do Kickoff. Novas instâncias do Whisker recebem o ícone por padrão. No XFCE, o ícone escolhido nas instâncias existentes é preservado. [Arte oficial do NixOS](https://github.com/NixOS/nixos-artwork)
 
 ### KDE Plasma Noir
 
@@ -166,32 +166,40 @@ Em uma instalação de validação autorizada com o perfil KDE, entre no Plasma 
 
 ### XFCE Noir
 
-O perfil usa `Orchis-Dark` no GTK e no Xfwm4, `Papirus-Dark` para os ícones e `Bibata-Modern-Ice` para o cursor. Thunar, painel e menus usam o tema GTK da sessão. Aplicativos que seguem o esquema de cores do desktop, como os que usam libadwaita, recebem a preferência por modo escuro via dconf. As escolhas existentes da conta têm precedência sobre esses padrões, com a atualização do ícone do Whisker descrita acima. O `Tela-dark` continua disponível para contas que o selecionaram explicitamente.
+O XFCE usa `Orchis-Dark` no GTK e no Xfwm4, `Papirus-Dark` para ícones e Breeze 24 para o cursor. Bibata e Tela continuam disponíveis para quem os escolheu. O dconf oferece a preferência por modo escuro a aplicativos que a respeitam, como os baseados em libadwaita. A sessão oferece o tema de plataforma GTK aos aplicativos Qt 5 e Qt 6 quando a conta ainda não definiu outro. Aplicativos com tema próprio podem usar suas preferências.
 
-A tela do LightDM usa o GTK Greeter com os mesmos temas e um fundo grafite. A barra apresenta relógio em formato de 24 horas, seleção de sessão, acessibilidade e ações de energia conforme disponíveis.
+O fundo padrão do desktop e do bloqueador nativo é `xfce-cp-dark.svg`, do pacote xfdesktop. Imagens escolhidas em **Configurações → Área de trabalho** conservam suas opções por monitor e área de trabalho. O LightDM usa o GTK Greeter em grafite, com relógio de 24 horas, seleção de sessão, acessibilidade e ações de energia conforme disponíveis. [Arte do xfdesktop 4.20.2](https://raw.githubusercontent.com/xfce-mirror/xfdesktop/xfdesktop-4.20.2/backgrounds/README.md)
 
-| Complemento | Função | Quando entra em uso |
-| --- | --- | --- |
-| Whisker Menu | Menu de aplicativos pesquisável | Abra pelo painel ou toque e solte a tecla Super esquerda. Em painéis existentes, adicione o Whisker pelo editor do painel, se necessário. |
-| Plank | Dock inferior para janelas abertas e favoritos | Inicia no XFCE X11, centralizada, com ocultação inteligente, ícones de 36 px e tema Default. Na primeira execução, gera um favorito por aplicativo encontrado nas associações padrão. Cada usuário gerencia os lançadores fixados e a ordem deles na própria sessão. |
-| Blueman | Gerenciador e applet Bluetooth | Use o menu de aplicativos ou a bandeja para parear, conectar e desconectar dispositivos. |
-| Áudio | Volume, entradas e saídas no painel e no Pavucontrol | Abra o controle no painel. Os seletores aparecem quando há mais de um dispositivo disponível. Use **Mixer de áudio** para abrir o Pavucontrol. |
-| Bateria | Ícone entre o volume e o relógio no painel padrão | Passe o cursor sobre o ícone ou abra seu menu para consultar a carga. O percentual ao lado do ícone fica oculto por padrão. A escolha feita nas propriedades do indicador tem precedência. |
-| Mugshot | Editor de perfil pessoal | Abra pelo item de perfil no menu. Os campos disponíveis dependem do AccountsService e das permissões da conta. |
-| Clipman | Histórico da área de transferência | Adicione manualmente se quiser guardar o histórico. |
-| Thunar com Xarchiver | Compactação e extração no gerenciador de arquivos | Use o menu do botão direito. Se for solicitado um gerenciador de arquivos compactados, escolha Xarchiver. |
+#### Painéis iniciais
 
-O XFCE carrega o modelo do projeto quando ainda não há um painel configurado. O painel inicia com a posição travada e ocupa a largura da tela. À esquerda, o Whisker e o seletor de áreas de trabalho ficam próximos, com uma linha vertical e três espaços transparentes de 8 px. O Xfwm4 começa com duas áreas de trabalho. No XFCE 4.20.7, a miniatura do seletor acompanha a altura do painel e suas opções nativas não incluem margem vertical. À direita ficam a bandeja, o volume quando disponível, o relógio, **Mostrar área de trabalho**, uma linha vertical e o menu de sessão `⏻`. Quatro espaços transparentes de 8 px separam o relógio do botão de área de trabalho, o botão da linha, a linha do menu e o menu da borda direita. O relógio exibe `HH:mm`, mostra a data ao passar o mouse e abre o calendário ao clicar.
+- **Superior, linha de 38 px.** Ocupa a largura disponível e fica sempre visível. Traz Whisker com o ícone NixOS, lista de janelas, relógio de 24 horas sem data, bandeja, seletor de áreas de trabalho, Mostrar área de trabalho e ações de sessão. Dois espaçadores aproximam o relógio do centro. A largura dos grupos de cada lado pode deslocá-lo. Volume e bateria aparecem quando seus componentes estão habilitados.
+- **Inferior, 42 px.** Painel Docklike experimental, centrado e ajustado ao conteúdo, com fundo grafite translúcido. Recolhe quando a janela em foco o sobrepõe. A ordem inicial é navegador preferido, IntelliJ IDEA, Visual Studio Code, DBeaver e Thunar. O Docklike associa janelas a IDs de aplicativos. Se você trocar de navegador depois de criado o painel, desafixe o antigo e fixe o novo para agrupar suas janelas no lançador correspondente.
+- **Whisker e áreas.** A ordem inicial dos favoritos é navegador preferido, Configurações do XFCE, Thunar, IntelliJ IDEA, DBeaver, Visual Studio Code e Postman. As duas áreas iniciais se chamam `Work 1` e `Work 2`, numa linha, com navegação sem retorno circular.
 
-A bandeja segue o tamanho de 22 px dos ícones do painel e prefere ícones simbólicos quando o applet os oferece. No notebook, o NetworkManager usa XEmbed e o Blueman usa StatusNotifier. Em um painel horizontal, o XFCE 4.20.7 exibe o grupo XEmbed primeiro. A ordem configurável vale dentro de cada grupo, então Wi-Fi antes de Bluetooth depende de como os applets se registram. [Bandeja do XFCE](https://docs.xfce.org/xfce/xfce4-panel/systray) · [Código da bandeja no XFCE 4.20.7](https://github.com/xfce-mirror/xfce4-panel/blob/xfce4-panel-4.20.7/plugins/systray/sn-plugin.c#L305-L335)
+O Xfwm4 usa as reservas nativas dos painéis para calcular a área útil. O Noir retirou a política de margens fixas. Margens que a conta salvou continuam editáveis. O Picom mantém a composição X11 com XRender e VSync. Os painéis usam a geometria do XFCE e as janelas seguem os efeitos nativos do ambiente. [Preferências de painel](https://docs.xfce.org/xfce/xfce4-panel/preferences) · [Docklike Taskbar](https://docs.xfce.org/panel-plugins/xfce4-docklike-plugin/start)
 
-No primeiro login após a atualização, o migrador reorganiza o lado esquerdo dos painéis que ainda correspondem aos modelos anteriores do Noir e retira o Docklike da lista de itens. O plugin e suas preferências continuam disponíveis para painéis personalizados. Ao migrar de um layout mais antigo, a contagem gravada de quatro áreas é tratada como o padrão anterior do Xfwm4 e passa para duas. As demais preferências explícitas continuam valendo. [Preferências do painel](https://docs.xfce.org/xfce/xfce4-panel/preferences)
+#### Contas existentes e preferências
 
-Ao iniciar a sessão X11, o atalho usa `Shift+Alt+F11` para abrir o Whisker. Se a combinação ou a própria Super esquerda já estiver atribuída a outra ação no XFCE, a atribuição pessoal tem precedência.
+O modelo inicial é importado em contas sem estado de painel ou Plank. O Noir deixa painéis gravados, parcialmente configurados ou vazios a cargo do XFCE. Foram retiradas as migrações recorrentes do Noir e a regravação do ícone do Whisker. Contas que já usam Plank mantêm o autostart e seus lançadores. O autostart do Plank do Noir é ignorado nas contas que receberam o modelo Docklike.
 
-`Super+L` chama `xflock4`, que delega o bloqueio ao protetor de tela da sessão, normalmente `xfce4-screensaver`. A configuração registra o atalho quando a combinação está livre. Se houver conflito, revise **Teclado → Atalhos de aplicativos** ou os atalhos do gerenciador de janelas. [Atalhos padrão do XFCE](https://github.com/xfce-mirror/libxfce4ui/blob/master/libxfce4kbd-private/xfce4-keyboard-shortcuts.xml)
+O Google Chrome é o padrão dos links, arquivos HTML e do auxiliar WebBrowser do XFCE. Ajuste esses vínculos em **Aplicativos preferidos**. O Bitwarden tem uma entrada de autostart. Para desativá-la, use **Sessão e inicialização → Início automático de aplicativos** ou crie `~/.config/autostart/bitwarden.desktop` com `Hidden=true` em `[Desktop Entry]`. O XFCE conserva seu gerenciamento nativo de sessões salvas. [Aplicativos preferidos](https://docs.xfce.org/xfce/xfce4-settings/preferred-apps) · [Autostart XDG](https://specifications.freedesktop.org/autostart/latest/)
 
-No modelo inicial do painel, **Mixer de áudio** abre o Pavucontrol na aba **Dispositivos de saída**. A aba **Dispositivos de entrada** permite selecionar o microfone e ajustar o nível. Painéis existentes mantêm a configuração do mixer e podem editar seu comando nas propriedades do plugin.
+A tecla Super esquerda abre o Whisker quando usada sozinha. O atalho usa `Shift+Alt+F11` internamente. `Super+L` chama `xflock4`, que usa o bloqueador da sessão, normalmente `xfce4-screensaver`. Combinações já atribuídas têm precedência. [Atalhos do XFCE](https://github.com/xfce-mirror/libxfce4ui/blob/master/libxfce4kbd-private/xfce4-keyboard-shortcuts.xml)
+
+| Componente | Uso |
+| --- | --- |
+| Blueman | Pareie, conecte e desconecte dispositivos Bluetooth pelo menu ou pela bandeja. |
+| Áudio | Ajuste volume, microfone e saída. No painel inicial, **Mixer de áudio** abre o Pavucontrol na aba **Dispositivos de saída**, se disponível. |
+| Bateria | Passe o cursor sobre o ícone para consultar a carga. O percentual ao lado do ícone fica oculto por padrão e pode ser habilitado nas propriedades. |
+| Mugshot | Edite o perfil pessoal conforme as permissões da conta e do AccountsService. |
+| Clipman | Adicione-o ao painel para guardar histórico da área de transferência. |
+| Thunar com Xarchiver | Compacte e extraia arquivos pelo menu de contexto. |
+
+A bandeja prefere ícones simbólicos e segue os 22 px de ícone do painel inicial. No XFCE 4.20.7, uma bandeja horizontal exibe o grupo XEmbed antes do grupo StatusNotifier. A ordem de rede e Bluetooth depende de como os applets se registram. [Bandeja do XFCE](https://docs.xfce.org/xfce/xfce4-panel/systray) · [Código da bandeja 4.20.7](https://raw.githubusercontent.com/xfce-mirror/xfce4-panel/xfce4-panel-4.20.7/plugins/systray/sn-plugin.c)
+
+#### Validação do XFCE Noir
+
+Em uma instalação de teste, use uma conta nova e uma conta que já tenha painel e Plank. Confira o wallpaper no desktop e no bloqueio em mais de um monitor. Maximize e abra uma janela em tela cheia para verificar a área útil, o recolhimento e a transparência. Troque o navegador, confirme o comportamento do Docklike e teste o autostart do Bitwarden com e sem opt-out. Em seguida, personalize painel, favoritos, atalhos e wallpaper e confira a persistência após entrar novamente. A homologação do Docklike depende desses testes gráficos.
 
 ### Terminais
 

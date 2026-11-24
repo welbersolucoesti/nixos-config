@@ -6,6 +6,9 @@ let
   });
   startPlank = pkgs.writeShellScript "xfce-noir-plank" ''
     [ "''${XDG_SESSION_TYPE:-}" = x11 ] && [ -n "''${DISPLAY:-}" ] || exit 0
+    # O perfil inicial carrega o Docklike antes do autostart.
+    layout=$(${lib.getExe' pkgs.xfconf "xfconf-query"} -c xfce4-panel -p /noir/docklike-layout 2>/dev/null)
+    [ "$layout" != true ] || exit 0
     exec ${lib.getExe plank}
   '';
 in
