@@ -180,7 +180,7 @@ O Xfwm4 usa as reservas nativas dos painéis para calcular a área útil. O Noir
 
 #### Contas existentes e preferências
 
-O modelo inicial é importado em contas sem estado de painel ou Plank. O Noir deixa painéis gravados, parcialmente configurados ou vazios a cargo do XFCE. Foram retiradas as migrações recorrentes do Noir e a regravação do ícone do Whisker. Contas que já usam Plank mantêm o autostart e seus lançadores. O autostart do Plank do Noir é ignorado nas contas que receberam o modelo Docklike.
+O modelo inicial é importado quando a conta está sem estado do painel, inclusive após reinicializar apenas o painel. O Noir preserva painéis gravados, parcialmente configurados ou vazios. O cache de sessão e as preferências do Plank ficam disponíveis à conta. A entrada de autostart do Plank fornecida pelo Noir só inicia o Plank se a conta estiver sem a marca do modelo Docklike. Entradas pessoais de autostart seguem a precedência do XDG.
 
 O Google Chrome é o padrão dos links, arquivos HTML e do auxiliar WebBrowser do XFCE. Ajuste esses vínculos em **Aplicativos preferidos**. O Bitwarden tem uma entrada de autostart. Para desativá-la, use **Sessão e inicialização → Início automático de aplicativos** ou crie `~/.config/autostart/bitwarden.desktop` com `Hidden=true` em `[Desktop Entry]`. O XFCE conserva seu gerenciamento nativo de sessões salvas. [Aplicativos preferidos](https://docs.xfce.org/xfce/xfce4-settings/preferred-apps) · [Autostart XDG](https://specifications.freedesktop.org/autostart/latest/)
 

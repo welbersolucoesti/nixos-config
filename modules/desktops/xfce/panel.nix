@@ -25,7 +25,6 @@ let
   initialize = pkgs.writeShellScript "xfce-noir-initialize-panel" ''
     set -eu
     configHome="''${XDG_CONFIG_HOME:-$HOME/.config}"
-    cacheHome="''${XDG_CACHE_HOME:-$HOME/.cache}"
     panelDirectory="$configHome/xfce4/panel"
     dockConfig="$panelDirectory/docklike-20.rc"
 
@@ -37,10 +36,9 @@ let
     query() { "$xfconf" -c xfce4-panel "$@"; }
 
     if [ "$(query -p /noir/docklike-layout 2>/dev/null)" != true ]; then
-      # Mesmo um canal parcial, um layout vazio ou um arquivo legado pertence à conta.
+      # Preserva até o estado parcial, vazio ou legado do próprio painel.
       for path in "$configHome/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml" \
-                  "$panelDirectory" "$cacheHome/sessions" "$configHome/plank" \
-                  "$configHome/autostart/plank.desktop"; do
+                  "$panelDirectory"; do
         if [ -e "$path" ] || [ -L "$path" ]; then
           exit 0
         fi
