@@ -120,7 +120,7 @@ Em um clone novo, os três opcionais começam desmarcados. Instalações antigas
 
 | Perfil | Sessão | Gerenciador de login |
 | --- | --- | --- |
-| KDE | KDE Plasma da configuração padrão do NixOS | SDDM |
+| KDE | Plasma 6 com layout inicial Noir. Selecione Plasma Wayland no login. | SDDM |
 | XFCE | XFCE em X11 | LightDM |
 
 O Plasma abre uma sessão vazia a cada login. A configuração do sistema fixa apenas `General/loginMode` no `ksmserverrc`, inclusive para contas que já restauravam sessões. Aplicativos configurados para iniciar automaticamente continuam abrindo.
@@ -129,7 +129,40 @@ A rolagem natural é o padrão para touchpads compatíveis. Em Wayland, o KWin l
 
 No XFCE, o LightDM executa `numlockx on` antes de abrir a tela de login X11. Na sessão, o `xfsettingsd` lê os valores `Numlock` e `RestoreNumlock` do canal `keyboards`, que o perfil fixa como verdadeiros. A tecla NumLock continua disponível durante a sessão. O estado físico do LED e o efeito sobre teclados sem bloco numérico dedicado dependem do hardware e do mapa XKB. No Plasma, a opção nativa também funciona em Wayland e uma configuração de NumLock já gravada pela conta tem precedência.
 
-Kickoff e Whisker usam o nome de ícone `nix-snowflake`. Ao iniciar a sessão Plasma, o perfil repõe esse ícone em cada Kickoff do painel, inclusive se a conta tiver escolhido outro. O tema `hicolor` oferece o floco oficial pelo pacote `nixos-icons`. Novas instâncias do Whisker recebem o ícone por padrão. Na abertura de uma sessão XFCE, as instâncias existentes têm somente a propriedade `button-icon` atualizada. [Arte oficial do NixOS](https://github.com/NixOS/nixos-artwork)
+Kickoff e Whisker usam o nome de ícone `nix-snowflake` para o floco oficial do NixOS. No Plasma, o layout inicial define o ícone do Kickoff. Novas instâncias do Whisker recebem o ícone por padrão. Na abertura de uma sessão XFCE, as instâncias existentes têm somente a propriedade `button-icon` atualizada. [Arte oficial do NixOS](https://github.com/NixOS/nixos-artwork)
+
+### KDE Plasma Noir
+
+Ao criar o layout de uma conta, o Plasma usa o script do tema global `Breeze Dark (Noir)`. A variante reutiliza os padrões de aparência do Breeze Dark oficial e define ColdRipple como fundo. Contas com layout salvo conservam seus painéis, widgets e a escolha de papel de parede. Uma conta com layout parcial salvo também mantém seu estado. Os padrões em `/etc/xdg` valem para preferências ainda sem escolha local. A política de sessão vazia descrita acima continua obrigatória.
+
+- O painel superior é flutuante, sempre visível, tem 38 px lógicos, ocupa a largura disponível e usa opacidade adaptativa. Na ordem, contém Kickoff, separador de margens, lista de janelas, espaçador, relógio sem data, espaçador, bandeja do sistema, seletor de áreas de trabalho e Mostrar área de trabalho.
+- O painel inferior é flutuante e translúcido, tem 42 px lógicos, ajusta-se ao conteúdo e se recolhe quando uma janela o sobrepõe. Os fixados no gerenciador de tarefas são navegador preferido, IntelliJ IDEA, Visual Studio Code, DBeaver e Dolphin.
+- O Kickoff usa o KActivities para inicializar os favoritos, na ordem, com navegador preferido, Configurações do Sistema, Dolphin, IntelliJ IDEA, DBeaver, Visual Studio Code e Postman. O Chrome é o navegador padrão do perfil e pode ser trocado em Configurações do Sistema.
+- O tema global usa os padrões do Breeze Dark, incluindo o esquema de cores e os ícones escuros. O estilo Qt é Breeze, o estilo do Plasma é `default` e o cursor Breeze tem tamanho 24. O perfil fornece preferência escura para GTK.
+- O KWin tem duas áreas em uma linha, `Work 1` e `Work 2`, sem navegação circular. Glide e Lâmpada Mágica começam habilitados. Scale e Squash começam desabilitados.
+- O Bitwarden tem uma entrada de início automático para KDE. Uma entrada pessoal com o mesmo nome prevalece. Para desabilitar o padrão, a especificação XDG prevê um arquivo `~/.config/autostart/bitwarden.desktop` com `Hidden=true` em `[Desktop Entry]`.
+
+A bandeja usa a seleção nativa de plugins da revisão instalada do Plasma. Rede, áudio, Bluetooth, impressão e controles de energia dependem dos serviços habilitados e do hardware disponível. O perfil preserva os atalhos nativos do KWin e o atalho `Meta+N` do Noir.
+
+#### Papel de parede
+
+Com `personalConfig.kde.wallpaperSource = null`, o padrão é **ColdRipple** no desktop inicial e na tela de bloqueio. O pacote `plasma-workspace-wallpapers` fornece o recurso à instalação e o Plasma seleciona a variante adequada à resolução. O endereço usado pela sessão permanece estável entre gerações do NixOS.
+
+Para usar uma imagem própria, disponibilize um PNG legível pela conta configurada antes da publicação. Por exemplo, use `/var/lib/noir/wallpapers/kde.png` e adicione esta opção a `config/local.nix`.
+
+```nix
+personalConfig.kde.wallpaperSource = "/var/lib/noir/wallpapers/kde.png";
+```
+
+O módulo expõe o recurso em `/etc/noir/kde-wallpaper.png`. Um caminho inexistente ou que aponte para um diretório é rejeitado na avaliação do sistema. Na aplicação feita pelo proprietário, o sistema verifica o conteúdo com as permissões da conta configurada. Se o PNG estiver inválido ou ilegível, informa o problema e usa ColdRipple. O PNG personalizado fica no local indicado e precisa ser restaurado nas instalações que o utilizarem.
+
+A interface do desktop e a do bloqueio permitem escolher outras imagens. Uma escolha que aponte para o endereço do sistema acompanha o recurso definido no perfil. Uma imagem escolhida em outro endereço permanece como preferência da conta.
+
+#### Validação em uma conta nova
+
+Para testar alterações locais antes de versioná-las, aponte a configuração da instalação de teste para o `personal.nix` do checkout completo. O Noir publica os arquivos versionados.
+
+Em uma instalação de validação autorizada com o perfil KDE, entre no Plasma Wayland em uma conta descartável com `wallpaperSource = null`. Confira o ColdRipple no desktop e no bloqueio, os dois painéis, os favoritos, o navegador, a bandeja e o `Meta+N`. Confira as duas áreas de trabalho e minimize uma janela para verificar a Lâmpada Mágica. Em seguida, escolha outro papel de parede pela interface, mova um widget, remova um favorito e reabra a sessão. Confira se as mudanças permanecem, se o Bitwarden inicia uma vez e se as janelas anteriores ficam fechadas. Para testar o PNG personalizado, configure outro recurso e repita a primeira entrada em uma segunda conta descartável.
 
 ### XFCE Noir
 

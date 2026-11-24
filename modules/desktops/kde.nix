@@ -1,6 +1,8 @@
 { config, lib, pkgs, ... }:
 
 {
+  imports = [ ./kde/session.nix ];
+
   # O perfil mantém o Plasma com SDDM. As asserções sinalizam conflito com XFCE ou LightDM.
   config = lib.mkIf (config.personalConfig.desktop == "kde") {
     services.xserver.enable = true;
@@ -27,6 +29,10 @@
     environment.etc."xdg/kcminputrc".text = ''
       [Keyboard]
       NumLock=0
+
+      [Mouse]
+      cursorTheme=breeze_cursors
+      cursorSize=24
 
       [Libinput][Defaults][Touchpad]
       NaturalScroll=true

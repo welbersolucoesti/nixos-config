@@ -3,6 +3,8 @@
   # Use Gerenciar opcionais no Noir para escolher CRON, Virtualization e Codex CLI.
   personalConfig = {
     desktop = "kde";
+    # null usa ColdRipple. Para personalizar, indique um PNG local legível pela conta.
+    # kde.wallpaperSource = "/var/lib/noir/wallpapers/kde.png";
     username = "usuario";
     git = {
       userName = "Nome Exemplo";
