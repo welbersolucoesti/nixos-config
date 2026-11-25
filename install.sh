@@ -6,10 +6,13 @@ unset TAR_OPTIONS
 default_destination=/etc/nixos/nixos-config
 system_path=/run/current-system/sw/bin:/run/wrappers/bin
 system_rebuild=/run/current-system/sw/bin/nixos-rebuild
+system_cinnamon_shortcut=/run/current-system/etc/noir/cinnamon-shortcut.sh
 prepared=''
 new_local=''
 new_choices=''
 optionals_result=''
+shortcut_result=''
+shortcut_backup=''
 wizard_started=false
 git_result=(neutral 'Não consultado')
 local_result=(neutral 'Não preparada')
@@ -63,6 +66,11 @@ show_result() {
   ui_section 'Resumo'
   if [[ -n $optionals_result ]]; then
     ui_info "$optionals_result"
+    return
+  fi
+  if [[ -n $shortcut_result ]]; then
+    ui_info "$shortcut_result"
+    if [[ -n $shortcut_backup ]]; then ui_fields 'Cópia de segurança' "$shortcut_backup"; fi
     return
   fi
   if [[ -n $rebuild_operation ]]; then
@@ -496,6 +504,13 @@ manage_optionals() {
   mv -fT -- "$new_choices" "$choices" || die 'Falha ao salvar as escolhas dos opcionais.'
   new_choices=''
   optionals_result='Escolhas salvas. Use Instalar ou atualizar para publicá-las.'
+}
+
+manage_active_cinnamon_shortcut() {
+  [[ -r $system_cinnamon_shortcut ]] || die 'A operação exige o perfil Cinnamon Noir ativo.'
+  # shellcheck source=modules/desktops/cinnamon/cinnamon-shortcut.sh
+  source "$system_cinnamon_shortcut"
+  manage_cinnamon_shortcut "$1"
 }
 
 publish() (
@@ -967,6 +982,7 @@ main() {
   shift
   local destination=$default_destination checkout plain=false
   local revision status last_status=0 argument_error='' selection interactive=false screen=main operation
+  local cinnamon_index=0
   local -a menu=('Instalar ou atualizar')
   case $backend in
     dialog) entrypoint=config.sh ;;
@@ -1021,6 +1037,10 @@ main() {
   [[ $revision =~ ^[a-zA-Z0-9._/-]+$ ]] || revision=''
   if [[ $destination == "$default_destination" ]]; then menu+=('Gerenciar sistema'); fi
   if [[ -n $ui_dialog ]]; then menu+=('Gerenciar opcionais'); fi
+  if [[ $destination == "$default_destination" && -r $system_cinnamon_shortcut ]]; then
+    menu+=('Atalho Super+N do Cinnamon')
+    cinnamon_index=${#menu[@]}
+  fi
   while :; do
     status=0
     case $screen in
@@ -1031,6 +1051,10 @@ main() {
         ui_section_title='Gerenciar sistema'
         selection=$(ui_choose 'Selecione uma operação.' 'Validar configuração (dry-build)' \
           'Aplicar configuração (switch)') || status=$?
+        ;;
+      cinnamon)
+        ui_section_title='Atalho Super+N do Cinnamon'
+        selection=$(ui_choose 'Selecione uma operação.' 'Migrar atalho' 'Reverter migração') || status=$?
         ;;
       published)
         ui_section_title='Publicação concluída'
@@ -1058,6 +1082,9 @@ main() {
         trap 'finish "$?" false' EXIT
         return "$last_status"
         ;;
+      main:"$cinnamon_index")
+        [[ $cinnamon_index != 0 ]] || die 'Selecione uma opção do menu.'
+        screen=cinnamon; continue ;;
       main:2)
         if [[ $destination == "$default_destination" ]]; then
           screen=system; continue
@@ -1074,6 +1101,9 @@ main() {
       main:1) operation=install ;;
       system:1|published:1) operation=dry-build ;;
       system:2|validated:1) operation=switch ;;
+      cinnamon:back) screen=main; continue ;;
+      cinnamon:1) operation=shortcut-migrate ;;
+      cinnamon:2) operation=shortcut-restore ;;
       *) die 'Selecione uma opção do menu.' ;;
     esac
 
@@ -1083,6 +1113,7 @@ main() {
     case $operation in
       install) run_operation install_configuration "$checkout" "$destination" ;;
       optionals) run_operation manage_optionals "$checkout" "$destination" ;;
+      shortcut-*) run_operation manage_active_cinnamon_shortcut "${operation#shortcut-}" ;;
       *) run_operation rebuild_configuration "$operation" "$interactive" ;;
     esac
     status=$?
@@ -1103,6 +1134,7 @@ main() {
         ;;
       switch) screen=switch-result ;;
       optionals) screen=main ;;
+      shortcut-*) screen=cinnamon ;;
     esac
   done
 }

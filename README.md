@@ -233,93 +233,19 @@ Se o comando no gancho falhar, o login prossegue e o aviso pode ser consultado c
 
 O padrão do Noir abre o configurador com `Super+N` e bloqueia a sessão com `Super+L`. O applet de notificações do Cinnamon 6.6.8 lê **Mostrar notificações** da chave `keyOpen` em seu JSON. O perfil deixa essa combinação vazia e preserva `Super+Shift+C` para limpar notificações. Em GSettings, o perfil deixa `org.cinnamon.desktop.keybindings looking-glass-keybinding` vazio e acrescenta `Super+L` à ação nativa `org.cinnamon.desktop.keybindings.media-keys screensaver`, junto com `Ctrl+Alt+L` e `XF86ScreenSaver`. O Noir é a entrada `custom1000` da lista inicial `org.cinnamon.desktop.keybindings custom-list`. [Applet de notificações](https://github.com/linuxmint/cinnamon/blob/6.6.8/files/usr/share/cinnamon/applets/notifications%40cinnamon.org/settings-schema.json) · [Schema dos atalhos nativos](https://github.com/linuxmint/cinnamon-desktop/blob/6.6.2/schemas/org.cinnamon.desktop.keybindings.media-keys.gschema.xml.in)
 
-Escolhas gravadas no dconf e no JSON do applet têm precedência. Em uma instalação de teste com estes padrões disponíveis, encerre a sessão gráfica e entre em um TTY com a mesma conta. Abra `dbus-run-session -- bash` e execute o bloco abaixo. Ele guarda as preferências gravadas em `custom-list` e `custom1000`, além das chaves de bloqueio e NumLock. O perfil temporário de leitura distingue valores gravados de padrões do sistema.
+##### Recuperar Super+N em uma conta existente
+
+Se `Super+N` abrir as notificações ou se o atalho **Noir** estiver sem combinação, encerre a sessão Cinnamon. No TTY, com a mesma conta e a configuração Cinnamon Noir ativa, abra o configurador pelo checkout.
 
 ```bash
-set -e
-umask 077
-state_dir=${XDG_STATE_HOME:-"$HOME/.local/state"}
-mkdir -p -- "$state_dir"
-backup=$(mktemp -d "$state_dir/noir-cinnamon-teclado.XXXXXXXX")
-printf 'user-db:user\n' > "$backup/user-profile"
-shortcut_root=/org/cinnamon/desktop/keybindings
-custom_root="$shortcut_root/custom-keybindings"
-list_key="$shortcut_root/custom-list"
-reset_keys=(
-  "$shortcut_root/looking-glass-keybinding"
-  "$shortcut_root/media-keys/screensaver"
-  /org/cinnamon/desktop/peripherals/keyboard/remember-numlock-state
-)
-keys=("${reset_keys[@]}" "$custom_root/custom1000/"{name,command,binding})
-
-custom_list=$(dconf read "$list_key")
-custom_list=${custom_list:-"['custom1000']"}
-shortcut_id=custom1000
-use_temporary=false
-for property in name command binding; do
-  key="$custom_root/custom1000/$property"
-  if [[ $(dconf read "$key") != "$(dconf read -d "$key")" ]]; then
-    use_temporary=true
-    break
-  fi
-done
-if "$use_temporary"; then
-  for ((id = 1001; ; id++)); do
-    shortcut_id="custom$id"
-    entry=$(dconf list "$custom_root/$shortcut_id/")
-    if [[ "$custom_list" != *"'$shortcut_id'"* && -z "$entry" ]]; then
-      break
-    fi
-  done
-  keys+=("$custom_root/$shortcut_id/"{name,command,binding})
-fi
-
-keys+=("$list_key")
-for key in "${keys[@]}"; do
-  mkdir -p -- "$backup${key%/*}"
-  DCONF_PROFILE="$backup/user-profile" dconf read "$key" > "$backup$key"
-done
-printf '%s\n' "${keys[@]}" > "$backup/keys"
-printf 'Cópia de segurança em %s\n' "$backup"
-
-for key in "${reset_keys[@]}"; do
-  dconf reset "$key"
-done
-if [[ "$shortcut_id" != custom1000 ]]; then
-  dconf write "$custom_root/$shortcut_id/name" "'Noir (homologação)'"
-  dconf write "$custom_root/$shortcut_id/command" \
-    "$(dconf read -d "$custom_root/custom1000/command")"
-  dconf write "$custom_root/$shortcut_id/binding" "['<Super>n']"
-fi
-if [[ "$custom_list" != *"'$shortcut_id'"* ]]; then
-  entries=${custom_list#*[}
-  entries=${entries%]}
-  dconf write "$list_key" "[${entries:+$entries, }'$shortcut_id']"
-fi
+dbus-run-session -- bash ./config.sh
 ```
 
-O bloco mantém a ordem e os demais atalhos da lista pessoal. Se houver preferências diferentes dos padrões no ID `custom1000`, ele preserva essa entrada e cria **Noir (homologação)** em outro ID livre, pulando também entradas antigas fora da lista. Evite criar ou excluir outros atalhos personalizados durante o teste, pois a reversão repõe a lista original.
+Abra **Atalho Super+N do Cinnamon → Migrar atalho**, confira as mudanças propostas e confirme. A operação guarda uma cópia de segurança e corrige apenas a associação de notificações e o binding pessoal da entrada Noir. Se outro atalho pessoal disputar a combinação ou se `custom1000` pertencer a outra ação, o configurador informa o conflito para revisão. O procedimento só roda quando selecionado.
 
-Na sessão, abra **Teclado → Atalhos**. Se alguma instância de **Mostrar notificações** ainda usar `Super+N`, anote a instância e todas as suas combinações de `keyOpen` e remova somente `Super+N`. Busque também outras associações pessoais que disputem `Super+N` ou `Super+L`, inclusive a entrada pessoal no ID `custom1000`. Anote e remova apenas as combinações conflitantes. Se nenhuma combinação estiver gravada no applet, deixe a preferência como está.
+Entre no Cinnamon e teste `Super+N` antes de abrir **Teclado → Atalhos**. Repita após logout e reinicialização. Para desfazer ou recuperar uma tentativa interrompida, volte ao TTY e escolha **Atalho Super+N do Cinnamon → Reverter migração**. Selecione a cópia de segurança indicada na migração. A reversão preserva outros dados e interrompe a operação se um valor migrado já tiver recebido outra escolha.
 
-Para reverter, recoloque manualmente as combinações anotadas do applet de notificações e de quaisquer outros atalhos pessoais ajustados pela interface. O JSON de `keyOpen` fica fora do backup dconf. O bloco abaixo restaura a entrada `custom1000` e a lista original e remove os valores gravados para o ID temporário, se criado. Para executá-lo, encerre a sessão gráfica, abra `dbus-run-session -- bash` no TTY e indique o diretório de backup exibido pelo primeiro bloco.
-
-```bash
-set -e
-backup="/caminho/da/copia-de-seguranca"
-mapfile -t keys < "$backup/keys"
-for key in "${keys[@]}"; do
-  test -f "$backup$key"
-done
-for key in "${keys[@]}"; do
-  saved="$backup$key"
-  if [[ -s "$saved" ]]; then
-    dconf write "$key" "$(<"$saved")"
-  else
-    dconf reset "$key"
-  fi
-done
-```
+As opções de bloqueio e NumLock continuam editáveis. Para homologar esses padrões sem preferências anteriores, use uma conta de teste nova.
 
 #### Papel de parede
 

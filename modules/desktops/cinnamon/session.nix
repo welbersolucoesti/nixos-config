@@ -114,6 +114,15 @@ in
     ];
 
     environment.etc = {
+      "noir/cinnamon-shortcut.sh".source = pkgs.replaceVars ./cinnamon-shortcut.sh {
+        jq = lib.getExe pkgs.jq;
+        dconf = lib.getExe pkgs.dconf;
+        gsettings = "${lib.getBin pkgs.glib}/bin/gsettings";
+        pgrep = lib.getExe' pkgs.procps "pgrep";
+        flock = lib.getExe' pkgs.util-linux "flock";
+        cinnamonData = "${pkgs.cinnamon}/share";
+      };
+
       "noir/cinnamon-wallpaper".source = if wallpaperSource == null then coldRipple else wallpaperOverride;
 
       "xdg/x-cinnamon-mimeapps.list".text = ''
