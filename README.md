@@ -229,23 +229,11 @@ O Slick Greeter ativa o NumLock com `activate-numlock=true` após configurar o t
 
 Se o comando no gancho falhar, o login prossegue e o aviso pode ser consultado com `journalctl -b -t noir-cinnamon-numlock`.
 
-#### Atalhos e homologação em uma conta existente
+#### Atalhos padrão
 
 O padrão do Noir abre o configurador com `Super+N` e bloqueia a sessão com `Super+L`. O applet de notificações do Cinnamon 6.6.8 lê **Mostrar notificações** da chave `keyOpen` em seu JSON. O perfil deixa essa combinação vazia e preserva `Super+Shift+C` para limpar notificações. Em GSettings, o perfil deixa `org.cinnamon.desktop.keybindings looking-glass-keybinding` vazio e acrescenta `Super+L` à ação nativa `org.cinnamon.desktop.keybindings.media-keys screensaver`, junto com `Ctrl+Alt+L` e `XF86ScreenSaver`. O Noir é a entrada `custom1000` da lista inicial `org.cinnamon.desktop.keybindings custom-list`. [Applet de notificações](https://github.com/linuxmint/cinnamon/blob/6.6.8/files/usr/share/cinnamon/applets/notifications%40cinnamon.org/settings-schema.json) · [Schema dos atalhos nativos](https://github.com/linuxmint/cinnamon-desktop/blob/6.6.2/schemas/org.cinnamon.desktop.keybindings.media-keys.gschema.xml.in)
 
-##### Recuperar Super+N em uma conta existente
-
-Se `Super+N` abrir as notificações ou se o atalho **Noir** estiver sem combinação, encerre a sessão Cinnamon. No TTY, com a mesma conta e a configuração Cinnamon Noir ativa, abra o configurador pelo checkout.
-
-```bash
-dbus-run-session -- bash ./config.sh
-```
-
-Abra **Atalho Super+N do Cinnamon → Migrar atalho**, confira as mudanças propostas e confirme. A operação guarda uma cópia de segurança e corrige apenas a associação de notificações e o binding pessoal da entrada Noir. Se outro atalho pessoal disputar a combinação ou se `custom1000` pertencer a outra ação, o configurador informa o conflito para revisão. O procedimento só roda quando selecionado.
-
-Entre no Cinnamon e teste `Super+N` antes de abrir **Teclado → Atalhos**. Repita após logout e reinicialização. Para desfazer ou recuperar uma tentativa interrompida, volte ao TTY e escolha **Atalho Super+N do Cinnamon → Reverter migração**. Selecione a cópia de segurança indicada na migração. A reversão preserva outros dados e interrompe a operação se um valor migrado já tiver recebido outra escolha.
-
-As opções de bloqueio e NumLock continuam editáveis. Para homologar esses padrões sem preferências anteriores, use uma conta de teste nova.
+O perfil fornece esses padrões de forma declarativa. Contas novas os usam desde o primeiro login, e preferências pessoais já gravadas têm precedência.
 
 #### Papel de parede
 
@@ -347,7 +335,7 @@ Para recuperar um JSON da homologação, encerre a sessão Cinnamon e copie-o do
 
 #### Homologação gráfica
 
-Use uma máquina virtual ou instalação de teste. Em uma conta nova, confira o tema, ColdRipple na área de trabalho e na tela de bloqueio, o Slick Greeter em grafite, a bandeja, os favoritos e os lançadores fixados. Confira que `Super+N` abre só o Noir e que `Super+L` bloqueia sem abrir o Looking Glass. Teste também `Ctrl+Alt+L` e a abertura de notificações pelo applet. Verifique o NumLock no primeiro login após reiniciar, ao desligá-lo no greeter antes de entrar e ao voltar ao greeter após encerrar uma sessão em que ficou desligado. Confira o LED e a entrada de dígitos no teclado numérico ao iniciar a sessão.
+Use uma máquina virtual ou instalação de teste. Em uma conta nova, confira o tema, ColdRipple na área de trabalho e na tela de bloqueio, o Slick Greeter em grafite, a bandeja, os favoritos e os lançadores fixados. No primeiro login, depois de encerrar a sessão e entrar novamente, e após reiniciar, confira que `Super+N` abre só o Noir e que `Super+L` bloqueia sem abrir o Looking Glass. Teste também `Ctrl+Alt+L` e a abertura de notificações pelo applet. Verifique o NumLock no primeiro login após reiniciar, ao desligá-lo no greeter antes de entrar e ao voltar ao greeter após encerrar uma sessão em que ficou desligado. Confira o LED e a entrada de dígitos no teclado numérico ao iniciar a sessão.
 
 Verifique a posição do relógio com zonas assimétricas, em escala alta e com mais de um monitor. Teste maximização, tela cheia, ocultação do painel inferior, duas áreas de trabalho sem navegação circular, o mapa de teclado configurado (por exemplo, ABNT2) e a rolagem do touchpad.
 
