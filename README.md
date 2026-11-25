@@ -439,6 +439,51 @@ No KDE Plasma, o KGlobalAccel carrega o atalho. O perfil XFCE usa Xfconf, e o pe
 - **XFCE** usa XFCE Terminal com DejaVu Sans Mono 11, opacidade inicial de 90% e o atalho padrão `Ctrl+Alt+T`. O menu de contexto permite reexibir a barra de menus. Na sessão XFCE X11, o Xfwm4 gerencia as janelas e o Picom faz a composição com XRender e VSync.
 - No **perfil Cinnamon**, o Noir abre no GNOME Terminal pela entrada do menu ou pelo atalho padrão `Super+N`. Se a conta já personalizou a lista de atalhos, use a entrada **Noir** do menu ou adicione a combinação nas configurações de teclado.
 
+#### GNOME Terminal no Cinnamon
+
+As janelas novas abrem com a barra de menus oculta. A barra de rolagem fica oculta mesmo quando há histórico. A roda do mouse e `Shift+Page Up` / `Shift+Page Down` continuam navegando pela saída, com o limite de histórico definido no perfil. Os dois padrões são editáveis. A preferência do menu vale para o aplicativo, e a da barra de rolagem é gravada por perfil do terminal.
+
+Em uma conta de teste que já tenha preferências, abra Bash na sessão Cinnamon e execute o bloco abaixo para guardar e redefinir apenas as duas chaves. O bloco escolhe o perfil padrão do GNOME Terminal. Para testar outro perfil, use o UUID correspondente da lista `gsettings get org.gnome.Terminal.ProfilesList list` na variável `profile`.
+
+```bash
+set -e
+umask 077
+profile=$(gsettings get org.gnome.Terminal.ProfilesList default)
+profile=${profile//\'/}
+[[ $profile =~ ^[[:xdigit:]-]+$ ]]
+state_dir=${XDG_STATE_HOME:-"$HOME/.local/state"}
+mkdir -p -- "$state_dir"
+backup=$(mktemp -d "$state_dir/noir-cinnamon-terminal.XXXXXXXX")
+printf 'user-db:user\n' > "$backup/user-profile"
+base=/org/gnome/terminal/legacy
+printf '%s\n' "$base/default-show-menubar" "$base/profiles:/:$profile/scrollbar-policy" > "$backup/keys"
+while IFS= read -r key; do
+  DCONF_PROFILE="$backup/user-profile" dconf read "$key" > "$backup/${key##*/}"
+done < "$backup/keys"
+printf 'Cópia de segurança em %s\n' "$backup"
+while IFS= read -r key; do
+  dconf reset "$key"
+done < "$backup/keys"
+```
+
+Abra uma janela nova do perfil testado, gere saída com `seq 300` e confira se pode voltar pelo histórico com as barras ocultas. Para desfazer, indique o diretório de backup exibido antes e execute o bloco abaixo em Bash. Depois, abra uma nova janela para conferir a preferência do menu.
+
+```bash
+set -e
+backup="/caminho/da/copia-de-seguranca"
+while IFS= read -r key; do
+  test -f "$backup/${key##*/}"
+done < "$backup/keys"
+while IFS= read -r key; do
+  saved="$backup/${key##*/}"
+  if [[ -s "$saved" ]]; then
+    dconf write "$key" "$(<"$saved")"
+  else
+    dconf reset "$key"
+  fi
+done < "$backup/keys"
+```
+
 ## Aplicativos e serviços
 
 ```text

@@ -78,6 +78,12 @@ in
 
       [org.cinnamon.desktop.keybindings.media-keys]
       screensaver=['<Super>l', '<Control><Alt>l', 'XF86ScreenSaver']
+
+      [org.gnome.Terminal.Legacy.Settings]
+      default-show-menubar=false
+
+      [org.gnome.Terminal.Legacy.Profile]
+      scrollbar-policy='never'
     '';
 
     programs.dconf.profiles.user.databases = [
