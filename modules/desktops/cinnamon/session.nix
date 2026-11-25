@@ -67,14 +67,17 @@ in
       workspace-cycle=false
 
       [org.cinnamon.desktop.peripherals.keyboard]
-      remember-numlock-state=true
-      numlock-state=true
+      remember-numlock-state=false
 
       [org.cinnamon.desktop.peripherals.touchpad]
       natural-scroll=true
 
       [org.cinnamon.desktop.keybindings]
       custom-list=['${shortcutId}']
+      looking-glass-keybinding=[]
+
+      [org.cinnamon.desktop.keybindings.media-keys]
+      screensaver=['<Super>l', '<Control><Alt>l', 'XF86ScreenSaver']
     '';
 
     programs.dconf.profiles.user.databases = [

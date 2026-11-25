@@ -218,8 +218,108 @@ A sessão Cinnamon usa X11 e o Slick Greeter em grafite. O perfil oferece apenas
 - O painel superior é permanente e tem 38 px lógicos. À esquerda ficam o menu de aplicativos com o floco do NixOS, um separador e a lista de janelas. O relógio sem data fica sozinho na zona central. À direita ficam os indicadores, o seletor de áreas de trabalho e **Mostrar área de trabalho**. Em largura reduzida, o relógio pode sair do centro.
 - O painel inferior de 42 px ocupa a largura do monitor e centraliza o applet de tarefas agrupadas. Os fixados iniciais são Chrome, IntelliJ IDEA, VS Code, DBeaver e Nemo. A ocultação inteligente considera a janela em foco. O painel permanente reserva espaço para as janelas maximizadas, e o inferior sobrepõe a área de trabalho quando revelado. [Código dos painéis](https://github.com/linuxmint/cinnamon/blob/6.6.8/js/ui/panel.js)
 - Os favoritos iniciais do menu são Chrome, Configurações do Sistema, Nemo, IntelliJ IDEA, DBeaver, VS Code e Postman. O Chrome é o navegador padrão para links e arquivos HTML, e o Nemo abre pastas por padrão. O navegador preferido pode ser alterado nas configurações do ambiente Cinnamon. O ícone fixado pode ser alterado pelo menu do applet de tarefas.
-- As duas áreas fixas chamam-se `Work 1` e `Work 2`, sem navegação circular. Os ícones da área de trabalho começam ocultos. O NumLock começa ligado quando a conta ainda não gravou o estado. O touchpad usa rolagem natural por padrão e o mouse mantém suas próprias preferências.
+- As duas áreas fixas chamam-se `Work 1` e `Work 2`, sem navegação circular. Os ícones da área de trabalho começam ocultos. O touchpad usa rolagem natural por padrão e o mouse mantém suas próprias preferências.
 - A política de sessão impede a restauração pelo Cinnamon Session, inclusive em contas que a usavam. Durante o encerramento, o gerenciador pode descartar seus registros de restauração. O autostart XDG continua funcionando. Para desabilitar o Bitwarden, use **Aplicativos de sessão** ou uma entrada pessoal `~/.config/autostart/bitwarden.desktop` com `Hidden=true` em `[Desktop Entry]`. [Gerenciador da sessão](https://github.com/linuxmint/cinnamon-session/blob/6.6.3/cinnamon-session/csm-session-fill.c)
+
+O tema de ícones aprovado, Mint-Y-Aqua, continua como padrão. O Papirus-Dark oferece ícones de aplicativos, pastas e símbolos de status, mas sua cadeia de herança usa Breeze Dark e hicolor. A presença dos ícones no pacote não confirma o contraste dos indicadores da bandeja, a aparência das pastas e dos emblemas no Nemo ou a consistência com aplicativos GTK e Qt. A troca pode ser avaliada em uma conta de teste sem substituir o floco do NixOS, que é configurado no próprio applet do menu. [Índice do Papirus-Dark 20250501](https://github.com/PapirusDevelopmentTeam/papirus-icon-theme/blob/20250501/Papirus-Dark/index.theme)
+
+#### NumLock
+
+O Slick Greeter ativa o NumLock com `activate-numlock=true` após configurar o teclado. Isso vale para cada abertura do greeter, inclusive após logout e reinicialização. Antes de iniciar a sessão, o LightDM executa `numlockx on` pelo gancho `session-setup-script`, inclusive se o estado tiver sido desligado no greeter. Na sessão, o padrão `org.cinnamon.desktop.peripherals.keyboard remember-numlock-state=false` desabilita a restauração do estado anterior pelo Muffin. A tecla continua disponível durante a sessão. Se a conta já gravou a preferência de lembrar o estado, ela pode prevalecer e restaurar um valor antigo. [Slick Greeter 2.2.6](https://github.com/linuxmint/slick-greeter/blob/2.2.6/src/slick-greeter.vala) · [Ganchos do LightDM 1.32.0](https://github.com/canonical/lightdm/blob/1.32.0/src/seat.c)
+
+Se o comando no gancho falhar, o login prossegue e o aviso pode ser consultado com `journalctl -b -t noir-cinnamon-numlock`.
+
+#### Atalhos e homologação em uma conta existente
+
+O padrão do Noir abre o configurador com `Super+N` e bloqueia a sessão com `Super+L`. O applet de notificações do Cinnamon 6.6.8 lê **Mostrar notificações** da chave `keyOpen` em seu JSON. O perfil deixa essa combinação vazia e preserva `Super+Shift+C` para limpar notificações. Em GSettings, o perfil deixa `org.cinnamon.desktop.keybindings looking-glass-keybinding` vazio e acrescenta `Super+L` à ação nativa `org.cinnamon.desktop.keybindings.media-keys screensaver`, junto com `Ctrl+Alt+L` e `XF86ScreenSaver`. O Noir é a entrada `custom1000` da lista inicial `org.cinnamon.desktop.keybindings custom-list`. [Applet de notificações](https://github.com/linuxmint/cinnamon/blob/6.6.8/files/usr/share/cinnamon/applets/notifications%40cinnamon.org/settings-schema.json) · [Schema dos atalhos nativos](https://github.com/linuxmint/cinnamon-desktop/blob/6.6.2/schemas/org.cinnamon.desktop.keybindings.media-keys.gschema.xml.in)
+
+Escolhas gravadas no dconf e no JSON do applet têm precedência. Em uma instalação de teste com estes padrões disponíveis, encerre a sessão gráfica e entre em um TTY com a mesma conta. Abra `dbus-run-session -- bash` e execute o bloco abaixo. Ele guarda as preferências gravadas em `custom-list` e `custom1000`, além das chaves de bloqueio e NumLock. O perfil temporário de leitura distingue valores gravados de padrões do sistema.
+
+```bash
+set -e
+umask 077
+state_dir=${XDG_STATE_HOME:-"$HOME/.local/state"}
+mkdir -p -- "$state_dir"
+backup=$(mktemp -d "$state_dir/noir-cinnamon-teclado.XXXXXXXX")
+printf 'user-db:user\n' > "$backup/user-profile"
+shortcut_root=/org/cinnamon/desktop/keybindings
+custom_root="$shortcut_root/custom-keybindings"
+list_key="$shortcut_root/custom-list"
+reset_keys=(
+  "$shortcut_root/looking-glass-keybinding"
+  "$shortcut_root/media-keys/screensaver"
+  /org/cinnamon/desktop/peripherals/keyboard/remember-numlock-state
+)
+keys=("${reset_keys[@]}" "$custom_root/custom1000/"{name,command,binding})
+
+custom_list=$(dconf read "$list_key")
+custom_list=${custom_list:-"['custom1000']"}
+shortcut_id=custom1000
+use_temporary=false
+for property in name command binding; do
+  key="$custom_root/custom1000/$property"
+  if [[ $(dconf read "$key") != "$(dconf read -d "$key")" ]]; then
+    use_temporary=true
+    break
+  fi
+done
+if "$use_temporary"; then
+  for ((id = 1001; ; id++)); do
+    shortcut_id="custom$id"
+    entry=$(dconf list "$custom_root/$shortcut_id/")
+    if [[ "$custom_list" != *"'$shortcut_id'"* && -z "$entry" ]]; then
+      break
+    fi
+  done
+  keys+=("$custom_root/$shortcut_id/"{name,command,binding})
+fi
+
+keys+=("$list_key")
+for key in "${keys[@]}"; do
+  mkdir -p -- "$backup${key%/*}"
+  DCONF_PROFILE="$backup/user-profile" dconf read "$key" > "$backup$key"
+done
+printf '%s\n' "${keys[@]}" > "$backup/keys"
+printf 'Cópia de segurança em %s\n' "$backup"
+
+for key in "${reset_keys[@]}"; do
+  dconf reset "$key"
+done
+if [[ "$shortcut_id" != custom1000 ]]; then
+  dconf write "$custom_root/$shortcut_id/name" "'Noir (homologação)'"
+  dconf write "$custom_root/$shortcut_id/command" \
+    "$(dconf read -d "$custom_root/custom1000/command")"
+  dconf write "$custom_root/$shortcut_id/binding" "['<Super>n']"
+fi
+if [[ "$custom_list" != *"'$shortcut_id'"* ]]; then
+  entries=${custom_list#*[}
+  entries=${entries%]}
+  dconf write "$list_key" "[${entries:+$entries, }'$shortcut_id']"
+fi
+```
+
+O bloco mantém a ordem e os demais atalhos da lista pessoal. Se houver preferências diferentes dos padrões no ID `custom1000`, ele preserva essa entrada e cria **Noir (homologação)** em outro ID livre, pulando também entradas antigas fora da lista. Evite criar ou excluir outros atalhos personalizados durante o teste, pois a reversão repõe a lista original.
+
+Na sessão, abra **Teclado → Atalhos**. Se alguma instância de **Mostrar notificações** ainda usar `Super+N`, anote a instância e todas as suas combinações de `keyOpen` e remova somente `Super+N`. Busque também outras associações pessoais que disputem `Super+N` ou `Super+L`, inclusive a entrada pessoal no ID `custom1000`. Anote e remova apenas as combinações conflitantes. Se nenhuma combinação estiver gravada no applet, deixe a preferência como está.
+
+Para reverter, recoloque manualmente as combinações anotadas do applet de notificações e de quaisquer outros atalhos pessoais ajustados pela interface. O JSON de `keyOpen` fica fora do backup dconf. O bloco abaixo restaura a entrada `custom1000` e a lista original e remove os valores gravados para o ID temporário, se criado. Para executá-lo, encerre a sessão gráfica, abra `dbus-run-session -- bash` no TTY e indique o diretório de backup exibido pelo primeiro bloco.
+
+```bash
+set -e
+backup="/caminho/da/copia-de-seguranca"
+mapfile -t keys < "$backup/keys"
+for key in "${keys[@]}"; do
+  test -f "$backup$key"
+done
+for key in "${keys[@]}"; do
+  saved="$backup$key"
+  if [[ -s "$saved" ]]; then
+    dconf write "$key" "$(<"$saved")"
+  else
+    dconf reset "$key"
+  fi
+done
+```
 
 #### Papel de parede
 
@@ -321,7 +421,9 @@ Para recuperar um JSON da homologação, encerre a sessão Cinnamon e copie-o do
 
 #### Homologação gráfica
 
-Use uma máquina virtual ou instalação de teste. Em uma conta nova, confira o tema, ColdRipple na área de trabalho e na tela de bloqueio, o Slick Greeter em grafite, a bandeja, os favoritos, os lançadores fixados e o atalho `Super+N`. Verifique a posição do relógio com zonas assimétricas, em escala alta e com mais de um monitor. Teste maximização, tela cheia, ocultação do painel inferior, duas áreas de trabalho sem navegação circular, NumLock, o mapa de teclado configurado (por exemplo, ABNT2) e a rolagem do touchpad.
+Use uma máquina virtual ou instalação de teste. Em uma conta nova, confira o tema, ColdRipple na área de trabalho e na tela de bloqueio, o Slick Greeter em grafite, a bandeja, os favoritos e os lançadores fixados. Confira que `Super+N` abre só o Noir e que `Super+L` bloqueia sem abrir o Looking Glass. Teste também `Ctrl+Alt+L` e a abertura de notificações pelo applet. Verifique o NumLock no primeiro login após reiniciar, ao desligá-lo no greeter antes de entrar e ao voltar ao greeter após encerrar uma sessão em que ficou desligado. Confira o LED e a entrada de dígitos no teclado numérico ao iniciar a sessão.
+
+Verifique a posição do relógio com zonas assimétricas, em escala alta e com mais de um monitor. Teste maximização, tela cheia, ocultação do painel inferior, duas áreas de trabalho sem navegação circular, o mapa de teclado configurado (por exemplo, ABNT2) e a rolagem do touchpad.
 
 Altere o tema, mova applets e faça um novo login. Em outra conta com uma sessão anterior salva, verifique se as janelas anteriores permanecem fechadas e se o Bitwarden inicia uma vez. Restaure o layout em uma conta de teste já personalizada e confira se os atalhos e as demais preferências fora do procedimento foram preservados. Teste autenticação por senha, suspensão e biometria em um equipamento com leitor compatível.
 

@@ -10,12 +10,23 @@
     services.xserver.displayManager.lightdm = {
       enable = true;
       background = "#202126";
+      # Garante o estado inicial mesmo se o NumLock for desligado no greeter.
+      extraSeatDefaults = ''
+        session-setup-script=${pkgs.writeShellScript "noir-cinnamon-session-numlock" ''
+          ${lib.getExe pkgs.numlockx} on || {
+            status=$?
+            ${lib.getExe' pkgs.util-linux "logger"} --tag noir-cinnamon-numlock --priority user.warning \
+              -- "Não foi possível ativar o NumLock (numlockx saiu com código $status)." || true
+          }
+        ''}
+      '';
       greeters.slick = {
         enable = true;
         theme.name = "Mint-Y-Dark-Aqua";
         iconTheme.name = "Mint-Y-Aqua";
         cursorTheme.size = 24;
         draw-user-backgrounds = false;
+        extraConfig = "activate-numlock=true";
       };
     };
 
@@ -24,13 +35,15 @@
       (_: prev: {
         cinnamon = prev.cinnamon.overrideAttrs (old: {
           postInstall = (old.postInstall or "") + ''
-            for applet in menu grouped-window-list; do
+            for applet in menu grouped-window-list notifications; do
               test -f "$out/share/cinnamon/applets/$applet@cinnamon.org/settings-schema.json"
             done
             install -m 644 ${./cinnamon/menu.json} \
               "$out/share/cinnamon/applets/menu@cinnamon.org/settings-override.json"
             install -m 644 ${./cinnamon/grouped-window-list.json} \
               "$out/share/cinnamon/applets/grouped-window-list@cinnamon.org/settings-override.json"
+            install -m 644 ${./cinnamon/notifications.json} \
+              "$out/share/cinnamon/applets/notifications@cinnamon.org/settings-override.json"
             rm "$out/share/wayland-sessions/cinnamon-wayland.desktop"
           '';
           passthru = old.passthru // {
