@@ -12,12 +12,20 @@ in
       description = "Perfil de desktop. Por padrão, o desktop é definido pela configuração da máquina.";
     };
 
+    defaultWallpaper = lib.mkOption {
+      type = lib.types.path;
+      default = ../wallpapers/nixos-001.png;
+      readOnly = true;
+      internal = true;
+      description = "Imagem padrão compartilhada pelos perfis gráficos do Noir.";
+    };
+
     cinnamon.wallpaperSource = lib.mkOption {
       type = lib.types.nullOr (lib.types.strMatching "/[^[:cntrl:]]+");
       default = null;
       description = ''
         Caminho absoluto de um PNG local para o desktop e o bloqueio da Cinnamon.
-        Use null para aplicar o ColdRipple.
+        Use null para aplicar o papel de parede padrão do Noir.
       '';
     };
 

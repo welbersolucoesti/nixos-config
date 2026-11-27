@@ -139,9 +139,11 @@ No XFCE, o LightDM executa `numlockx on` antes de abrir a tela de login X11. Na 
 
 O ícone `nix-snowflake` corresponde ao floco oficial do NixOS. O layout inicial do KDE Plasma define esse ícone no Kickoff. No XFCE, novas instâncias do Whisker recebem o ícone por padrão e instâncias existentes preservam a escolha da conta. O perfil Cinnamon usa o mesmo ícone como padrão no menu de aplicativos. [Arte oficial do NixOS](https://github.com/NixOS/nixos-artwork)
 
+O papel de parede oficial do Noir é `wallpapers/nixos-001.png`. KDE Plasma, XFCE e Cinnamon usam a mesma imagem como padrão da área de trabalho e da tela de bloqueio. As escolhas salvas em cada conta têm precedência.
+
 ### KDE Plasma Noir
 
-O KDE Plasma usa o script do tema global `Breeze Dark (Noir)` ao criar o layout inicial de uma conta. O tema reutiliza os padrões de aparência do Breeze Dark oficial e define ColdRipple como fundo. Painéis, widgets e papel de parede já gravados são preservados, inclusive em layouts parciais. Os padrões em `/etc/xdg` valem para preferências ainda sem escolha local. A política de sessão vazia continua obrigatória.
+O KDE Plasma usa o script do tema global `Breeze Dark (Noir)` ao criar o layout inicial de uma conta. O tema reutiliza os padrões de aparência do Breeze Dark oficial. Painéis, widgets e papel de parede já gravados são preservados, inclusive em layouts parciais. Os padrões em `/etc/xdg` valem para preferências ainda sem escolha local. A política de sessão vazia continua obrigatória.
 
 - O painel superior é flutuante, sempre visível, tem 38 px lógicos, ocupa a largura disponível e usa opacidade adaptativa. Na ordem, contém Kickoff, separador de margens, lista de janelas, espaçador, relógio sem data, espaçador, bandeja do sistema, seletor de áreas de trabalho e Mostrar área de trabalho.
 - O painel inferior é flutuante e translúcido, tem 42 px lógicos, ajusta-se ao conteúdo e se recolhe quando uma janela o sobrepõe. Os fixados no gerenciador de tarefas são navegador preferido, IntelliJ IDEA, Visual Studio Code, DBeaver e Dolphin.
@@ -154,7 +156,7 @@ A bandeja usa a seleção nativa de plugins da revisão instalada do KDE Plasma.
 
 #### Papel de parede
 
-Com `personalConfig.kde.wallpaperSource = null`, o padrão é **ColdRipple** na área de trabalho inicial e na tela de bloqueio. O pacote `plasma-workspace-wallpapers` fornece o recurso e o KDE Plasma seleciona a variante adequada à resolução. O endereço usado pela sessão permanece estável entre gerações do NixOS.
+Com `personalConfig.kde.wallpaperSource = null`, o perfil usa o papel de parede padrão do Noir na área de trabalho inicial e na tela de bloqueio. O endereço usado pela sessão permanece estável entre gerações do NixOS.
 
 Para usar uma imagem própria, disponibilize um PNG legível pela conta configurada antes da publicação. Por exemplo, use `/var/lib/noir/wallpapers/kde.png` e adicione esta opção a `config/local.nix`.
 
@@ -162,7 +164,7 @@ Para usar uma imagem própria, disponibilize um PNG legível pela conta configur
 personalConfig.kde.wallpaperSource = "/var/lib/noir/wallpapers/kde.png";
 ```
 
-O módulo expõe o recurso em `/etc/noir/kde-wallpaper.png`. A avaliação do sistema rejeita caminhos inexistentes ou que apontem para diretórios. Durante a ativação, o sistema valida o conteúdo com as permissões da conta configurada. Se o PNG estiver inválido ou ilegível, o sistema informa o problema e usa ColdRipple. O PNG personalizado permanece no local indicado e precisa ser restaurado nas instalações que o utilizarem.
+O módulo expõe o recurso em `/etc/noir/kde-wallpaper.png`. A avaliação do sistema rejeita caminhos inexistentes ou que apontem para diretórios. Durante a ativação, o sistema valida o conteúdo com as permissões da conta configurada. Se o PNG estiver inválido ou ilegível, o sistema informa o problema e usa o papel de parede padrão do Noir. O PNG personalizado permanece no local indicado e precisa ser restaurado nas instalações que o utilizarem.
 
 A área de trabalho e a tela de bloqueio permitem escolher imagens separadas. Uma escolha que aponte para o endereço do sistema acompanha o recurso definido no perfil. Uma imagem escolhida em outro endereço permanece como preferência da conta.
 
@@ -170,7 +172,7 @@ A área de trabalho e a tela de bloqueio permitem escolher imagens separadas. Um
 
 Para testar alterações locais antes de versioná-las, aponte a configuração da instalação de teste para o `personal.nix` do checkout completo. O Noir publica os arquivos versionados.
 
-Em uma instalação de teste com o perfil KDE Plasma, inicie uma sessão Wayland em uma conta descartável com `wallpaperSource = null`. Confira o ColdRipple na área de trabalho e na tela de bloqueio, os dois painéis, os favoritos, o navegador, a bandeja e o atalho `Meta+N`. Verifique as duas áreas de trabalho e minimize uma janela para testar a Lâmpada Mágica.
+Em uma instalação de teste com o perfil KDE Plasma, inicie uma sessão Wayland em uma conta descartável com `wallpaperSource = null`. Confira o papel de parede padrão do Noir na área de trabalho e na tela de bloqueio, os dois painéis, os favoritos, o navegador, a bandeja e o atalho `Meta+N`. Verifique as duas áreas de trabalho e minimize uma janela para testar a Lâmpada Mágica.
 
 Escolha outro papel de parede pela interface, mova um widget, remova um favorito e reabra a sessão. Confira se as mudanças permanecem, se o Bitwarden inicia uma vez e se as janelas anteriores ficam fechadas. Para testar o PNG personalizado, configure outra imagem e repita a primeira entrada em uma segunda conta descartável.
 
@@ -178,7 +180,7 @@ Escolha outro papel de parede pela interface, mova um widget, remova um favorito
 
 O XFCE usa `Orchis-Dark` no GTK e no Xfwm4, `Papirus-Dark` para ícones e Breeze 24 para o cursor. Bibata e Tela continuam disponíveis para quem os escolheu. O dconf oferece a preferência por modo escuro a aplicativos que a respeitam, como os baseados em libadwaita. A sessão oferece o tema de plataforma GTK aos aplicativos Qt 5 e Qt 6 quando a conta ainda não definiu outro. Aplicativos com tema próprio podem usar suas preferências.
 
-O fundo padrão do desktop e do bloqueador nativo é `xfce-cp-dark.svg`, do pacote xfdesktop. Imagens escolhidas em **Configurações → Área de trabalho** conservam suas opções por monitor e área de trabalho. Os ícones da área de trabalho ficam ocultos por padrão. O LightDM usa o GTK Greeter em grafite, com relógio de 24 horas, seleção de sessão, acessibilidade e ações de energia conforme disponíveis. [Arte do xfdesktop 4.20.2](https://raw.githubusercontent.com/xfce-mirror/xfdesktop/xfdesktop-4.20.2/backgrounds/README.md)
+A área de trabalho e o bloqueador nativo usam o papel de parede padrão do Noir quando a conta ainda não escolheu um fundo. Imagens escolhidas em **Configurações → Área de trabalho** conservam suas opções por monitor e área de trabalho. Os ícones da área de trabalho ficam ocultos por padrão. O LightDM usa o GTK Greeter em grafite, com relógio de 24 horas, seleção de sessão, acessibilidade e ações de energia conforme disponíveis.
 
 #### Painéis iniciais
 
@@ -237,13 +239,13 @@ O perfil fornece esses padrões de forma declarativa. Contas novas os usam desde
 
 #### Papel de parede
 
-A área de trabalho e a tela de bloqueio da sessão Cinnamon compartilham o papel de parede. O padrão é ColdRipple, disponível em `/etc/noir/cinnamon-wallpaper`. Para usar um PNG local, indique em `config/local.nix` um arquivo regular legível pela conta configurada.
+A área de trabalho e a tela de bloqueio da sessão Cinnamon compartilham o papel de parede. O perfil oferece o papel de parede padrão do Noir em `/etc/noir/cinnamon-wallpaper`. Para usar um PNG local, indique em `config/local.nix` um arquivo regular legível pela conta configurada.
 
 ```nix
 personalConfig.cinnamon.wallpaperSource = "/var/lib/noir/wallpapers/cinnamon.png";
 ```
 
-O sistema valida a imagem durante a ativação. O perfil usa ColdRipple se o caminho estiver ausente, se o arquivo não for regular ou se o PNG for inválido ou ilegível pela conta configurada. A imagem permanece no caminho indicado. Conceda permissão de leitura às demais contas que usarem esse padrão. A escolha de outro fundo pela interface é preservada na conta. O Slick Greeter usa um fundo próprio em grafite.
+O sistema valida a imagem durante a ativação. O perfil usa o papel de parede padrão do Noir se o caminho estiver ausente, se o arquivo não for regular ou se o PNG for inválido ou ilegível pela conta configurada. A imagem permanece no caminho indicado. Conceda permissão de leitura às demais contas que usarem esse padrão. A escolha de outro fundo pela interface é preservada na conta. O Slick Greeter usa um fundo próprio em grafite.
 
 #### Restaurar seletivamente os painéis e os applets Noir
 
@@ -335,7 +337,7 @@ Para recuperar um JSON da homologação, encerre a sessão Cinnamon e copie-o do
 
 #### Homologação gráfica
 
-Use uma máquina virtual ou instalação de teste. Em uma conta nova, confira o tema, ColdRipple na área de trabalho e na tela de bloqueio, o Slick Greeter em grafite, a bandeja, os favoritos e os lançadores fixados. No primeiro login, depois de encerrar a sessão e entrar novamente, e após reiniciar, confira que `Super+N` abre só o Noir e que `Super+L` bloqueia sem abrir o Looking Glass. Teste também `Ctrl+Alt+L` e a abertura de notificações pelo applet. Verifique o NumLock no primeiro login após reiniciar, ao desligá-lo no greeter antes de entrar e ao voltar ao greeter após encerrar uma sessão em que ficou desligado. Confira o LED e a entrada de dígitos no teclado numérico ao iniciar a sessão.
+Use uma máquina virtual ou instalação de teste. Em uma conta nova, confira o tema, o papel de parede padrão do Noir na área de trabalho e na tela de bloqueio, o Slick Greeter em grafite, a bandeja, os favoritos e os lançadores fixados. No primeiro login, depois de encerrar a sessão e entrar novamente, e após reiniciar, confira que `Super+N` abre só o Noir e que `Super+L` bloqueia sem abrir o Looking Glass. Teste também `Ctrl+Alt+L` e a abertura de notificações pelo applet. Verifique o NumLock no primeiro login após reiniciar, ao desligá-lo no greeter antes de entrar e ao voltar ao greeter após encerrar uma sessão em que ficou desligado. Confira o LED e a entrada de dígitos no teclado numérico ao iniciar a sessão.
 
 Verifique a posição do relógio com zonas assimétricas, em escala alta e com mais de um monitor. Teste maximização, tela cheia, ocultação do painel inferior, duas áreas de trabalho sem navegação circular, o mapa de teclado configurado (por exemplo, ABNT2) e a rolagem do touchpad.
 
@@ -409,6 +411,8 @@ nixos-config/
 │   ├── ui-dialog.sh   Widgets do Dialog
 │   └── ui.sh          Interface comum, Gum e modo texto
 ├── personal.nix
+├── wallpapers/
+│   └── nixos-001.png  Papel de parede padrão
 ├── config/
 │   ├── local.example.nix
 │   ├── noir-optionals.nix  Importa o arquivo de escolhas do Noir

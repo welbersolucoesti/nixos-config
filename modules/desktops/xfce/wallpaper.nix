@@ -1,7 +1,8 @@
 { config, lib, ... }:
 
 let
-  image = "xfce-cp-dark.svg";
+  inherit (config.personalConfig) defaultWallpaper;
+  image = baseNameOf defaultWallpaper;
   imageDirectory = "share/backgrounds/xfce";
 in
 {
@@ -15,7 +16,7 @@ in
             "--with-default-backdrop-filename=/run/current-system/sw/${imageDirectory}/${image}"
           ];
           postInstall = (old.postInstall or "") + ''
-            test -s "$out/${imageDirectory}/${image}"
+            ln -s ${defaultWallpaper} "$out/${imageDirectory}/${image}"
           '';
         });
         xfce4-screensaver = prev.xfce4-screensaver.overrideAttrs (old: {

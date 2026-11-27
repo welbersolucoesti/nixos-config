@@ -1,8 +1,8 @@
 { config, lib, pkgs, ... }:
 
 let
+  inherit (config.personalConfig) defaultWallpaper;
   wallpaperSource = config.personalConfig.cinnamon.wallpaperSource;
-  coldRipple = "${pkgs.kdePackages.plasma-workspace-wallpapers}/share/wallpapers/ColdRipple/contents/images/2560x1600.jpg";
   wallpaperOverride = "/run/noir-cinnamon-wallpaper";
   terminalCommand = "${lib.getExe pkgs.gnome-terminal} -- /run/current-system/sw/bin/noir-session";
   shortcutId = "custom1000";
@@ -114,7 +114,7 @@ in
     ];
 
     environment.etc = {
-      "noir/cinnamon-wallpaper".source = if wallpaperSource == null then coldRipple else wallpaperOverride;
+      "noir/cinnamon-wallpaper".source = if wallpaperSource == null then defaultWallpaper else wallpaperOverride;
 
       "xdg/x-cinnamon-mimeapps.list".text = ''
         [Default Applications]
@@ -140,13 +140,13 @@ in
       text = ''
         (
           source=${lib.escapeShellArg wallpaperSource}
-          target=${lib.escapeShellArg coldRipple}
+          target=${lib.escapeShellArg "${defaultWallpaper}"}
           if [ -f "$source" ] && [ ! -L "$source" ] && \
             ${lib.getExe' pkgs.util-linux "runuser"} -u ${lib.escapeShellArg config.personalConfig.username} -- \
             ${lib.getExe' (lib.getDev pkgs.libpng) "pngfix"} -q -q "$source"; then
             target="$source"
           else
-            printf '%s\n' 'Cinnamon Noir: fundo local indisponível ou PNG inválido. Usando ColdRipple.' >&2
+            printf '%s\n' 'Cinnamon Noir: fundo local indisponível ou PNG inválido. Usando o padrão do Noir.' >&2
           fi
           ${lib.getExe' pkgs.coreutils "ln"} -sfnT -- "$target" ${wallpaperOverride}
         )

@@ -1,10 +1,18 @@
 { config, lib, pkgs, ... }:
 
 let
+  inherit (config.personalConfig) defaultWallpaper;
   wallpaperSource = config.personalConfig.kde.wallpaperSource;
-  wallpapers = pkgs.kdePackages.plasma-workspace-wallpapers;
-  coldRipple = "${wallpapers}/share/wallpapers/ColdRipple";
   wallpaperOverride = "/run/noir-kde-wallpaper";
+  wallpaperPath = "noir/kde-wallpaper.png";
+  wallpaperName = "Noir";
+  wallpaperMetadata = pkgs.writeText "noir-wallpaper-metadata.json" (builtins.toJSON {
+    KPackageStructure = "Wallpaper/Images";
+    KPlugin = {
+      Id = wallpaperName;
+      Name = "Noir";
+    };
+  });
   theme = "org.noir.breezedark.desktop";
   themePath = "share/plasma/look-and-feel/${theme}";
   breezeDark = "${pkgs.kdePackages.plasma-workspace}/share/plasma/look-and-feel/org.kde.breezedark.desktop";
@@ -26,19 +34,20 @@ let
     themeDir="$out/${themePath}"
     contents="$themeDir/contents"
     test -f "${breezeDark}/contents/defaults"
-    set -- "${coldRipple}"/contents/images/*
-    if ! test -s "${coldRipple}/metadata.json" || ! test -s "$1"; then
-      echo "KDE Noir: recurso ColdRipple indisponível em plasma-workspace-wallpapers." >&2
-      exit 1
-    fi
     mkdir -p "$contents/layouts"
     # O KPackage exige que os arquivos estejam dentro do diretório do tema.
     cp ${themeMetadata} "$themeDir/metadata.json"
-    sed '/^\[Wallpaper\]$/,/^\[/ s/^Image=.*/Image=ColdRipple/' \
+    sed '/^\[Wallpaper\]$/,/^\[/ s/^Image=.*/Image=${wallpaperName}/' \
       "${breezeDark}/contents/defaults" > "$contents/defaults"
-    grep -qx 'Image=ColdRipple' "$contents/defaults"
+    grep -qx 'Image=${wallpaperName}' "$contents/defaults"
     cp -r "${breezeDark}/contents/previews" "$contents/previews"
     cp ${./layout.js} "$contents/layouts/org.kde.plasma.desktop-layout.js"
+
+    # O plugin de imagem usa um pacote de wallpaper como padrão do tema.
+    wallpaperDir="$out/share/wallpapers/${wallpaperName}"
+    mkdir -p "$wallpaperDir/contents/images"
+    cp ${wallpaperMetadata} "$wallpaperDir/metadata.json"
+    cp ${defaultWallpaper} "$wallpaperDir/contents/images/${baseNameOf defaultWallpaper}"
   '';
 in
 {
@@ -47,19 +56,19 @@ in
     default = null;
     description = ''
       Caminho absoluto, como string, de um PNG local legível pela conta configurada.
-      Use null para aplicar o ColdRipple fornecido pelo Plasma.
+      Use null para aplicar o papel de parede padrão do Noir.
     '';
   };
 
   config = lib.mkIf (config.personalConfig.desktop == "kde") {
-    environment.systemPackages = [ themeWithLayout wallpapers ];
+    environment.systemPackages = [ themeWithLayout ];
 
     assertions = [
       {
         assertion = wallpaperSource == null || (
           builtins.pathExists wallpaperSource && !builtins.pathExists (wallpaperSource + "/.")
         );
-        message = "personalConfig.kde.wallpaperSource deve apontar para um arquivo PNG existente e acessível, ou ser null para usar ColdRipple.";
+        message = "personalConfig.kde.wallpaperSource deve apontar para um arquivo PNG existente e acessível, ou ser null para usar o padrão do Noir.";
       }
     ];
 
@@ -69,12 +78,12 @@ in
       text = ''
       (
         source=${lib.escapeShellArg wallpaperSource}
-        target=${lib.escapeShellArg coldRipple}
+        target=${lib.escapeShellArg "${defaultWallpaper}"}
         if [ -f "$source" ] && ${lib.getExe' pkgs.util-linux "runuser"} -u ${lib.escapeShellArg config.personalConfig.username} -- \
           ${lib.getExe' (lib.getDev pkgs.libpng) "pngfix"} -q -q "$source"; then
           target="$source"
         else
-          printf '%s\n' 'KDE Noir: personalConfig.kde.wallpaperSource não é um PNG válido ou legível pela conta configurada. Usando ColdRipple.' >&2
+          printf '%s\n' 'KDE Noir: personalConfig.kde.wallpaperSource não é um PNG válido ou legível pela conta configurada. Usando o padrão do Noir.' >&2
         fi
         ${lib.getExe' pkgs.coreutils "ln"} -sfnT -- "$target" ${lib.escapeShellArg wallpaperOverride}
       )
@@ -143,11 +152,11 @@ in
         OnlyShowIn=KDE;
       '';
 
-      "noir/kde-wallpaper.png".source = if wallpaperSource == null then coldRipple else wallpaperOverride;
+      "${wallpaperPath}".source = if wallpaperSource == null then defaultWallpaper else wallpaperOverride;
 
       "xdg/kscreenlockerrc".text = ''
         [Greeter][Wallpaper][org.kde.image][General]
-        Image=file:///etc/noir/kde-wallpaper.png
+        Image=file:///etc/${wallpaperPath}
       '';
     };
 
