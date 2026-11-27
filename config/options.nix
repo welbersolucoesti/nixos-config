@@ -7,7 +7,7 @@ in
   # O arquivo local fornece a identidade e as escolhas da estação.
   options.personalConfig = {
     desktop = lib.mkOption {
-      type = lib.types.nullOr (lib.types.enum [ "kde" "xfce" "cinnamon" ]);
+      type = lib.types.nullOr (lib.types.enum [ "kde" "gnome" "cinnamon" "xfce" ]);
       default = null;
       description = "Perfil de desktop. Por padrão, o desktop é definido pela configuração da máquina.";
     };

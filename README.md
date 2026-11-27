@@ -1,6 +1,6 @@
 # Noir · Configuração declarativa para NixOS
 
-O Noir reúne módulos declarativos de aplicativos, serviços e perfis gráficos para **KDE Plasma**, **XFCE** e **Cinnamon**. O projeto usa o sistema de módulos do NixOS e o Nixpkgs, sem Flakes ou Home Manager.
+O Noir reúne módulos declarativos de aplicativos, serviços e perfis gráficos para **KDE Plasma**, **GNOME**, **Cinnamon** e **XFCE**. KDE Plasma e GNOME são os perfis Premium do projeto, com as respectivas experiências nativas. O projeto usa o sistema de módulos do NixOS e o Nixpkgs, sem Flakes ou Home Manager.
 
 São necessários um **NixOS já instalado**, uma conta Linux normal declarada na configuração do sistema e acesso a `sudo` para publicar os arquivos. A instalação do Noir consiste em clonar o repositório, publicar a cópia de implantação e importar os módulos na configuração do NixOS. [Manual de instalação do NixOS](https://nixos.org/manual/nixos/stable/#ch-installation)
 
@@ -53,7 +53,7 @@ Execute o configurador pela conta Linux que receberá a identidade Git. A autent
 bash config.sh
 ```
 
-O configurador Noir usa Dialog em terminais interativos, tanto no console (TTY) quanto nas sessões KDE Plasma, XFCE e Cinnamon. O tamanho mínimo é de 40 colunas por 12 linhas. A tela inicial mostra a branch ou o commit local quando disponível.
+O configurador Noir usa Dialog em terminais interativos, tanto no console (TTY) quanto nas sessões KDE Plasma, GNOME, Cinnamon e XFCE. O tamanho mínimo é de 40 colunas por 12 linhas. A tela inicial mostra a branch ou o commit local quando disponível.
 
 Use as setas para navegar pelos menus e pelos campos de identidade Git. Tab alterna o foco entre o formulário e os botões, Enter aciona a opção em foco e Esc cancela a etapa. A opção inicial nas confirmações é **Não**. Ctrl+C interrompe um comando em andamento. As telas de revisão mostram os detalhes do fast-forward e da publicação. A opção **Registros**, na tela de resultado, exibe os diagnósticos da execução. [Manual do Dialog](https://invisible-island.net/dialog/manpage/dialog.html)
 
@@ -63,7 +63,7 @@ Depois de selecionar **Instalar ou atualizar**, o assistente pede confirmação 
 
 1. Na primeira instalação, preencha **Conta Linux** e **Identidade Git**. Confira os dados no resumo antes de publicar. Nas atualizações, o instalador reutiliza a identidade da cópia implantada.
 2. O instalador executa `git fetch` para o remoto configurado na branch e apresenta os commits e arquivos alterados. Se você autorizar, `git merge --ff-only` avança o checkout até o commit apresentado usando o objeto já buscado. Recusar encerra a instalação e devolve o controle ao menu principal. Alterações não commitadas, commits apenas locais e branches divergentes exigem que você resolva o estado do checkout.
-3. Na primeira instalação, se o checkout ainda estiver sem `config/local.nix`, escolha KDE Plasma, XFCE ou Cinnamon para preencher o modelo versionado. Se já houver um arquivo, a identidade precisa coincidir exatamente com a informada. O instalador confere os tipos das opções locais e os campos obrigatórios. O `dry-build` manual avalia a configuração completa do sistema, incluindo as asserções do NixOS.
+3. Na primeira instalação, se o checkout ainda estiver sem `config/local.nix`, escolha KDE Plasma, GNOME, Cinnamon ou XFCE para preencher o modelo versionado. Se já houver um arquivo, a identidade precisa coincidir exatamente com a informada. O instalador confere os tipos das opções locais e os campos obrigatórios. O `dry-build` manual avalia a configuração completa do sistema, incluindo as asserções do NixOS.
 4. Confirme o destino. O instalador publica os arquivos regulares versionados, o módulo local e as escolhas salvas pelo Noir, quando houver. Ao substituir uma implantação, guarda a cópia anterior em `/etc/nixos/nixos-config.previous`. A troca atômica de diretórios usa `mv --exchange --no-copy` do GNU Coreutils e exige suporte do sistema de arquivos. Guarde ajustes avulsos fora da pasta de implantação para preservá-los por mais de uma atualização.
 5. Na primeira instalação, o instalador configura o Git global pela conta selecionada depois da publicação.
 6. Após uma publicação bem-sucedida no destino padrão, o Noir oferece **Validar agora (dry-build)**, **Voltar ao menu principal** e **Sair**. A validação abre na mesma sessão. Se a publicação for cancelada ou falhar, o Noir retorna ao menu principal após mostrar o resultado.
@@ -81,9 +81,10 @@ imports = [
 ];
 ```
 
-- Para usar **XFCE**, remova as declarações da máquina que ativam KDE Plasma (`services.desktopManager.plasma6.enable`) ou SDDM (`services.displayManager.sddm.enable`).
 - Para usar **KDE Plasma**, remova as declarações que ativam XFCE (`services.xserver.desktopManager.xfce.enable`) ou LightDM (`services.xserver.displayManager.lightdm.enable`).
+- Para usar **GNOME**, remova as declarações da máquina que ativam KDE Plasma, Cinnamon, XFCE, SDDM ou LightDM. O perfil habilita GNOME em Wayland com GDM.
 - Para usar **Cinnamon**, remova as declarações que ativam KDE Plasma, XFCE, SDDM ou GDM. O perfil configura a sessão Cinnamon em X11, com LightDM e Slick Greeter.
+- Para usar **XFCE**, remova as declarações da máquina que ativam KDE Plasma (`services.desktopManager.plasma6.enable`) ou SDDM (`services.displayManager.sddm.enable`).
 
 O menu principal oferece **Instalar ou atualizar** e, para o destino padrão, **Gerenciar sistema**. O Dialog também oferece **Gerenciar opcionais**, inclusive antes da primeira instalação. Em **Gerenciar sistema**, escolha **Validar configuração (dry-build)** ou **Aplicar configuração (switch)**. No Dialog, Esc volta ao menu principal e, a partir dele, encerra o Noir. No Gum, use **Cancelar**. No modo texto, digite `q`.
 
@@ -111,7 +112,7 @@ Confira a sessão gráfica e os serviços depois da ativação. Repita a instala
 
 `personal.nix` já importa `config/local.nix`. Para mudar as escolhas da estação, use `sudoedit /etc/nixos/nixos-config/config/local.nix`. Veja a estrutura em [config/local.example.nix](config/local.example.nix).
 
-`personalConfig.desktop` aceita `"kde"`, `"xfce"`, `"cinnamon"` ou `null` para delegar o desktop à configuração da máquina. `personalConfig.username` deve identificar uma conta normal já declarada na máquina. Os campos de autoria registram as escolhas locais. Se o instalador indicar que o arquivo está incompleto ou incompatível, corrija-o no caminho indicado antes de repetir a instalação. Se uma implantação mais antiga guardava as escolhas em `/etc/nixos/nixos-config/local.nix`, guarde o original e transfira as opções para `/etc/nixos/nixos-config/config/local.nix` conforme o modelo.
+`personalConfig.desktop` aceita `"kde"`, `"gnome"`, `"cinnamon"`, `"xfce"` ou `null` para delegar o desktop à configuração da máquina. `personalConfig.username` deve identificar uma conta normal já declarada na máquina. Os campos de autoria registram as escolhas locais. Se o instalador indicar que o arquivo está incompleto ou incompatível, corrija-o no caminho indicado antes de repetir a instalação. Se uma implantação mais antiga guardava as escolhas em `/etc/nixos/nixos-config/local.nix`, guarde o original e transfira as opções para `/etc/nixos/nixos-config/config/local.nix` conforme o modelo.
 
 O tema padrão do Oh My Zsh é `"bira"`. Em `zsh.theme`, você pode indicar outro tema disponível. Com `null`, os plugins, o autocompletar, as sugestões e o destaque de sintaxe continuam disponíveis. Depois de editar, siga [Verificar e aplicar](#verificar-e-aplicar). Se trocar de ambiente gráfico, revise também a sessão padrão, o login automático e as declarações gráficas da máquina.
 
@@ -128,8 +129,9 @@ Em um clone novo, os três opcionais começam desmarcados. Instalações antigas
 | Perfil | Sessão | Gerenciador de login |
 | --- | --- | --- |
 | KDE Plasma | KDE Plasma 6 com layout inicial Noir. Selecione a sessão Wayland no login. | SDDM |
-| XFCE | XFCE em X11 | LightDM |
+| GNOME | GNOME em Wayland com padrões Noir | GDM |
 | Cinnamon | Cinnamon em X11 com layout inicial Noir | LightDM com Slick Greeter |
+| XFCE | XFCE em X11 | LightDM |
 
 O perfil KDE Plasma inicia uma sessão vazia a cada login. A configuração do sistema fixa apenas `General/loginMode` no `ksmserverrc`, inclusive para contas que já restauravam sessões. O início automático de aplicativos permanece disponível.
 
@@ -137,9 +139,9 @@ A rolagem natural é o padrão para touchpads compatíveis. Em Wayland, o KWin l
 
 No XFCE, o LightDM executa `numlockx on` antes de abrir a tela de login X11. Na sessão, o `xfsettingsd` lê os valores `Numlock` e `RestoreNumlock` do canal `keyboards`, que o perfil fixa como verdadeiros. A tecla NumLock continua disponível durante a sessão. O estado físico do LED e o efeito sobre teclados sem bloco numérico dedicado dependem do hardware e do mapa XKB. No KDE Plasma, a opção nativa também funciona em Wayland e uma configuração de NumLock já gravada pela conta tem precedência.
 
-O ícone `nix-snowflake` corresponde ao floco oficial do NixOS. O layout inicial do KDE Plasma define esse ícone no Kickoff. No XFCE, novas instâncias do Whisker recebem o ícone por padrão e instâncias existentes preservam a escolha da conta. O perfil Cinnamon usa o mesmo ícone como padrão no menu de aplicativos. [Arte oficial do NixOS](https://github.com/NixOS/nixos-artwork)
+O ícone `nix-snowflake` corresponde ao floco oficial do NixOS. O layout inicial do KDE Plasma define esse ícone no Kickoff. O perfil Cinnamon usa o mesmo ícone como padrão no menu de aplicativos. No XFCE, novas instâncias do Whisker recebem o ícone por padrão e instâncias existentes preservam a escolha da conta. [Arte oficial do NixOS](https://github.com/NixOS/nixos-artwork)
 
-O papel de parede oficial do Noir é `wallpapers/nixos-001.png`. KDE Plasma, XFCE e Cinnamon usam a mesma imagem como padrão da área de trabalho e da tela de bloqueio. As escolhas salvas em cada conta têm precedência.
+O papel de parede oficial do Noir é `wallpapers/nixos-001.png`. KDE Plasma, GNOME, Cinnamon e XFCE usam a mesma imagem como padrão da área de trabalho e da tela de bloqueio. As escolhas salvas em cada conta têm precedência.
 
 ### KDE Plasma Noir
 
@@ -176,42 +178,22 @@ Em uma instalação de teste com o perfil KDE Plasma, inicie uma sessão Wayland
 
 Escolha outro papel de parede pela interface, mova um widget, remova um favorito e reabra a sessão. Confira se as mudanças permanecem, se o Bitwarden inicia uma vez e se as janelas anteriores ficam fechadas. Para testar o PNG personalizado, configure outra imagem e repita a primeira entrada em uma segunda conta descartável.
 
-### XFCE Noir
+### GNOME Noir
 
-O XFCE usa `Orchis-Dark` no GTK e no Xfwm4, `Papirus-Dark` para ícones e Breeze 24 para o cursor. Bibata e Tela continuam disponíveis para quem os escolheu. O dconf oferece a preferência por modo escuro a aplicativos que a respeitam, como os baseados em libadwaita. A sessão oferece o tema de plataforma GTK aos aplicativos Qt 5 e Qt 6 quando a conta ainda não definiu outro. Aplicativos com tema próprio podem usar suas preferências.
+O perfil usa GNOME em Wayland com GDM e conserva os aplicativos e serviços padrão fornecidos pelo NixOS, incluindo o GNOME Console. O GNOME Shell mantém o relógio central e as animações nativas. Adwaita segue a preferência por modo escuro com realce azul. As janelas que respeitam o layout do desktop recebem os botões **Maximizar** e **Fechar**. O fundo padrão vem da imagem compartilhada do Noir.
 
-A área de trabalho e o bloqueador nativo usam o papel de parede padrão do Noir quando a conta ainda não escolheu um fundo. Imagens escolhidas em **Configurações → Área de trabalho** conservam suas opções por monitor e área de trabalho. Os ícones da área de trabalho ficam ocultos por padrão. O LightDM usa o GTK Greeter em grafite, com relógio de 24 horas, seleção de sessão, acessibilidade e ações de energia conforme disponíveis.
+- **Dash to Dock** oferece um dock inferior, centralizado e ajustado ao conteúdo, com ocultação inteligente e aparência padrão da extensão. [Dash to Dock](https://extensions.gnome.org/extension/307/dash-to-dock/)
+- **Clipboard Indicator** oferece histórico no painel. O perfil limita o cache e deixa os atalhos globais da extensão desativados. Na versão 71, a extensão ainda pode gravar o item recém-copiado, os favoritos e imagens. O modo privado pausa a captura. [Clipboard Indicator 71](https://extensions.gnome.org/review/70694)
+- **AppIndicator** fornece a bandeja para aplicativos AppIndicator e KStatusNotifierItem. O Bitwarden tem autostart XDG na sessão GNOME. Uma entrada pessoal com o mesmo nome tem precedência. [AppIndicator](https://extensions.gnome.org/extension/615/appindicator-support/)
+- **Áudio.** Use **Configurações → Som** para selecionar entrada e saída. No GNOME Shell 50, a seleção de entrada nas Configurações rápidas é exibida quando há captura elegível. [Código do GNOME Shell 50.6](https://github.com/GNOME/gnome-shell/blob/50.6/js/ui/status/volume.js)
+- **NumLock.** O GDM e a sessão recebem o padrão inicial ligado. O Mutter lembra a última escolha em cada ambiente. O LED e a digitação do teclado numérico dependem do dispositivo.
+- **Aplicativos preferenciais.** O Chrome abre links HTTP e HTTPS e arquivos HTML por padrão. O Nautilus abre pastas. As associações da conta têm precedência.
 
-#### Painéis iniciais
+O dconf fornece padrões editáveis. Uma lista de extensões ou atalhos já gravada pela conta pode prevalecer. `Super+N` abre o Noir no GNOME Terminal, também disponível pela entrada **Noir** no menu de aplicativos. O perfil inicial do GNOME Terminal oculta a barra de menus e a barra de rolagem, mantendo o histórico. Perfis adicionais do terminal têm suas próprias preferências.
 
-- **Superior, linha de 38 px.** Ocupa a largura disponível e fica sempre visível. O relógio de 24 horas, sem data, fica entre o Whisker e o menu de janelas, com separadores fixos. Um espaçador mantém a bandeja, o seletor de áreas de trabalho, Mostrar área de trabalho e as ações de sessão à direita. Volume e bateria aparecem quando seus componentes estão habilitados.
-- **Inferior, 42 px.** Painel Docklike experimental, centrado e ajustado ao conteúdo, com fundo grafite translúcido. Recolhe quando a janela em foco o sobrepõe. A ordem inicial é navegador preferido, IntelliJ IDEA, Visual Studio Code, DBeaver e Thunar. O Docklike associa janelas a IDs de aplicativos. Se você trocar de navegador depois de criado o painel, desafixe o antigo e fixe o novo para agrupar suas janelas no lançador correspondente.
-- **Whisker e áreas.** A ordem inicial dos favoritos é navegador preferido, Configurações do XFCE, Thunar, IntelliJ IDEA, DBeaver, Visual Studio Code e Postman. As duas áreas iniciais se chamam `Work 1` e `Work 2`, numa linha, com navegação sem retorno circular.
+#### Homologação do GNOME Noir
 
-O Xfwm4 usa as reservas nativas dos painéis para calcular a área útil. O perfil usa a geometria do XFCE, sem impor margens fixas. As margens salvas pela conta continuam editáveis. O Picom mantém a composição X11 com XRender e VSync, e as janelas seguem os efeitos nativos do ambiente. [Preferências de painel](https://docs.xfce.org/xfce/xfce4-panel/preferences) · [Docklike Taskbar](https://docs.xfce.org/panel-plugins/xfce4-docklike-plugin/start)
-
-#### Contas existentes e preferências
-
-O modelo inicial é importado quando a conta está sem estado do painel, inclusive após reinicializar apenas o painel. O Noir preserva painéis gravados, parcialmente configurados ou vazios. O cache de sessão e as preferências do Plank ficam disponíveis à conta. A entrada de autostart do Plank fornecida pelo Noir só inicia o Plank se a conta estiver sem a marca do modelo Docklike. Entradas pessoais de autostart seguem a precedência do XDG.
-
-O Google Chrome é o padrão dos links, arquivos HTML e do auxiliar WebBrowser do XFCE. Ajuste esses vínculos em **Aplicativos preferidos**. O Bitwarden tem uma entrada de autostart. Para desativá-la, use **Sessão e inicialização → Início automático de aplicativos** ou crie `~/.config/autostart/bitwarden.desktop` com `Hidden=true` em `[Desktop Entry]`. O XFCE conserva seu gerenciamento nativo de sessões salvas. [Aplicativos preferidos](https://docs.xfce.org/xfce/xfce4-settings/preferred-apps) · [Autostart XDG](https://specifications.freedesktop.org/autostart/latest/)
-
-A tecla Super esquerda abre o Whisker quando usada sozinha. O atalho usa `Shift+Alt+F11` internamente. `Super+L` chama `xflock4`, que usa o bloqueador da sessão, normalmente `xfce4-screensaver`. Combinações já atribuídas têm precedência. [Atalhos do XFCE](https://github.com/xfce-mirror/libxfce4ui/blob/master/libxfce4kbd-private/xfce4-keyboard-shortcuts.xml)
-
-| Componente | Uso |
-| --- | --- |
-| Blueman | Pareie, conecte e desconecte dispositivos Bluetooth pelo menu ou pela bandeja. |
-| Áudio | Ajuste volume, microfone e saída. No painel inicial, **Mixer de áudio** abre o Pavucontrol na aba **Dispositivos de saída**, se disponível. |
-| Bateria | Passe o cursor sobre o ícone para consultar a carga. O percentual ao lado do ícone fica oculto por padrão e pode ser habilitado nas propriedades. |
-| Mugshot | Edite o perfil pessoal conforme as permissões da conta e do AccountsService. |
-| Clipman | Adicione-o ao painel para guardar histórico da área de transferência. |
-| Thunar com Xarchiver | Compacte e extraia arquivos pelo menu de contexto. |
-
-A bandeja prefere ícones simbólicos e segue os 22 px de ícone do painel inicial. No XFCE 4.20.7, uma bandeja horizontal exibe o grupo XEmbed antes do grupo StatusNotifier. A ordem de rede e Bluetooth depende de como os applets se registram. [Bandeja do XFCE](https://docs.xfce.org/xfce/xfce4-panel/systray) · [Código da bandeja 4.20.7](https://raw.githubusercontent.com/xfce-mirror/xfce4-panel/xfce4-panel-4.20.7/plugins/systray/sn-plugin.c)
-
-#### Validação do XFCE Noir
-
-Em uma instalação de teste, use uma conta nova e outra que já tenha painel e Plank. Confira o papel de parede na área de trabalho e na tela de bloqueio em mais de um monitor. Maximize e abra uma janela em tela cheia para verificar a área útil, o recolhimento e a transparência. Troque o navegador, confirme o comportamento do Docklike e teste o início automático do Bitwarden com a entrada habilitada e desabilitada. Em seguida, personalize painel, favoritos, atalhos e papel de parede e confira se as escolhas persistem após um novo login. A homologação do Docklike depende desses testes gráficos.
+Em uma VM QEMU/KVM com uma conta nova, confira o GDM e a sessão Wayland, o carregamento das três extensões, o dock, o relógio, as animações, o fundo e o bloqueio. Copie texto e imagens entre aplicativos, confira a bandeja e o autostart do Bitwarden, selecione entradas e saídas em **Som** e teste o NumLock no GDM e na sessão. Verifique `Super+N`, a rolagem de histórico do terminal e a precedência das preferências em uma conta já personalizada.
 
 ### Cinnamon Noir
 
@@ -343,17 +325,54 @@ Verifique a posição do relógio com zonas assimétricas, em escala alta e com 
 
 Altere o tema, mova applets e faça um novo login. Em outra conta com uma sessão anterior salva, verifique se as janelas anteriores permanecem fechadas e se o Bitwarden inicia uma vez. Restaure o layout em uma conta de teste já personalizada e confira se os atalhos e as demais preferências fora do procedimento foram preservados. Teste autenticação por senha, suspensão e biometria em um equipamento com leitor compatível.
 
+### XFCE Noir
+
+O XFCE usa `Orchis-Dark` no GTK e no Xfwm4, `Papirus-Dark` para ícones e Breeze 24 para o cursor. Bibata e Tela continuam disponíveis para quem os escolheu. O dconf oferece a preferência por modo escuro a aplicativos que a respeitam, como os baseados em libadwaita. A sessão oferece o tema de plataforma GTK aos aplicativos Qt 5 e Qt 6 quando a conta ainda não definiu outro. Aplicativos com tema próprio podem usar suas preferências.
+
+A área de trabalho e o bloqueador nativo usam o papel de parede padrão do Noir quando a conta ainda não escolheu um fundo. Imagens escolhidas em **Configurações → Área de trabalho** conservam suas opções por monitor e área de trabalho. Os ícones da área de trabalho ficam ocultos por padrão. O LightDM usa o GTK Greeter em grafite, com relógio de 24 horas, seleção de sessão, acessibilidade e ações de energia conforme disponíveis.
+
+#### Painéis iniciais
+
+- **Superior, linha de 38 px.** Ocupa a largura disponível e fica sempre visível. O relógio de 24 horas, sem data, fica entre o Whisker e o menu de janelas, com separadores fixos. Um espaçador mantém a bandeja, o seletor de áreas de trabalho, Mostrar área de trabalho e as ações de sessão à direita. Volume e bateria aparecem quando seus componentes estão habilitados.
+- **Inferior, 42 px.** Painel Docklike experimental, centrado e ajustado ao conteúdo, com fundo grafite translúcido. Recolhe quando a janela em foco o sobrepõe. A ordem inicial é navegador preferido, IntelliJ IDEA, Visual Studio Code, DBeaver e Thunar. O Docklike associa janelas a IDs de aplicativos. Se você trocar de navegador depois de criado o painel, desafixe o antigo e fixe o novo para agrupar suas janelas no lançador correspondente.
+- **Whisker e áreas.** A ordem inicial dos favoritos é navegador preferido, Configurações do XFCE, Thunar, IntelliJ IDEA, DBeaver, Visual Studio Code e Postman. As duas áreas iniciais se chamam `Work 1` e `Work 2`, numa linha, com navegação sem retorno circular.
+
+O Xfwm4 usa as reservas nativas dos painéis para calcular a área útil. O perfil usa a geometria do XFCE, sem impor margens fixas. As margens salvas pela conta continuam editáveis. O Picom mantém a composição X11 com XRender e VSync, e as janelas seguem os efeitos nativos do ambiente. [Preferências de painel](https://docs.xfce.org/xfce/xfce4-panel/preferences) · [Docklike Taskbar](https://docs.xfce.org/panel-plugins/xfce4-docklike-plugin/start)
+
+#### Contas existentes e preferências
+
+O modelo inicial é importado quando a conta está sem estado do painel, inclusive após reinicializar apenas o painel. O Noir preserva painéis gravados, parcialmente configurados ou vazios. O cache de sessão e as preferências do Plank ficam disponíveis à conta. A entrada de autostart do Plank fornecida pelo Noir só inicia o Plank se a conta estiver sem a marca do modelo Docklike. Entradas pessoais de autostart seguem a precedência do XDG.
+
+O Google Chrome é o padrão dos links, arquivos HTML e do auxiliar WebBrowser do XFCE. Ajuste esses vínculos em **Aplicativos preferidos**. O Bitwarden tem uma entrada de autostart. Para desativá-la, use **Sessão e inicialização → Início automático de aplicativos** ou crie `~/.config/autostart/bitwarden.desktop` com `Hidden=true` em `[Desktop Entry]`. O XFCE conserva seu gerenciamento nativo de sessões salvas. [Aplicativos preferidos](https://docs.xfce.org/xfce/xfce4-settings/preferred-apps) · [Autostart XDG](https://specifications.freedesktop.org/autostart/latest/)
+
+A tecla Super esquerda abre o Whisker quando usada sozinha. O atalho usa `Shift+Alt+F11` internamente. `Super+L` chama `xflock4`, que usa o bloqueador da sessão, normalmente `xfce4-screensaver`. Combinações já atribuídas têm precedência. [Atalhos do XFCE](https://github.com/xfce-mirror/libxfce4ui/blob/master/libxfce4kbd-private/xfce4-keyboard-shortcuts.xml)
+
+| Componente | Uso |
+| --- | --- |
+| Blueman | Pareie, conecte e desconecte dispositivos Bluetooth pelo menu ou pela bandeja. |
+| Áudio | Ajuste volume, microfone e saída. No painel inicial, **Mixer de áudio** abre o Pavucontrol na aba **Dispositivos de saída**, se disponível. |
+| Bateria | Passe o cursor sobre o ícone para consultar a carga. O percentual ao lado do ícone fica oculto por padrão e pode ser habilitado nas propriedades. |
+| Mugshot | Edite o perfil pessoal conforme as permissões da conta e do AccountsService. |
+| Clipman | Adicione-o ao painel para guardar histórico da área de transferência. |
+| Thunar com Xarchiver | Compacte e extraia arquivos pelo menu de contexto. |
+
+A bandeja prefere ícones simbólicos e segue os 22 px de ícone do painel inicial. No XFCE 4.20.7, uma bandeja horizontal exibe o grupo XEmbed antes do grupo StatusNotifier. A ordem de rede e Bluetooth depende de como os applets se registram. [Bandeja do XFCE](https://docs.xfce.org/xfce/xfce4-panel/systray) · [Código da bandeja 4.20.7](https://raw.githubusercontent.com/xfce-mirror/xfce4-panel/xfce4-panel-4.20.7/plugins/systray/sn-plugin.c)
+
+#### Validação do XFCE Noir
+
+Em uma instalação de teste, use uma conta nova e outra que já tenha painel e Plank. Confira o papel de parede na área de trabalho e na tela de bloqueio em mais de um monitor. Maximize e abra uma janela em tela cheia para verificar a área útil, o recolhimento e a transparência. Troque o navegador, confirme o comportamento do Docklike e teste o início automático do Bitwarden com a entrada habilitada e desabilitada. Em seguida, personalize painel, favoritos, atalhos e papel de parede e confira se as escolhas persistem após um novo login. A homologação do Docklike depende desses testes gráficos.
+
 ### Terminais
 
 Os padrões dos terminais nos perfis KDE Plasma e XFCE ficam em `modules/applications/terminal.nix`. A barra de menus, as ferramentas e a barra de rolagem ficam ocultas por padrão. A barra de abas aparece quando há mais de uma aba. O título da janela, a seleção de texto, a rolagem e os atalhos permanecem disponíveis. As preferências pessoais têm precedência.
 
-O comando `noir` executa `~/nixos-config/config.sh` pela conta da sessão e pode ser usado com outros shells e ambientes gráficos. O atalho padrão `Super+N` abre o Noir no Konsole na sessão KDE Plasma, no XFCE Terminal na sessão XFCE e no GNOME Terminal na sessão Cinnamon. Em caso de falha, a janela aguarda Enter antes de fechar.
+O comando `noir` executa `~/nixos-config/config.sh` pela conta da sessão e pode ser usado com outros shells e ambientes gráficos. O atalho padrão `Super+N` abre o Noir no Konsole em KDE Plasma, no GNOME Terminal em GNOME e Cinnamon e no XFCE Terminal em XFCE. Em caso de falha, a janela aguarda Enter antes de fechar.
 
-No KDE Plasma, o KGlobalAccel carrega o atalho. O perfil XFCE usa Xfconf, e o perfil Cinnamon inclui a combinação na lista inicial de atalhos personalizados do GSettings. Escolhas pessoais têm precedência. Em um TTY ou em outro ambiente gráfico, execute `noir` no terminal ou configure o atalho no gerenciador da sessão. [Implementação do KGlobalAccel](https://github.com/KDE/kglobalacceld/blob/v6.6.6/src/globalshortcutsregistry.cpp)
+No KDE Plasma, o KGlobalAccel carrega o atalho. GNOME e Cinnamon oferecem a combinação nas respectivas listas iniciais de atalhos personalizados. O perfil XFCE usa Xfconf. Escolhas pessoais têm precedência. Em um TTY ou em outro ambiente gráfico, execute `noir` no terminal ou configure o atalho no gerenciador da sessão. [Implementação do KGlobalAccel](https://github.com/KDE/kglobalacceld/blob/v6.6.6/src/globalshortcutsregistry.cpp)
 
 - **KDE Plasma** usa Konsole com o perfil de sistema **Noir** quando a conta não tem outro perfil padrão. `Ctrl+Shift+M` alterna a barra de menus. [Manual do Konsole](https://docs.kde.org/stable_kf6/en/konsole/konsole/)
+- **GNOME** e **Cinnamon** usam GNOME Terminal para o Noir. Se a conta já personalizou a lista de atalhos, use a entrada **Noir** do menu ou adicione a combinação nas configurações de teclado.
 - **XFCE** usa XFCE Terminal com DejaVu Sans Mono 11, opacidade inicial de 90% e o atalho padrão `Ctrl+Alt+T`. O menu de contexto permite reexibir a barra de menus. Na sessão XFCE X11, o Xfwm4 gerencia as janelas e o Picom faz a composição com XRender e VSync.
-- No **perfil Cinnamon**, o Noir abre no GNOME Terminal pela entrada do menu ou pelo atalho padrão `Super+N`. Se a conta já personalizou a lista de atalhos, use a entrada **Noir** do menu ou adicione a combinação nas configurações de teclado.
 
 #### GNOME Terminal no Cinnamon
 
@@ -419,7 +438,7 @@ nixos-config/
 │   └── options.nix
 └── modules/
     ├── applications/  Navegadores, senhas, desenvolvimento, escritório, JDK, Zsh e terminal
-    ├── desktops/      Perfis KDE Plasma, XFCE e Cinnamon
+    ├── desktops/      Perfis KDE Plasma, GNOME, Cinnamon e XFCE
     ├── optional/      Cron, virtualização, Codex CLI e tema do Zsh
     ├── services/      Bluetooth, fprintd, keyd, Polkit e PostgreSQL
     └── system/        Pacotes gerais, manutenção do Nix e ZRAM

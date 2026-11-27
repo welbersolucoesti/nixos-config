@@ -61,5 +61,5 @@ in
 {
   config.environment.systemPackages = [ noir ]
     ++ lib.optionals (config.personalConfig.desktop == "xfce") [ noirSession biometria ]
-    ++ lib.optional (lib.elem config.personalConfig.desktop [ "kde" "cinnamon" ]) noirSession;
+    ++ lib.optional (lib.elem config.personalConfig.desktop [ "kde" "gnome" "cinnamon" ]) noirSession;
 }

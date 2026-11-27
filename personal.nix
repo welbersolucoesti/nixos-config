@@ -38,8 +38,9 @@ in
     ./modules/desktops/numlock.nix
     ./modules/desktops/launcher-icon.nix
     ./modules/desktops/kde.nix
-    ./modules/desktops/xfce.nix
+    ./modules/desktops/gnome.nix
     ./modules/desktops/cinnamon.nix
+    ./modules/desktops/xfce.nix
   ];
 
   assertions = [
