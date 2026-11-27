@@ -18,6 +18,8 @@
 
 A lista comum reside em [`applications.nix`](../applications.nix). Terminais gráficos e atalhos específicos estão nas páginas dos [perfis](README.md#ambientes-gráficos).
 
+Aplicativos comuns são disponibilizados ao sistema após a ativação. Preferências do aplicativo, como extensões de editor e arquivos do usuário, continuam na conta. Para mudar o conjunto de pacotes, consulte [Alterar aplicativos e serviços](customization.md#alterar-aplicativos-e-serviços).
+
 ### Java, Vim e ONLYOFFICE
 
 O pacote `temurin-bin-25` fornece `java` e `javac`. Use `java -version` e `javac -version` para conferir a versão encontrada no terminal. A seleção de `JAVA_HOME` e do SDK da IDE depende de cada projeto.
@@ -37,6 +39,8 @@ psql -h localhost -p 5432 -U USUARIO -d BANCO -W
 
 O exemplo de conexão pressupõe um usuário e banco já criados. Guarde senhas fora dos arquivos Nix, mantenha backups e revise autenticação e firewall antes de expor o serviço à rede.
 
+A configuração do serviço declara como o PostgreSQL inicia e aceita conexões. Os bancos e usuários que forem criados fazem parte do estado persistente. Uma geração anterior usa os dados disponíveis no disco. Consulte [Gerações, rollback e dados](concepts.md#gerações-rollback-e-dados) antes de voltar após uma mudança na versão do servidor.
+
 ### Impressões digitais
 
 Use os comandos abaixo na sessão da conta que usará o leitor para cadastrar e conferir uma digital.
@@ -47,7 +51,7 @@ fprintd-list "$USER"
 fprintd-verify
 ```
 
-`fprintd-delete "$USER"` apaga todas as digitais da conta. O perfil [XFCE](desktops/xfce.md#biometria) oferece também o comando `biometria` e configuração PAM específica. O comportamento no login e no desbloqueio precisa ser verificado no leitor físico.
+`fprintd-delete "$USER"` apaga todas as digitais da conta. O perfil [XFCE](desktops/xfce.md#autenticação-e-bloqueio) oferece também o comando `biometria` e configuração PAM específica. O comportamento no login e no desbloqueio precisa ser verificado no leitor físico.
 
 ## Módulos opcionais
 

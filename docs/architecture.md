@@ -4,6 +4,63 @@
 
 O Noir usa o sistema tradicional de módulos do NixOS e o Nixpkgs da máquina, sem Flakes nem Home Manager. O checkout é a área de trabalho e de preparação. A configuração da máquina importa a árvore publicada em `/etc/nixos/nixos-config`.
 
+## Fontes de verdade
+
+| Para responder | Consulte |
+| --- | --- |
+| Quais módulos e aplicativos fazem parte da revisão? | [`noir.nix`](../noir.nix), [`applications.nix`](../applications.nix) e seus imports. |
+| Como uma escolha do JSON chega ao sistema? | Esquema, adaptação Nix e editor em [`core/config/`](../core/config/). |
+| Qual identidade e qual desktop uma atualização preserva? | `config/local.nix` e `settings.json` da implantação publicada. A escolha gráfica legada tem regras próprias de [recuperação](recovery.md#escolha-gráfica-ausente-ou-divergente). |
+| O que o menu verifica e em que momento? | [`core/install.sh`](../core/install.sh) e a camada de interface em [`core/lib/`](../core/lib/). |
+| Qual resultado entrou em execução? | O perfil e a sessão do sistema são analisados à parte dos arquivos publicados. Consulte [Ativação interrompida](recovery.md#ativação-interrompida). |
+
+## Fluxos do Noir
+
+### Configuração que o NixOS avalia
+
+```text
+/etc/nixos/configuration.nix
+├── hardware-configuration.nix e definições da máquina
+└── nixos-config/noir.nix (árvore publicada)
+    ├── config/local.nix → identidade
+    ├── settings.json → preferences.nix → settings.nix → personalConfig
+    └── applications.nix, serviços, opcionais e perfis → configuração do NixOS
+```
+
+Os perfis e opcionais consultam `personalConfig` para decidir quais definições aplicar. O editor usa o mesmo esquema de preferências por meio de `edit-settings.nix`. Isso permite revisar o JSON candidato antes de gravá-lo e reaproveitar as mesmas regras na avaliação do sistema.
+
+### Publicação
+
+```text
+Branch e upstream consultado → fast-forward revisado, quando necessário
+                              → arquivos regulares da revisão Git
+Arquivos locais e implantação → identidade e preferências preparadas
+                                ↓
+                 Árvore candidata + revisão do import
+                                ↓
+             Confirmação → troca protegida → implantação e backups
+                                ↓
+                 Sincronização local e Git global inicial
+```
+
+O candidato passa por checagens de sintaxe e validação de preferências. A publicação oficial revalida o estado revisado antes das trocas. O resultado da troca e as etapas posteriores no checkout têm estados separados. Uma falha local posterior não desfaz a publicação nem a escolha gráfica consolidada.
+
+### Aplicação do sistema
+
+```text
+Máquina + árvore publicada + Nixpkgs
+            ↓
+ Rebuild pelo Noir → conferir desktop publicado e checkout
+            ↓
+ Dry-build → avaliação e plano de construção
+            ↓
+ Confirmação do proprietário no fluxo switch
+            ↓
+ Construção ou reutilização no Store → ativação do sistema
+```
+
+O rebuild usa a configuração publicada. Somente a verificação da escolha gráfica consulta o JSON do checkout nesse fluxo. O dry-build pode ser executado separadamente. A etapa de switch mantém vínculo com o terminal que a iniciou. Consulte [manutenção](maintenance.md#validação-e-ativação) para o procedimento e [recuperação](recovery.md#ativação-interrompida) para distinguir perfil de sistema, sistema em execução e entrada de boot após uma interrupção.
+
 ## Estrutura do repositório
 
 | Caminho | Responsabilidade |
@@ -37,4 +94,4 @@ No destino oficial, a etapa protegida recebe a árvore preparada, confere os est
 
 A trava do checkout serializa a edição e a preparação da publicação. A trava do diretório pai protege as trocas e é compartilhada com os rebuilds do Noir no destino oficial. A [autoridade da escolha gráfica](configuration.md#escolha-gráfica) é o registro publicado. A sincronização do checkout e a configuração inicial do Git global ocorrem depois da publicação.
 
-[Instalação](installation.md) · [Manutenção](maintenance.md) · [Recuperação](recovery.md)
+[Conceitos](concepts.md) · [Personalização](customization.md) · [Manutenção](maintenance.md)

@@ -27,8 +27,12 @@ cd nixos-config
 ./noir
 ```
 
-Selecione **Instalar ou atualizar**. O [guia de instalação](docs/installation.md) descreve os pré-requisitos, o formato de imports aceito e o que será apresentado para revisão. Use `./noir --plain` para o modo texto.
+Selecione **Instalar ou atualizar**. O [guia de instalação](docs/installation.md) cobre a escolha do perfil, a publicação e o primeiro login. Use `./noir --plain` para o modo texto.
 
 ## Documentação
 
-[Índice completo](docs/README.md) · [Configuração](docs/configuration.md) · [Manutenção](docs/maintenance.md) · [Aplicativos e serviços](docs/applications.md) · [Recuperação](docs/recovery.md) · [Arquitetura](docs/architecture.md)
+- **[Instalar](docs/installation.md)** — da preparação do NixOS ao primeiro login.
+- **[Compreender](docs/concepts.md)** — como Nix, Nixpkgs e NixOS se relacionam e onde o Noir entra.
+- **[Personalizar](docs/customization.md)** — como alterar módulos, validar mudanças e manter um fork.
+
+[Índice completo](docs/README.md)

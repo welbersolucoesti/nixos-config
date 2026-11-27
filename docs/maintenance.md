@@ -2,6 +2,8 @@
 
 [Projeto](../README.md) · [Índice](README.md)
 
+Atualizar o Noir altera os módulos e recursos do repositório. Atualizar o Nixpkgs altera os pacotes e as opções de módulos usados ao avaliar o sistema. São operações independentes. Consulte [Conceitos](concepts.md#o-que-o-noir-acrescenta) para os efeitos sobre as versões e a reprodutibilidade.
+
 ## Atualização e publicação
 
 Execute `./noir` pela conta normal e selecione **Instalar ou atualizar**. Use **Editar preferências** no Dialog antes de iniciar se houver mudanças locais a publicar.
@@ -23,9 +25,17 @@ nixos-rebuild dry-build --no-flake -I nixos-config=/etc/nixos/configuration.nix
 
 A invocação direta usa o ambiente Nix da sessão e avalia a configuração sem as verificações adicionais do Noir. A avaliação pode exigir acesso de leitura ao arquivo de identidade publicado. Consulte [Permissões da implantação](recovery.md#permissões-da-implantação).
 
+O resultado de um dry-build pode listar saídas que seriam construídas ou baixadas. Um resultado bem-sucedido confirma a avaliação e o planejamento. Falhas durante a construção real, a ativação ou o login ainda são possíveis. `nixos-rebuild build` materializa a configuração sem ativá-la quando for necessário testar também a construção em um ambiente apropriado.
+
 Somente o proprietário confirma **Aplicar configuração agora?**. O fluxo exige terminal interativo e executa um novo dry-build antes de pedir confirmação, inclusive após uma validação avulsa. O Dialog solicita a senha sob demanda. No modo texto, o `sudo` autentica no terminal.
 
-O `switch` pode reiniciar o gerenciador de login e derrubar a sessão gráfica. A operação atual depende do terminal que a iniciou. Quando houver possibilidade de interrupção da sessão gráfica, o proprietário pode iniciar o Noir em um TTY. Em caso de interrupção, confira o [registro e o estado do sistema](recovery.md#ativação-interrompida) antes de repetir a operação.
+O `switch` pode reiniciar o gerenciador de login e derrubar a sessão gráfica. A operação atual depende do terminal que a iniciou. Quando houver possibilidade de interrupção da sessão gráfica, o proprietário pode iniciar o Noir em um [TTY](installation.md#acessar-um-tty). Em caso de interrupção, confira o [registro e o estado do sistema](recovery.md#ativação-interrompida) antes de repetir a operação.
+
+## Atualizar o Nixpkgs
+
+Identifique primeiro de onde vem o Nixpkgs usado pelo sistema. `nix-instantiate --find-file nixpkgs` mostra a resolução na conta atual. O Noir usa o canal `nixos` de root no rebuild quando `/nix/var/nix/profiles/per-user/root/channels/nixos` resolve para um caminho do Nix Store. A resolução da conta e a do rebuild podem apontar para revisões diferentes.
+
+Se o sistema é gerenciado por canais, `nix-update` atualiza os canais de root depois de o alias do Noir estar disponível. Em instalações que fixam ou fornecem o Nixpkgs por outro caminho, atualize a origem adotada pela máquina. A mudança de origem só afeta os aplicativos em execução depois de construir e aplicar a configuração. Preserve `system.stateVersion`, que trata da compatibilidade de estado dos serviços, e faça um dry-build antes de aplicar. [Atualização do NixOS](https://nixos.org/manual/nixos/stable/#sec-upgrading)
 
 ## Manutenção do Nix
 

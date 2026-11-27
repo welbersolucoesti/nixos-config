@@ -2,9 +2,25 @@
 
 [Projeto](../README.md) · [Índice](README.md)
 
-## Diagnóstico inicial
+## Diagnóstico por sintomas
 
 No Dialog, use **Registros** na tela de resultado. Os rebuilds também gravam a saída em `${XDG_STATE_HOME:-$HOME/.local/state}/noir/rebuilds/`. O resumo indica o arquivo quando o rebuild chega a criar um registro.
+
+| Sintoma | Primeiro ponto a conferir |
+| --- | --- |
+| O Noir não abre em Dialog | Confirme que o terminal está em modo interativo e tem espaço suficiente. Use `./noir --plain` conforme [Obter e abrir o Noir](installation.md#obter-e-abrir-o-noir). |
+| O atalho ou a entrada de menu do Noir não abre | Confirme se `~/nixos-config/noir` existe e é executável. Para um checkout em outro local, abra `./noir` nesse diretório. |
+| O checkout está sujo, adiantado ou divergente | Confira o [estado do Git](#estado-do-git) e a [sincronização do fork](customization.md#remoto-e-sincronização-do-fork). |
+| O bloco de imports foi rejeitado | Compare a configuração da máquina com o [bloco reconhecido](installation.md#preparar-a-configuração-da-máquina). |
+| Há erro de leitura de `config/local.nix` | Confira as [permissões da implantação](#permissões-da-implantação). |
+| A publicação falhou ou há `.nixos-config.*` pendente | Examine [Backups e reversão da publicação](#backups-e-reversão-da-publicação). |
+| O desktop está ausente ou diverge | Consulte [Escolha gráfica ausente ou divergente](#escolha-gráfica-ausente-ou-divergente). |
+| A publicação terminou e há uma etapa local pendente | Confira [Preferências locais](#preferências-locais-após-publicação) ou [Identidade Git](#identidade-git-após-publicação), conforme o resumo. |
+| O dry-build falhou | Comece pela mensagem e pelo [registro da validação](#falha-no-dry-build). |
+| A avaliação passou e a construção falhou | Consulte [Avaliação, construção e ativação](#avaliação-construção-e-ativação) para identificar a derivação e os registros. |
+| O terminal fechou no switch ou a sessão esperada não aparece | Confira [Ativação interrompida](#ativação-interrompida), o perfil escolhido e as declarações de login da máquina. |
+
+## Estado do Git
 
 No checkout, `git status` e `git diff` mostram mudanças locais. O comando abaixo mostra os commits exclusivos de cada lado em relação ao upstream já consultado.
 
@@ -58,6 +74,18 @@ git config --global user.email "EMAIL"
 git config --global init.defaultBranch main
 ```
 
+## Falha no dry-build
+
+Se a falha ocorrer antes de criar um registro, use a mensagem do Noir. Um arquivo ilegível, uma trava de outra operação ou uma escolha gráfica divergente são verificações anteriores ao Nix. Se a avaliação chegou a iniciar, leia o primeiro erro relevante no registro. Uma opção desconhecida pode indicar incompatibilidade com a revisão do Nixpkgs. Um conflito entre módulos pode apontar para um desktop ou gerenciador de login já definido pela máquina. Corrija a origem da definição, publique novamente se os arquivos do Noir precisarem mudar e repita a validação.
+
+## Avaliação, construção e ativação
+
+| Etapa | Indício no registro | Próximo passo |
+| --- | --- | --- |
+| Avaliação | Opção desconhecida, tipo incorreto, import ausente ou conflito de definições. | Identifique a opção e o módulo indicados. Confira se a revisão do Nixpkgs é a esperada e se o módulo consta dos imports. |
+| Construção | Erro ao obter uma dependência ou falha de uma derivação identificada por um caminho `.drv`. | Leia a primeira falha do construtor ou do download. Quando houver um caminho de derivação e o recurso estiver disponível, `nix log /nix/store/…-pacote.drv` consulta o registro correspondente. |
+| Ativação | A construção terminou e uma unidade ou ação de aplicação falhou. | Use o registro do rebuild e o journal para identificar a unidade. Antes de repetir, compare o sistema ativo, o perfil e o próximo boot. |
+
 ## Ativação interrompida
 
 Uma falha no `switch` pode ocorrer depois da construção ou da mudança do perfil, com o sistema anterior ainda em execução. Compare o sistema ativo, o perfil e a entrada que o carregador configurou para o próximo boot. Uma entrada existente no menu, por si só, não indica a entrada padrão.
@@ -69,8 +97,12 @@ readlink -f /nix/var/nix/profiles/system
 
 Confira o registro do Noir e, conforme a falha, o journal da máquina. O proprietário decide qualquer ação posterior a partir desse estado.
 
+Se a tela de login não aparecer, use um [TTY disponível](installation.md#acessar-um-tty). O comando `systemctl status display-manager.service` ajuda a verificar se o serviço iniciou. A ausência da sessão esperada também pode vir da escolha **Definido pela máquina** ou de declarações de login incompatíveis.
+
 ## Gerações do NixOS
 
 Os backups da implantação guardam os arquivos avaliados pelo NixOS. As gerações guardam sistemas já construídos. O proprietário pode selecionar uma geração ainda disponível no menu de inicialização. A disponibilidade das gerações depende da retenção local e da [manutenção do Nix](maintenance.md#manutenção-do-nix).
+
+Ao voltar a uma geração anterior, a máquina pode continuar com arquivos locais e dados de serviços alterados depois daquela geração. Para recuperar esses dados, use os backups correspondentes. Consulte [Gerações, rollback e dados](concepts.md#gerações-rollback-e-dados).
 
 [Configuração](configuration.md) · [Manutenção](maintenance.md)

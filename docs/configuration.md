@@ -23,9 +23,36 @@ Para alterar a autoria de commits depois da primeira publicação, use a configu
 | `optionals.codex` | Booleano, com padrão `false`. |
 | `zsh.theme` | Nome do tema Oh My Zsh ou `null`. A ausência da chave usa `"bira"`. Com `null`, o tema fica desativado e os demais recursos do Zsh continuam disponíveis. |
 
-No Dialog, **Editar preferências** oferece **Wallpaper**, **Opcionais** e **Tema Zsh**. O campo de wallpaper vazio remove a seleção e volta ao padrão. O campo de tema vazio grava `null`. Na lista de opcionais, use Espaço para marcar ou desmarcar **CRON**, **Virtualização** e **Codex CLI**. O Noir valida a edição, apresenta o diff e pede confirmação antes de gravar no checkout. As mudanças chegam à implantação pelo fluxo **Instalar ou atualizar**. Consulte os requisitos e efeitos dos [módulos opcionais](applications.md#módulos-opcionais).
+No Dialog, **Editar preferências** oferece **Wallpaper**, **Opcionais** e **Tema Zsh**. Deixar o campo **Wallpaper** vazio remove a seleção e volta ao papel de parede padrão. O campo de tema vazio grava `null`. Na lista de opcionais, use `Espaço` para marcar ou desmarcar **CRON**, **Virtualização** e **Codex CLI**. O Noir valida a edição, apresenta as diferenças e pede confirmação antes de gravar no checkout. Use **Instalar ou atualizar** para publicar e [aplique a configuração](maintenance.md#validação-e-ativação) para levar os efeitos ao sistema. Consulte os requisitos dos [módulos opcionais](applications.md#módulos-opcionais).
 
 Para editar manualmente, use o modelo como referência para as chaves e os tipos do JSON. Mantenha o valor de `desktop` já publicado e preserve as demais chaves do checkout. As opções derivadas do JSON são de leitura no NixOS. Em uma configuração antiga, revise definições de tema e opcionais em `local.nix` e registre as preferências correspondentes no JSON.
+
+Por exemplo, este JSON habilita virtualização e desativa o tema Zsh em uma instalação que escolheu **Definido pela máquina**. Se houver outras preferências, integre apenas `optionals.virtualization` e `zsh.theme` ao arquivo existente. Use sempre o valor de `desktop` da própria instalação.
+
+```json
+{
+  "desktop": null,
+  "optionals": {
+    "virtualization": true
+  },
+  "zsh": {
+    "theme": null
+  }
+}
+```
+
+## Preferências da sessão
+
+As escolhas em `settings.json` pertencem ao Noir. Aplicativos e ambientes gráficos também podem armazenar preferências no diretório pessoal da conta.
+
+| Tipo | Efeito |
+| --- | --- |
+| Editável pela conta | A interface do aplicativo grava a escolha pessoal quando a chave admite alteração. |
+| Padrão inicial | O perfil fornece um valor ou layout para contas que ainda não têm estado correspondente. |
+| Valor bloqueado | A chave gerenciada prevalece durante a sessão, como em configurações dconf com bloqueio ativo. |
+| Configuração reaplicada | Uma rotina de sessão volta a configurar o valor em um momento definido, como no início do Plasma ou no login XFCE. |
+
+As páginas dos [perfis](README.md#ambientes-gráficos) descrevem exemplos dessas diferenças. Para mudar o que um perfil define ou reaplica, consulte [personalização do fork](customization.md#modificar-perfis-gráficos).
 
 ## Escolha gráfica
 
