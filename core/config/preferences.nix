@@ -1,7 +1,8 @@
-{ lib, file, wallpaperDirectory }:
+{ lib, file, wallpaperDirectory, desktopOnly ? false }:
 
 let
   choices = if builtins.pathExists file then builtins.fromJSON (builtins.readFile file) else { };
+  selected = if desktopOnly then lib.intersectAttrs { desktop = null; } choices else choices;
   # O JSON contém dados. Os marcadores internos do sistema de módulos são
   # reservados, inclusive dentro de valores que deveriam ser escalares.
   plain = value:
@@ -19,6 +20,7 @@ let
             type = types.nullOr (types.enum [ "kde" "gnome" "cinnamon" "xfce" ]);
             default = null;
           };
+        } // lib.optionalAttrs (!desktopOnly) {
           wallpaper = mkOption {
             type = types.addCheck types.str (name: (wallpaperFiles.${name} or null) == "regular");
             default = "nixos-001.png";
@@ -44,10 +46,10 @@ let
           };
         };
       }
-      { config = choices; }
+      { config = selected; }
     ];
   };
 in
 assert lib.assertMsg (builtins.isAttrs choices) "settings.json deve conter um objeto JSON.";
-assert lib.assertMsg (plain choices) "settings.json contém propriedades reservadas pelo Nix.";
+assert lib.assertMsg (plain selected) "settings.json contém propriedades reservadas pelo Nix.";
 builtins.deepSeq evaluated.config { inherit choices; values = evaluated.config; }

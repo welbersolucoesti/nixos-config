@@ -5,6 +5,7 @@ let
   inherit (import ./preferences.nix {
     inherit lib file;
     wallpaperDirectory = builtins.toPath root + "/core/wallpapers";
+    desktopOnly = field == "" && attr == "desktopChoice";
   }) choices values;
   optionalChanges = lib.filterAttrs (name: enabled: values.optionals.${name} != enabled)
     (builtins.fromJSON value);
@@ -12,6 +13,8 @@ in
 if field == "" then {
   inherit choices values;
   desktop = if values.desktop == null then "machine" else values.desktop;
+  desktopChoice = if !(choices ? desktop) then "absent"
+    else if values.desktop == null then "null" else values.desktop;
   states = builtins.concatStringsSep " " (map (enabled: if enabled then "on" else "off") [
     values.optionals.cron
     values.optionals.virtualization

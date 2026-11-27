@@ -1,5 +1,4 @@
 {
-  "desktop": null,
   "wallpaper": "nixos-001.png",
   "optionals": {
     "cron": false,
