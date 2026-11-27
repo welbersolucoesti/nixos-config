@@ -16,6 +16,7 @@ local_result=(neutral 'Não preparada')
 publication_result=(neutral 'Não iniciada')
 backup_result=(neutral 'Não criado')
 identity_result=(neutral 'Não aplicada')
+machine_result=()
 published_destination=''
 rebuild_operation=''
 rebuild_log=''
@@ -81,7 +82,9 @@ show_result() {
   ui_outcome 'Publicação' "${publication_result[@]}"
   ui_outcome 'Backup' "${backup_result[@]}"
   ui_outcome 'Identidade Git' "${identity_result[@]}"
-  if [[ -n $published_destination ]]; then show_next_steps "$published_destination"; fi
+  if [[ -n ${machine_result[0]:-} ]]; then
+    ui_outcome 'Import do NixOS' "${machine_result[@]}"
+  fi
 }
 
 finish() {
@@ -147,7 +150,8 @@ check_requirements() {
   if [[ $destination == "$default_destination" ]]; then
     command -v sudo >/dev/null || die "A publicação protegida requer sudo."
     [[ -x /run/current-system/sw/bin/bash ]] || die "Bash do sistema indisponível para publicar."
-    for cmd in "${publication_tools[@]}" setfacl; do
+    command -v sed >/dev/null || die 'Comando necessário ausente: sed.'
+    for cmd in "${publication_tools[@]}" sed setfacl; do
       PATH=$system_path command -v "$cmd" >/dev/null ||
         die "Comando necessário no ambiente da publicação protegida: $cmd."
     done
@@ -262,17 +266,13 @@ sync_checkout() {
       die "$path deve ficar fora do controle de versão."
     fi
   done
+  [[ -z $status ]] || die "Resolva as alterações locais antes de publicar ou aplicar o fast-forward."
   if [[ $head == "$source_commit" ]]; then
-    case $status in
-      ''|' M applications.nix'|'M  applications.nix'|'MM applications.nix') ;;
-      *) die "Resolva as alterações locais. Só o conteúdo editado de applications.nix pode ser publicado fora do commit." ;;
-    esac
     git_result=(ok 'Já atualizado')
-    if [[ -z $status ]]; then ui_fields 'Arquivos modificados' 'Nenhum'; fi
+    ui_fields 'Arquivos modificados' 'Nenhum'
     return
   fi
 
-  [[ -z $status ]] || die "Resolva as alterações locais antes de aplicar o fast-forward."
   ui_info $'\nFast-forward do checkout local.'
   ui_confirm 'Aplicar atualização?' ||
     cancel "$?" 'Atualização do checkout cancelada.'
@@ -389,9 +389,15 @@ file_revision() {
     printf 'absent\n'
     return
   fi
-  metadata=$(TZ=UTC0 stat -c '%d:%i:%a:%s:%y:%z' -- "$file") || return
-  digest=$(sha256sum < "$file") || return
-  printf '%s %s\n' "$metadata" "${digest%% *}"
+  metadata=$(TZ=UTC0 stat -c '%d:%i:%u:%g:%a:%s:%y|%z' -- "$file") || return
+  digest=$(file_digest "$file") || return
+  printf '%s|%s\n' "$digest" "$metadata"
+}
+
+file_digest() {
+  local digest
+  digest=$(sha256sum < "$1") || return
+  printf '%s\n' "${digest%% *}"
 }
 
 require_revision() {
@@ -423,6 +429,101 @@ show_file_diff() {
   local label=$1 old=$2 new=$3 status=0
   diff -u --label "$label (anterior)" --label "$label (proposto)" -- "$old" "$new" || status=$?
   (( status <= 1 ))
+}
+
+insert_noir_import() {
+  sed -zE '
+    :again
+    s@(^|\n)([[:blank:]]*imports[[:blank:]]*=[[:blank:]]*\n[[:blank:]]*\[ # Include the results of the hardware scan\.[[:blank:]]*\n)([[:blank:]]*)(\./hardware-configuration\.nix[[:blank:]]*)(\n[[:blank:]]*\];[[:blank:]]*)(\n|$)@\1\2\3\4\n\3./nixos-config/noir.nix\5\6@g
+    t again
+  ' -- "$1"
+}
+
+machine_imports() {
+  # Consulte somente imports, sem carregar os módulos referenciados pelo bloco convencional.
+  nix-instantiate --eval --strict --argstr file "$1" --expr '
+    { file }:
+    let
+      source = import (builtins.toPath file);
+      module = if builtins.isFunction source then
+        source (builtins.mapAttrs (_: _: null) (builtins.functionArgs source))
+        else source;
+      dir = dirOf file;
+      hardware = dir + "/hardware-configuration.nix";
+      noir = dir + "/nixos-config/noir.nix";
+      paths = map (item: if builtins.isPath item then toString item else null)
+        (module.imports or []);
+      count = entry: builtins.length (builtins.filter (path: path == entry) paths);
+    in
+    if paths == [ hardware noir ] then "integrated"
+    else if paths == [ hardware ] then "conventional"
+    else if builtins.any (entry: entry != null && count entry > 1) paths then "duplicate"
+    else if paths == [] then "missing"
+    else "conflict"
+  '
+}
+
+machine_blocks() {
+  # Reconhece as linhas do modelo. O Nix verifica separadamente os imports ativos.
+  local -a lines=()
+  local i hardware indent state
+  local assignment='^[[:blank:]]*imports[[:blank:]]*=[[:blank:]]*$'
+  local comment='^[[:blank:]]*\[ # Include the results of the hardware scan\.[[:blank:]]*$'
+  local hardware_path='^([[:blank:]]*)\./hardware-configuration\.nix[[:blank:]]*$'
+  local noir_path='^[[:blank:]]*\./nixos-config/noir\.nix[[:blank:]]*$'
+  local closing='^[[:blank:]]*\];[[:blank:]]*$'
+  mapfile -t lines < "$1" || return
+  for ((i=3; i<${#lines[@]}; i++)); do
+    [[ ${lines[i]} =~ $closing ]] || continue
+    hardware=$((i-1)) state=conventional
+    if [[ ${lines[hardware]} =~ $noir_path ]]; then
+      hardware=$((hardware-1)) state=integrated
+    fi
+    [[ $hardware -ge 2 && ${lines[hardware-2]} =~ $assignment &&
+       ${lines[hardware-1]} =~ $comment && ${lines[hardware]} =~ $hardware_path ]] || continue
+    indent=${BASH_REMATCH[1]}
+    [[ $state == conventional || ${lines[i-1]} == "$indent./nixos-config/noir.nix"* ]] || continue
+    printf '%s:%s:%s\n' "$state" "$((i+1))" "$indent"
+  done
+}
+
+prepare_machine_import() {
+  local machine=$1 original=$prepared/configuration.nix proposed=$prepared/proposed.nix
+  local revision imports block state line indent changes status=0
+  [[ -e $machine || -L $machine ]] || die "Arquivo ausente: $machine."
+  [[ -f $machine && ! -L $machine && -r $machine ]] ||
+    die "Arquivo inválido ou ilegível: $machine. Use um arquivo regular."
+  revision=$(file_revision "$machine")
+  cp -- "$machine" "$original" || die "Falha ao copiar $machine para revisão."
+  require_revision "$machine" "$revision"
+  nix-instantiate --parse "$original" >/dev/null || die "Sintaxe Nix inválida em $machine."
+  imports=$(machine_imports "$original") || die "Não foi possível avaliar imports em $machine."
+  block=$(machine_blocks "$original") || die "Não foi possível conferir o bloco de imports em $machine."
+  [[ $block != *$'\n'* ]] ||
+    die "Correspondências ambíguas em $machine. Mantenha um único bloco convencional."
+  case $imports in
+    '"duplicate"') die "Import duplicado em $machine. Corrija o bloco antes de publicar." ;;
+    '"conflict"') die "Imports adicionais ou conflitantes em $machine. Corrija o bloco antes de publicar." ;;
+  esac
+  IFS=: read -r state line indent <<< "$block"
+  [[ -n $state && $imports == \""$state"\" ]] ||
+    die "Bloco de imports modificado ou não reconhecido em $machine."
+  machine_revision=$revision
+  if [[ $state == integrated ]]; then
+    machine_result=(ok 'Import já presente')
+    return
+  fi
+  insert_noir_import "$original" > "$proposed" || die 'Falha na transformação do configuration.nix com sed.'
+  changes=$(diff --unchanged-line-format='' --old-line-format='remoção' \
+    --new-line-format='%dn:%L' -- "$original" "$proposed") || status=$?
+  [[ $status == 1 && $changes == "$line:$indent./nixos-config/noir.nix" ]] &&
+    nix-instantiate --parse "$proposed" >/dev/null &&
+    [[ $(machine_imports "$proposed") == '"integrated"' ]] ||
+    die 'Resultado inesperado da transformação do configuration.nix.'
+  ui_review 'Revisar import do NixOS' show_file_diff "$machine" "$original" "$proposed" ||
+    cancel "$?" 'Publicação cancelada.'
+  machine_digest=$(file_digest "$proposed")
+  machine_result=(neutral 'Inclusão revisada')
 }
 
 choose_desktop() {
@@ -527,11 +628,114 @@ manage_settings() {
   settings_result='Preferências salvas. Use Instalar ou atualizar para publicá-las.'
 }
 
+publication_revision() {
+  local path=$1 inode revision
+  local -a member
+  if [[ ! -e $path && ! -L $path ]]; then
+    printf 'absent\n'
+    return
+  fi
+  [[ ! -L $path ]] || return 1
+  inode=$(stat -c '%d:%i' -- "$path") || return
+  if [[ -d $path ]]; then
+    member=(-C "$path" .)
+  elif [[ -f $path ]]; then
+    member=(--transform='s|^.*$|configuration.nix|' -C "${path%/*}" -- "${path##*/}")
+  else
+    return 1
+  fi
+  # O nome e os tempos de acesso e troca não fazem parte do conteúdo a restaurar.
+  revision=$(LC_ALL=C tar --sort=name --format=pax --numeric-owner --acls --xattrs \
+    --pax-option=exthdr.name=NoirPaxHeader,delete=atime,delete=ctime \
+    -cf - "${member[@]}" | sha256sum) || return
+  printf '%s|%s\n' "$inode" "${revision%% *}"
+}
+
+move_publication() {
+  local from=$1 to=$2 from_before=$3 to_before=$4 description=$5 index
+  local from_after to_after
+  [[ $(publication_revision "$from") == "$from_before" &&
+     $(publication_revision "$to") == "$to_before" ]] ||
+    die "Alteração concorrente durante $description. Confira $from e $to."
+
+  # Registre antes do mv para que uma interrupção após a troca também possa ser revertida.
+  index=${#move_from[@]}
+  move_from+=("$from")
+  move_to+=("$to")
+  saved_from+=("$from_before")
+  saved_to+=("$to_before")
+  if [[ $to_before == absent ]]; then
+    mv -Tn --no-copy -- "$from" "$to" || die "Falha durante $description."
+  else
+    mv -T --exchange --no-copy -- "$from" "$to" || die "Falha durante $description."
+  fi
+  from_after=$(publication_revision "$from") || die "Falha ao conferir $from após $description."
+  to_after=$(publication_revision "$to") || die "Falha ao conferir $to após $description."
+  if [[ $to_before != absent && $from_after != absent && $to_after == "$from_before" ]]; then
+    # Se o original recebeu uma edição durante a troca, devolva a versão que foi deslocada.
+    saved_to[index]=$from_after
+  fi
+  [[ $from_after == "$to_before" && $to_after == "$from_before" ]] ||
+    die "Alteração concorrente detectada após $description. Confira $from e $to."
+}
+
+finish_publication() {
+  local status=$1 index from to from_now to_now restored=true changed=false
+  trap '' HUP INT TERM
+  if (( status != 0 && ${#move_from[@]} > 0 )); then
+    for ((index=${#move_from[@]}-1; index>=0; index--)); do
+      from=${move_from[index]} to=${move_to[index]}
+      from_now=$(publication_revision "$from") || from_now=unavailable
+      to_now=$(publication_revision "$to") || to_now=unavailable
+      if [[ $from_now == "${saved_from[index]}" &&
+            ${to_now%%|*} != "${saved_from[index]%%|*}" ]]; then
+        continue
+      fi
+      if [[ $from_now != "${saved_to[index]}" || $to_now != "${saved_from[index]}" ]]; then
+        printf 'Reversão bloqueada por estado divergente em %s ou %s.\n' "$from" "$to" >&2
+        restored=false
+        # As etapas anteriores podem sustentar o estado que não pôde ser desfeito.
+        break
+      fi
+      changed=true
+      if [[ $from_now == absent ]]; then
+        mv -Tn --no-copy -- "$to" "$from" || restored=false
+      else
+        mv -T --exchange --no-copy -- "$to" "$from" || restored=false
+      fi
+      if ! "$restored" ||
+         [[ $(publication_revision "$from") != "${saved_from[index]}" ||
+            $(publication_revision "$to") != "${saved_to[index]}" ]]; then
+        printf 'Falha ao restaurar %s e %s.\n' "$from" "$to" >&2
+        restored=false
+        break
+      fi
+    done
+    if "$restored"; then
+      if "$changed"; then printf 'Publicação revertida. A operação não foi concluída.\n' >&2; fi
+    else
+      printf 'Reversão incompleta. Originais e cópias disponíveis foram preservados.\n' >&2
+      printf 'Área de recuperação: %s\nImplantação: %s\nBackup da implantação: %s\n' \
+        "$stage" "$target" "$previous" >&2
+      if [[ -n $machine ]]; then
+        printf 'Configuração: %s\n' "$machine" >&2
+        if [[ -n $machine_backup ]]; then printf 'Backup da configuração: %s\n' "$machine_backup" >&2; fi
+      fi
+      exit 75
+    fi
+  fi
+  rm -rf -- "$stage" || printf 'Confira a área temporária %s.\n' "$stage" >&2
+  exit "$status"
+}
+
 publish() (
   set -euo pipefail
   umask 022
   unset TAR_OPTIONS
-  local target=$1 expected=$2 expected_settings=$3 parent stage tree keep_stage=false
+  local target=$1 expected=$2 expected_settings=$3 parent stage tree
+  local expected_machine=${4:-} reviewed_digest=${5:-} machine='' candidate='' machine_backup=''
+  local deploy=true target_before previous_before=absent machine_before candidate_before tree_before
+  local -a move_from=() move_to=() saved_from=() saved_to=()
   local previous="$1.previous"
   local archive archive_size end_block end_offset trailer_size
   local tar_end='^block ([0-9]+): \*\* Block of NULs \*\*$'
@@ -548,6 +752,15 @@ publish() (
 
   exec 9< "$parent"
   flock -x 9 || die "Não foi possível bloquear $parent para publicação."
+  if [[ $target == "$default_destination" ]]; then
+    [[ -n $expected_machine && $expected_machine != absent ]] ||
+      die 'A publicação oficial exige a validação do configuration.nix.'
+    machine=$parent/configuration.nix
+    require_revision "$machine" "$expected_machine"
+    machine_before=$(publication_revision "$machine")
+  elif [[ -n $expected_machine || -n $reviewed_digest ]]; then
+    die 'Integração disponível somente no destino oficial.'
+  fi
   if [[ $expected == absent ]]; then
     [[ ! -e $target && ! -L $target ]] || die "O destino foi criado durante a preparação. Execute novamente."
   else
@@ -570,20 +783,18 @@ publish() (
         die 'O settings.json publicado deve pertencer a root, com escrita restrita ao proprietário.'
     fi
   fi
+  target_before=$(publication_revision "$target")
+  [[ ${target_before%%|*} == "$expected" ]] ||
+    die "O destino $target mudou durante a preparação."
 
   stage=$(mktemp -d -- "$parent/.nixos-config.XXXXXXXX") || die "Falha ao criar a área de publicação."
-  trap 'if $keep_stage; then
-          if [[ -d $tree && $(stat -c "%d:%i" -- "$tree") == "$expected" ]]; then
-            printf "Cópia anterior preservada para recuperação: %s\n" "$tree" >&2
-          fi
-        else
-          rm -rf -- "$stage"
-        fi' EXIT
+  tree=$stage/tree
+  trap 'finish_publication "$?"' EXIT
+  trap 'exit 129' HUP
   trap 'exit 130' INT
   trap 'exit 143' TERM
   archive=$stage/deployment.tar
   cat > "$archive" || die "Falha ao receber o TAR de implantação."
-  tree=$stage/tree
   mkdir -- "$tree"
   if ! end_block=$(LC_ALL=C tar --extract --block-number --warning=none --warning=missing-zero-blocks \
       --warning=alone-zero-block --file="$archive" --directory="$tree" \
@@ -604,54 +815,75 @@ publish() (
      -f $tree/settings.json && -f $tree/applications.nix && ! -e $tree/.git ]] || die "Árvore de publicação inválida."
   chmod -R go-w -- "$tree"
 
+  if [[ -n $reviewed_digest ]]; then
+    [[ -n $machine && -O $machine && -z $(find "$machine" -maxdepth 0 -perm /022 -print) ]] ||
+      die 'O configuration.nix deve pertencer ao proprietário da publicação e ter escrita restrita.'
+    require_revision "$machine" "$expected_machine"
+    candidate=$stage/configuration.nix
+    machine_backup=$machine.noir.${stage##*.}.previous
+    cp --preserve=all -- "$machine" "$candidate"
+    insert_noir_import "$machine" > "$candidate" || die 'Falha na transformação do configuration.nix com sed.'
+    [[ $(file_digest "$candidate") == "$reviewed_digest" ]] ||
+      die 'O configuration.nix proposto difere do arquivo revisado.'
+    candidate_before=$(publication_revision "$candidate")
+  fi
+
   if [[ $expected == absent ]]; then
     if (( EUID == 0 )); then
       # O dry-build lê o módulo na conta que chamou o sudo.
       setfacl --set "u::rw-,u:$SUDO_UID:r--,g::---,o::---" -- "$tree/config/local.nix" ||
         die "Falha ao conceder leitura de config/local.nix ao UID $SUDO_UID por ACL."
     fi
-    mv -Tn --no-copy -- "$tree" "$target" && [[ ! -e $tree ]] || die "Falha ao publicar em $target."
-    return
-  fi
-
-  cmp -s -- "$target/config/local.nix" "$tree/config/local.nix" ||
-    die "A configuração local mudou durante a preparação. Execute novamente."
-  cp -p -- "$target/config/local.nix" "$tree/config/local.nix" ||
-    die "Falha ao preservar as permissões da configuração local."
-  if diff -qr --no-dereference -- "$tree" "$target" >/dev/null &&
-     cmp -s <(find "$tree" -type f -printf '%P %m\0' | sort -z) \
-       <(find "$target" -type f -printf '%P %m\0' | sort -z); then
-    printf 'A cópia implantada já contém os mesmos arquivos.\n'
-    return
-  fi
-
-  if [[ -e $previous || -L $previous ]]; then
-    [[ -d $previous && ! -L $previous && -O $previous ]] ||
-      die "O caminho de backup $previous está ocupado. Verifique-o antes de continuar."
-  fi
-  require_revision "$target/settings.json" "$expected_settings"
-  # Antes e depois da troca, target aponta para uma árvore completa.
-  printf 'Substituindo a implantação e preparando o backup anterior.\n'
-  keep_stage=true
-  if ! mv -T --exchange --no-copy -- "$tree" "$target"; then
-    keep_stage=false
-    die "Falha na troca em $target. A instalação anterior continua em uso."
-  fi
-
-  local backup_failed=false
-  if [[ -d $previous ]]; then
-    mv -T --exchange --no-copy -- "$tree" "$previous" || backup_failed=true
   else
-    mv -Tn --no-copy -- "$tree" "$previous" && [[ ! -e $tree ]] || backup_failed=true
+    cmp -s -- "$target/config/local.nix" "$tree/config/local.nix" ||
+      die "A configuração local mudou durante a preparação. Execute novamente."
+    cp -p -- "$target/config/local.nix" "$tree/config/local.nix" ||
+      die "Falha ao preservar as permissões da configuração local."
+    if diff -qr --no-dereference -- "$tree" "$target" >/dev/null &&
+       cmp -s <(find "$tree" -type f -printf '%P %m\0' | sort -z) \
+         <(find "$target" -type f -printf '%P %m\0' | sort -z); then
+      printf 'A cópia implantada já contém os mesmos arquivos.\n'
+      deploy=false
+    elif [[ -e $previous || -L $previous ]]; then
+      [[ -d $previous && ! -L $previous && -O $previous ]] ||
+        die "O caminho de backup $previous está ocupado. Verifique-o antes de continuar."
+      previous_before=$(publication_revision "$previous")
+    fi
+    require_revision "$target/settings.json" "$expected_settings"
   fi
-  if "$backup_failed"; then
-    printf 'A nova cópia está instalada. A anterior está em %s. Falha ao gravar o backup em %s.\n' \
-      "$tree" "$previous" >&2
-    # EX_IOERR distingue a falha no backup após a troca das falhas anteriores.
-    return 74
+  if [[ -n $machine ]]; then require_revision "$machine" "$expected_machine"; fi
+  if "$deploy"; then
+    tree_before=$(publication_revision "$tree")
+    move_publication "$tree" "$target" "$tree_before" "$target_before" 'a publicação da implantação'
   fi
-  keep_stage=false
-  printf 'Cópia anterior para recuperação: %s\n' "$previous"
+
+  if [[ -n $candidate ]]; then
+    require_revision "$machine" "$expected_machine"
+    move_publication "$candidate" "$machine" "$candidate_before" "$machine_before" 'a integração do configuration.nix'
+  fi
+  if "$deploy" && [[ $expected != absent ]]; then
+    move_publication "$tree" "$previous" "$target_before" "$previous_before" 'a consolidação do backup da implantação'
+  fi
+  if [[ -n $candidate ]]; then
+    move_publication "$candidate" "$machine_backup" "$machine_before" absent 'a consolidação do backup do configuration.nix'
+    [[ $(publication_revision "$machine") == "$candidate_before" &&
+       $(publication_revision "$machine_backup") == "$machine_before" ]] ||
+      die 'O configuration.nix ou seu backup mudou durante a publicação.'
+  elif [[ -n $machine ]]; then
+    require_revision "$machine" "$expected_machine"
+  fi
+  if "$deploy"; then
+    [[ $(publication_revision "$target") == "$tree_before" ]] ||
+      die 'A implantação mudou durante a publicação.'
+  fi
+  if "$deploy" && [[ $expected != absent ]]; then
+    [[ $(publication_revision "$previous") == "$target_before" ]] ||
+      die 'O backup da implantação mudou durante a publicação.'
+  fi
+  if [[ -n $candidate ]]; then printf 'configuration.nix original preservado em %s.\n' "$machine_backup"; fi
+  if "$deploy" && [[ $expected != absent ]]; then
+    printf 'Cópia anterior para recuperação: %s\n' "$previous"
+  fi
 )
 
 start_switch_progress() {
@@ -750,6 +982,7 @@ sudo_dialog() (
 
 publish_dialog() {
   local archive=$1 root_script=$2 target=$3 expected=$4 expected_settings=$5
+  local expected_machine=$6 reviewed_digest=$7
   local started="Noir publicação ${prepared##*/}"
   if [[ $archive != /* ]]; then archive=$PWD/$archive; fi
   [[ -f $archive && -r $archive ]] || {
@@ -765,23 +998,11 @@ printf '%s\n' "$4" >&2
   die "Identidade do usuário de publicação indisponível."
 # O leitor abre o TAR como usuário. O publicador herda a entrada pelo pipe.
 setpriv --reuid "$SUDO_UID" --regid "$SUDO_GID" --clear-groups --no-new-privs -- \
-  cat -- "$3" | publish "$1" "$2" "$5"
+  cat -- "$3" | publish "$1" "$2" "$5" "$6" "$7"
 ROOT
   )
   sudo_dialog prepared "$started" /run/current-system/sw/bin/bash -p -c "$root_script" \
-    -- "$target" "$expected" "$archive" "$started" "$expected_settings"
-}
-
-show_next_steps() {
-  local destination=$1
-  if [[ $destination == "$default_destination" ]]; then
-    ui_section 'MIGRAÇÃO'
-    cat <<'INSTRUCTIONS'
-
-Em /etc/nixos/configuration.nix, adicione ./nixos-config/noir.nix a imports.
-Remova os imports antigos do projeto. Preserve os imports de hardware e os ajustes da máquina.
-INSTRUCTIONS
-  fi
+    -- "$target" "$expected" "$archive" "$started" "$expected_settings" "$expected_machine" "$reviewed_digest"
 }
 
 run_logged_rebuild() {
@@ -998,6 +1219,7 @@ show_publication() {
   printf '\n'
   if [[ $destination == "$default_destination" ]]; then
     ui_info 'Autenticação via sudo necessária.'
+    ui_outcome 'Import do NixOS' "${machine_result[@]}"
   fi
 }
 
@@ -1143,7 +1365,7 @@ install_configuration() {
   local checkout=$1 destination=$2 parent expected=absent source_commit
   local username git_name git_email git_target tree entry mode file checkout_local root_script
   local local_info account profile previous backup status shell_options=$- checkout_lock
-  local choices_revision published_revision=absent applications_revision
+  local choices_revision published_revision=absent machine_revision='' machine_digest='' checkout_status
   local +x password
   local -a identity_args=() nix_files=() identity_summary=()
 
@@ -1218,14 +1440,9 @@ install_configuration() {
       nix_files+=("$tree/$file")
     fi
   done < "$prepared/files"
-  [[ -f $tree/noir.nix && -f $tree/core/config/options.nix && -f $tree/config/local.example.nix ]] ||
+  [[ -f $tree/noir.nix && -f $tree/applications.nix &&
+     -f $tree/core/config/options.nix && -f $tree/config/local.example.nix ]] ||
     die "O checkout atualizado está incompleto."
-  applications_revision=$(file_revision "$checkout/applications.nix")
-  [[ $applications_revision != absent && -f $tree/applications.nix ]] ||
-    die 'applications.nix é obrigatório no checkout e na revisão sincronizada.'
-  cp -- "$tree/applications.nix" "$prepared/applications.nix"
-  cat -- "$checkout/applications.nix" > "$tree/applications.nix"
-  require_revision "$checkout/applications.nix" "$applications_revision"
   ui_run 'Validando arquivos Nix' nix-instantiate --parse "${nix_files[@]}" >/dev/null || {
     fail_command "$?" "A validação dos arquivos Nix falhou."
   }
@@ -1262,7 +1479,8 @@ install_configuration() {
     if [[ $expected == absent ]]; then
       ui_section 'Ambiente gráfico'
       profile=$(choose_desktop) || cancel "$?" 'Publicação cancelada.'
-      settings_eval "$tree" "$prepared/settings.json" --argstr field desktop --argstr value "$profile" +        > "$tree/settings.json"
+      settings_eval "$tree" "$prepared/settings.json" --argstr field desktop --argstr value "$profile" \
+        > "$tree/settings.json"
       printf '\n' >> "$tree/settings.json"
     else
       cp -- "$prepared/settings.json" "$tree/settings.json"
@@ -1292,13 +1510,12 @@ install_configuration() {
   else
     previous='Substituída se houver mudanças'
   fi
+  if [[ $destination == "$default_destination" ]]; then
+    prepare_machine_import "${destination%/*}/configuration.nix"
+  fi
   ui_review 'Revisar publicação' show_publication "$account" "$profile" "$checkout" "$source_commit" \
     "$destination" "$previous" "$backup" "${identity_summary[@]}" ||
     cancel "$?" 'Publicação cancelada.'
-  if ! cmp -s -- "$prepared/applications.nix" "$tree/applications.nix"; then
-    ui_review 'Alterações locais em applications.nix' show_file_diff applications.nix \
-      "$prepared/applications.nix" "$tree/applications.nix" || cancel "$?" 'Publicação cancelada.'
-  fi
   if ! cmp -s -- "$prepared/settings.json" "$tree/settings.json"; then
     ui_review 'Preferências para publicação' show_file_diff settings.json \
       "$prepared/settings.json" "$tree/settings.json" || cancel "$?" 'Publicação cancelada.'
@@ -1310,9 +1527,10 @@ install_configuration() {
     password=$(ui_dialog_password) || cancel "$?" 'Autenticação cancelada.'
   fi
   require_revision "$checkout/settings.json" "$choices_revision"
-  require_revision "$checkout/applications.nix" "$applications_revision"
-  [[ $(git rev-parse HEAD) == "$source_commit" ]] ||
-    die 'A revisão do checkout mudou durante a confirmação. Execute novamente.'
+  checkout_status=$(git status --porcelain=v1 --untracked-files=all)
+  [[ -z $checkout_status && $(git rev-parse HEAD) == "$source_commit" &&
+     $(git rev-parse '@{upstream}') == "$source_commit" ]] ||
+    die 'O checkout ou o upstream mudou durante a confirmação. Execute novamente.'
   if [[ ! -e $checkout_local && ! -L $checkout_local ]]; then
     new_local=$(mktemp -- "$checkout/config/.local.nix.XXXXXXXX")
     cat -- "$tree/config/local.nix" > "$new_local"
@@ -1327,17 +1545,19 @@ install_configuration() {
   ui_progress 'Publicando configuração'
   status=0
   if [[ $destination == "$default_destination" ]]; then
-    root_script="PATH=$system_path"$'\n'
-    root_script+=$(declare -f die check_regular_file file_revision require_revision publish)
+    root_script="PATH=$system_path"$'\n'"default_destination=$default_destination"$'\n'
+    root_script+=$(declare -f die check_regular_file file_digest file_revision require_revision \
+      insert_noir_import publication_revision move_publication finish_publication publish)
     if [[ -n $ui_dialog ]]; then
-      publish_dialog "$prepared/deployment.tar" "$root_script" "$destination" "$expected" "$published_revision" || status=$?
+      publish_dialog "$prepared/deployment.tar" "$root_script" "$destination" "$expected" "$published_revision" \
+        "$machine_revision" "$machine_digest" || status=$?
       unset -v password
       if [[ $shell_options == *a* ]]; then set -a; fi
       if [[ $shell_options == *x* ]]; then set -x; fi
     else
       root_script+=$'\npublish "$@"'
       sudo -- /run/current-system/sw/bin/bash -p -c "$root_script" -- "$destination" "$expected" "$published_revision" \
-        < "$prepared/deployment.tar" || status=$?
+        "$machine_revision" "$machine_digest" < "$prepared/deployment.tar" || status=$?
     fi
   else
     # Colete o status sem suprimir o errexit do publicador.
@@ -1347,11 +1567,15 @@ install_configuration() {
     set -e
   fi
 
-  if (( status != 0 && status != 74 )); then
+  if (( status == 75 )); then
+    publication_result=(error 'Reversão incompleta. Consulte os caminhos de recuperação nos registros.')
+  fi
+  if (( status != 0 )); then
     fail_command "$status" 'Falha na publicação. Consulte os diagnósticos.'
   fi
   published_destination=$destination
   publication_result=(ok "Concluída em $destination")
+  if [[ -n $machine_digest ]]; then machine_result=(ok 'Import incluído'); fi
   if [[ -n $new_local ]] && ! ln -T -- "$new_local" "$checkout_local"; then
     ui_warning "Preservado o arquivo em $checkout_local. Confira a identidade do checkout."
   fi
@@ -1359,10 +1583,6 @@ install_configuration() {
     ui_warning 'Preservado settings.json do checkout. Confira as preferências antes da próxima publicação.'
   fi
   if [[ ${local_result[0]} == warning ]]; then local_result=(ok 'Gerada e publicada'); fi
-  if (( status == 74 )); then
-    backup_result=(error 'Falha ao gravar. Consulte os registros para recuperar a cópia anterior.')
-    return "$status"
-  fi
   if [[ $expected != absent && -d $backup ]]; then backup_result=(ok "$backup"); fi
   if [[ $expected == absent ]]; then
     configure_git || status=$?
