@@ -4,41 +4,8 @@ let
   inherit (config.personalConfig) username;
 in
 {
-  # O arquivo local fornece a identidade e as escolhas da estação.
+  # O arquivo local fornece a identidade da estação.
   options.personalConfig = {
-    desktop = lib.mkOption {
-      type = lib.types.nullOr (lib.types.enum [ "kde" "gnome" "cinnamon" "xfce" ]);
-      default = null;
-      description = "Perfil de desktop. Por padrão, o desktop é definido pela configuração da máquina.";
-    };
-
-    defaultWallpaper = lib.mkOption {
-      type = lib.types.path;
-      default = ../wallpapers/nixos-001.png;
-      readOnly = true;
-      internal = true;
-      description = "Imagem padrão compartilhada pelos perfis gráficos do Noir.";
-    };
-
-    cinnamon.wallpaperSource = lib.mkOption {
-      type = lib.types.nullOr (lib.types.strMatching "/[^[:cntrl:]]+");
-      default = null;
-      description = ''
-        Caminho absoluto de um PNG local para o desktop e o bloqueio da Cinnamon.
-        Use null para aplicar o papel de parede padrão do Noir.
-      '';
-    };
-
-    cron.enable = lib.mkEnableOption "o agendamento diário de tarefas privadas";
-    virtualization.enable = lib.mkEnableOption "as ferramentas de virtualização e contêineres";
-    codex.enable = lib.mkEnableOption "o Codex CLI gerenciado pelo Noir";
-
-    zsh.theme = lib.mkOption {
-      type = lib.types.nullOr lib.types.nonEmptyStr;
-      default = "bira";
-      description = "Tema do Oh My Zsh. Use null para desativar o tema.";
-    };
-
     username = lib.mkOption {
       type = lib.types.nullOr (lib.types.strMatching "[a-z_][a-z0-9_-]{0,31}");
       default = null;

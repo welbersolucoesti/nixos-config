@@ -10,7 +10,7 @@ let
       printf 'HOME indisponível. Abra o Noir na sua sessão de usuário.\n' >&2
       exit 1
     fi
-    configurator=$HOME/nixos-config/config.sh
+    configurator=$HOME/nixos-config/noir
     if [[ ! -f $configurator ]]; then
       printf 'Repositório Noir indisponível. Esperado em %s.\n' "$configurator" >&2
       exit 1

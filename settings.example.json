@@ -1,0 +1,12 @@
+{
+  "desktop": null,
+  "wallpaper": "nixos-001.png",
+  "optionals": {
+    "cron": false,
+    "virtualization": false,
+    "codex": false
+  },
+  "zsh": {
+    "theme": "bira"
+  }
+}

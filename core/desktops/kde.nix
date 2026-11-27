@@ -28,14 +28,14 @@
 
     environment.etc."xdg/kcminputrc".text = ''
       [Keyboard]
-      NumLock=0
+      NumLock[$i]=0
 
       [Mouse]
-      cursorTheme=breeze_cursors
-      cursorSize=24
+      cursorTheme[$i]=breeze_cursors
+      cursorSize[$i]=24
 
       [Libinput][Defaults][Touchpad]
-      NaturalScroll=true
+      NaturalScroll[$i]=true
     '';
 
     assertions = [

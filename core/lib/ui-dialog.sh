@@ -91,9 +91,9 @@ ui_dialog_list() {
         if (( $# < 2 )); then continue; fi
         selection=2
         ;;
-      51)
-        if (( $# < 3 )); then continue; fi
-        selection=3
+      51|52|53|54|55|56|57)
+        selection=$((key - 48))
+        if (( selection > $# )); then continue; fi
         ;;
     esac
     [[ $selection =~ ^[1-9][0-9]*$ ]] && (( selection <= $# )) || return 2

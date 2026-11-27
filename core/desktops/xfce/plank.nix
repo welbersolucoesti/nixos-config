@@ -26,9 +26,10 @@ in
       OnlyShowIn=XFCE;
     '';
 
-    # Padrões sem bloqueio, abaixo do banco pessoal na ordem do dconf.
+    # Restringe o bloqueio às propriedades administradas do dock.
     programs.dconf.profiles.user.databases = lib.mkAfter [
       {
+        lockAll = true;
         settings."net/launchpad/plank/docks/dock1" = {
           position = "bottom";
           alignment = "center";

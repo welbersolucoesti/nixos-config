@@ -44,13 +44,4 @@ if (panels().length === 0) {
         "applications:dbeaver.desktop",
         "applications:org.kde.dolphin.desktop",
     ]);
-
-    const wallpaper = "/etc/noir/kde-wallpaper.png";
-    if (fileExists(wallpaper)) {
-        for (const desktop of desktopsForActivity(currentActivity())) {
-            desktop.wallpaperPlugin = "org.kde.image";
-            desktop.currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
-            desktop.writeConfig("Image", "file://" + wallpaper);
-        }
-    }
 }

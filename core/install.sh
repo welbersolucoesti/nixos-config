@@ -9,7 +9,7 @@ system_rebuild=/run/current-system/sw/bin/nixos-rebuild
 prepared=''
 new_local=''
 new_choices=''
-optionals_result=''
+settings_result=''
 wizard_started=false
 git_result=(neutral 'Não consultado')
 local_result=(neutral 'Não preparada')
@@ -61,8 +61,8 @@ partial_publication() {
 
 show_result() {
   ui_section 'Resumo'
-  if [[ -n $optionals_result ]]; then
-    ui_info "$optionals_result"
+  if [[ -n $settings_result ]]; then
+    ui_info "$settings_result"
     return
   fi
   if [[ -n $rebuild_operation ]]; then
@@ -122,42 +122,25 @@ run_operation() (
 )
 
 prepare_ui() {
-  local backend=$1 candidate status=0
+  local candidate status=0
   ui_interactive || return 0
-  if candidate=$(type -P "$backend") && candidate=$(realpath -e -- "$candidate") &&
-     "ui_use_$backend" "$candidate"; then
+  if candidate=$(type -P dialog) && candidate=$(realpath -e -- "$candidate") &&
+     ui_use_dialog "$candidate"; then
     return
   fi
-  if ! command -v nix-shell >/dev/null; then
-    [[ $backend == gum ]] || die "Dialog e nix-shell indisponíveis. Execute com --plain para usar o modo texto."
-    return 0
-  fi
-  if [[ $backend == gum ]]; then
-    ui_info 'Modo visual opcional · Gum via nix-shell'
-  fi
-  if [[ $backend == dialog ]] || ui_confirm 'Carregar Gum?'; then
-    ui_progress "Carregando ${backend^}"
-    # Use só o executável da sessão Nix. O configurador continua no processo original.
-    candidate=$(nix-shell -p "$backend" --run "type -P $backend") || status=$?
-    if (( status == 130 || status == 143 )) || [[ $backend == gum && $status -ge 128 ]]; then
-      cancel "$status"
-    fi
-    if (( status == 0 )) && "ui_use_$backend" "$candidate"; then return; fi
-    if [[ $backend == dialog ]]; then
-      ui_error "Não foi possível carregar o Dialog pelo nix-shell. Execute com --plain para usar o modo texto."
-      exit "$((status == 0 ? 1 : status))"
-    fi
-    ui_warning 'Gum indisponível. Modo texto.'
-  else
-    status=$?
-    if (( status >= 128 )); then cancel "$status"; fi
-  fi
+  command -v nix-shell >/dev/null ||
+    die "Dialog e nix-shell indisponíveis. Execute com --plain para usar o modo texto."
+  ui_progress 'Carregando Dialog'
+  candidate=$(nix-shell -p dialog --run 'type -P dialog') || status=$?
+  if (( status >= 128 )); then cancel "$status"; fi
+  if (( status == 0 )) && ui_use_dialog "$candidate"; then return; fi
+  die "Não foi possível carregar o Dialog pelo nix-shell. Execute com --plain para usar o modo texto."
 }
 
 check_requirements() {
   local cmd mv_help publication_path=$PATH
-  local publication_tools=(cat chmod cmp cp diff find flock mkdir mktemp mv rm sort stat tar)
-  for cmd in git nix-instantiate grep id getent dirname realpath ln "${publication_tools[@]}"; do
+  local publication_tools=(cat chmod cmp cp diff find flock mkdir mktemp mv rm sha256sum sort stat tar)
+  for cmd in git nix-instantiate grep id getent dirname realpath ln chmod "${publication_tools[@]}"; do
     command -v "$cmd" >/dev/null || die "Comando necessário ausente: $cmd."
   done
   grep -Eq '^ID=(nixos|"nixos")$' /etc/os-release || die "Este instalador requer NixOS."
@@ -268,24 +251,28 @@ sync_checkout() {
     git --no-pager diff --name-status "$base" "$head"
   fi
 
-  [[ -z $status ]] || die "Resolva as alterações locais antes de aplicar o fast-forward."
   if [[ $head != "$base" ]]; then
     [[ $source_commit == "$base" ]] ||
       die "As branches divergiram e o fast-forward é impossível. Resolva a divergência no checkout."
     die "O checkout contém commits ainda ausentes no remoto. Sincronize a branch antes de instalar."
   fi
-  for path in config/local.nix config/optionals.json; do
+  for path in config/local.nix settings.json; do
     if git ls-files --error-unmatch -- "$path" >/dev/null 2>&1 ||
        git cat-file -e "$source_commit:$path" 2>/dev/null; then
       die "$path deve ficar fora do controle de versão."
     fi
   done
   if [[ $head == "$source_commit" ]]; then
+    case $status in
+      ''|' M applications.nix'|'M  applications.nix'|'MM applications.nix') ;;
+      *) die "Resolva as alterações locais. Só o conteúdo editado de applications.nix pode ser publicado fora do commit." ;;
+    esac
     git_result=(ok 'Já atualizado')
-    ui_fields 'Arquivos modificados' 'Nenhum'
+    if [[ -z $status ]]; then ui_fields 'Arquivos modificados' 'Nenhum'; fi
     return
   fi
 
+  [[ -z $status ]] || die "Resolva as alterações locais antes de aplicar o fast-forward."
   ui_info $'\nFast-forward do checkout local.'
   ui_confirm 'Aplicar atualização?' ||
     cancel "$?" 'Atualização do checkout cancelada.'
@@ -324,21 +311,11 @@ nix_string() {
 }
 
 generate_local() {
-  local model=$1 output=$2 desktop line value
-  local assignment='^([[:blank:]]*)(desktop|username|userName|userEmail)[[:blank:]]*='
-  ui_section 'Ambiente gráfico'
-  desktop=$(ui_choose 'Selecione a sessão.' 'KDE Plasma' 'GNOME' 'Cinnamon' 'XFCE') || cancel "$?"
-  case $desktop in
-    ''|1) desktop=kde ;;
-    2) desktop=gnome ;;
-    3) desktop=cinnamon ;;
-    4) desktop=xfce ;;
-    *) die "Escolha 1 para KDE Plasma, 2 para GNOME, 3 para Cinnamon ou 4 para XFCE." ;;
-  esac
+  local model=$1 output=$2 line value
+  local assignment='^([[:blank:]]*)(username|userName|userEmail)[[:blank:]]*='
   while IFS= read -r line || [[ -n $line ]]; do
     if [[ $line =~ $assignment ]]; then
       case ${BASH_REMATCH[2]} in
-        desktop) value=$desktop ;;
         username) value=$username ;;
         userName) value=$git_name ;;
         userEmail) value=$git_email ;;
@@ -360,9 +337,9 @@ validate_local() {
     { options, file, username ? null, gitName ? null, gitEmail ? null }:
     let
       inherit (import <nixpkgs> { }) lib;
-      evaluated = lib.evalModules {
+      evaluated = import <nixpkgs/nixos/lib/eval-config.nix> {
         modules = [
-          { inherit (import (builtins.toPath options) { inherit lib; config = { }; }) options; }
+          (builtins.toPath options)
           (builtins.toPath file)
         ];
       };
@@ -373,34 +350,15 @@ validate_local() {
     assert lib.assertMsg (username == null || (
       cfg.username == username && cfg.git.userName == gitName && cfg.git.userEmail == gitEmail
     )) "A identidade do arquivo difere da informada. Confira username, git.userName e git.userEmail.";
-    builtins.deepSeq cfg "${cfg.username} ${if cfg.desktop == null then "machine" else cfg.desktop}"
+    builtins.deepSeq cfg cfg.username
   ' || fail_command "$?" "Revise $file conforme config/local.example.nix e execute novamente."
 }
 
-read_optionals() {
-  local tree=$1 local_file=$2 choices=$3 result
-  local state_pattern='^"((on|off) (on|off) (on|off))"$'
-  result=$(nix-instantiate --eval --strict --json \
-    --argstr options "$tree/config/options.nix" --argstr localFile "$local_file" \
-    --argstr module "$tree/config/noir-optionals.nix" --argstr choices "$choices" --expr '
-    { options, localFile, module, choices }:
-    let
-      inherit (import <nixpkgs> { }) lib;
-      local = builtins.toPath localFile;
-      evaluated = lib.evalModules {
-        modules = [
-          { inherit (import (builtins.toPath options) { inherit lib; config = { }; }) options; }
-          (import (builtins.toPath module) (builtins.toPath choices))
-        ] ++ lib.optional (builtins.pathExists local) local;
-      };
-      cfg = evaluated.config.personalConfig;
-    in
-    builtins.concatStringsSep " " (map (enabled: if enabled then "on" else "off") [
-      cfg.cron.enable cfg.virtualization.enable cfg.codex.enable
-    ])
-  ') || fail_command "$?" "Falha ao avaliar as escolhas dos opcionais."
-  [[ $result =~ $state_pattern ]] || die 'A avaliação deve retornar os três estados dos opcionais.'
-  printf '%s\n' "${BASH_REMATCH[1]}"
+settings_eval() {
+  local tree=$1 file=$2
+  shift 2
+  nix-instantiate --eval --strict --json "$tree/core/config/edit-settings.nix" \
+    --argstr root "$tree" --argstr file "$file" "$@"
 }
 
 evaluate_codex_package() {
@@ -414,12 +372,32 @@ evaluate_codex_package() {
   ' >/dev/null || fail_command "$?" 'Falha ao avaliar o pacote Codex CLI.'
 }
 
-validate_optionals() {
-  local tree=$1 states
-  states=$(read_optionals "$@") || return "$?"
-  if [[ $states == *' on' ]]; then
-    evaluate_codex_package "$tree/modules/optional/codex-package.nix"
+validate_settings() {
+  local tree=$1 file=$2 states
+  states=$(settings_eval "$tree" "$file" --argstr attr states) ||
+    fail_command "$?" "Revise as preferências em $file."
+  if [[ $states == *' on"' ]]; then
+    evaluate_codex_package "$tree/core/optional/codex-package.nix"
   fi
+}
+
+# O identificador detecta substituições, alterações de conteúdo e permissões.
+file_revision() {
+  local file=$1 metadata digest
+  check_regular_file "$file"
+  if [[ ! -e $file ]]; then
+    printf 'absent\n'
+    return
+  fi
+  metadata=$(TZ=UTC0 stat -c '%d:%i:%a:%s:%y:%z' -- "$file") || return
+  digest=$(sha256sum < "$file") || return
+  printf '%s %s\n' "$metadata" "${digest%% *}"
+}
+
+require_revision() {
+  local current
+  current=$(file_revision "$1") && [[ $current == "$2" ]] ||
+    die "O arquivo $1 mudou durante a operação. Confira o conteúdo e execute novamente."
 }
 
 check_regular_file() {
@@ -441,69 +419,119 @@ require_readable_file() {
   [[ -r $path ]] || die "UID $EUID sem permissão de leitura em $path."
 }
 
-show_optionals_diff() {
-  local index
-  for index in "${!names[@]}"; do
-    if [[ ${before[index]} != "${after[index]}" ]]; then
-      ui_fields "${names[index]}" "${labels[${before[index]}]} → ${labels[${after[index]}]}"
-    fi
-  done
+show_file_diff() {
+  local label=$1 old=$2 new=$3 status=0
+  diff -u --label "$label (anterior)" --label "$label (proposto)" -- "$old" "$new" || status=$?
+  (( status <= 1 ))
 }
 
-manage_optionals() {
-  local checkout=$1 destination=$2 state selection index tag choices_lock file
-  local choices=$checkout/config/optionals.json source=$checkout/config/optionals.json
-  local -a names=('CRON' 'Virtualization' 'Codex CLI') before after items=()
-  local -A labels=([on]='ativado' [off]='desativado') booleans=([on]=true [off]=false)
+choose_desktop() {
+  local selection
+  selection=$(ui_choose 'Selecione o desktop.' 'KDE Plasma' 'GNOME' 'Cinnamon' 'XFCE' 'Definido pela máquina') ||
+    return "$?"
+  case $selection in
+    1) printf 'kde\n' ;;
+    2) printf 'gnome\n' ;;
+    3) printf 'cinnamon\n' ;;
+    4) printf 'xfce\n' ;;
+    5) printf 'null\n' ;;
+    *) die 'Desktop inválido.' ;;
+  esac
+}
+
+manage_settings() {
+  local checkout=$1 destination=$2 selection field value states source source_revision choices_revision checkout_lock original
+  local choices=$checkout/settings.json
+  local -a optionals=()
+  local -a names=('CRON' 'Virtualização' 'Codex CLI') items=() enabled=(false false false)
+  local index tag
   wizard_started=true
-  ui_section_title='Gerenciar opcionais'
-  destination=$(realpath -ms -- "$destination")
-  [[ -d $checkout/config && ! -L $checkout/config ]] || die "Diretório config inválido no checkout."
-  exec {choices_lock}< "$checkout/config"
-  flock -n -x "$choices_lock" || die 'Outra edição de opcionais está em andamento neste checkout.'
-  check_regular_file "$choices"
-  file=$checkout/config/local.nix
-  if [[ -f $destination/config/local.nix && ! -L $destination/config/local.nix ]]; then
-    file=$destination/config/local.nix
-    if [[ ! -f $choices ]]; then source=$destination/config/optionals.json; fi
+  ui_section_title='Editar preferências'
+  exec {checkout_lock}< "$checkout"
+  flock -n -x "$checkout_lock" || die 'Outra edição ou publicação está em andamento neste checkout.'
+  choices_revision=$(file_revision "$choices")
+  source=$choices
+  if [[ $choices_revision == absent ]]; then
+    source=$(realpath -ms -- "$destination")/settings.json
   fi
-  check_regular_file "$file"
-  check_regular_file "$source"
-  state=$(read_optionals "$checkout" "$file" "$source")
-  read -r -a before <<< "$state"
-  after=(off off off)
-  for index in "${!names[@]}"; do
-    items+=("$((index + 1))" "${names[index]}" "${before[index]}")
-  done
-  selection=$(ui_dialog_optionals "${items[@]}") || cancel "$?" 'Edição dos opcionais cancelada.'
-  for tag in $selection; do
-    [[ $tag =~ ^[1-3]$ ]] || die 'Seleção de opcionais inválida.'
-    after[tag - 1]=on
-  done
-  if [[ ${before[*]} == "${after[*]}" ]]; then
-    optionals_result='Nenhuma escolha foi alterada.'
+  source_revision=$(file_revision "$source")
+  prepared=$(mktemp -d)
+  if [[ $source_revision == absent ]]; then
+    printf '{}\n' > "$prepared/settings.json"
+  else
+    cp -- "$source" "$prepared/settings.json"
+    require_revision "$source" "$source_revision"
+  fi
+  states=$(settings_eval "$checkout" "$prepared/settings.json" --argstr attr states) ||
+    fail_command "$?" 'Corrija settings.json antes de editar no Noir.'
+  ui_review 'Preferências atuais em settings.json' cat -- "$prepared/settings.json" ||
+    cancel "$?" 'Edição das preferências cancelada.'
+  selection=$(ui_choose 'Qual preferência deseja editar?' 'Desktop' 'Wallpaper' 'Opcionais' 'Tema Zsh') ||
+    cancel "$?" 'Edição das preferências cancelada.'
+  case $selection in
+    1)
+      field=desktop
+      value=$(choose_desktop) ||
+        cancel "$?" 'Edição das preferências cancelada.'
+      ;;
+    2)
+      field=wallpaper
+      value=$(ui_input 'Nome do arquivo em core/wallpapers (vazio para o padrão)') ||
+        cancel "$?" 'Edição das preferências cancelada.'
+      ;;
+    3)
+      field=optionals
+      read -r -a optionals <<< "${states:1:-1}"
+      for index in "${!names[@]}"; do
+        items+=("$((index + 1))" "${names[index]}" "${optionals[index]}")
+      done
+      selection=$(ui_dialog_optionals "${items[@]}") || cancel "$?" 'Edição das preferências cancelada.'
+      for tag in $selection; do
+        [[ $tag =~ ^[1-3]$ ]] || die 'Seleção de opcionais inválida.'
+        enabled[tag - 1]=true
+      done
+      printf -v value '{"cron":%s,"virtualization":%s,"codex":%s}' "${enabled[@]}"
+      ;;
+    4)
+      field=theme
+      value=$(ui_input 'Nome do tema Zsh (vazio para desativar)') ||
+        cancel "$?" 'Edição das preferências cancelada.'
+      ;;
+    *) die 'Preferência inválida.' ;;
+  esac
+
+  new_choices=$(mktemp -- "$checkout/.settings.XXXXXXXX")
+  settings_eval "$checkout" "$prepared/settings.json" --argstr field "$field" --argstr value "$value" \
+    > "$new_choices" || fail_command "$?" 'Falha ao preparar as preferências.'
+  original=$(settings_eval "$checkout" "$prepared/settings.json" --argstr attr choices)
+  if [[ $(<"$new_choices") == "$original" ]]; then
+    settings_result='Nenhuma preferência foi alterada.'
     return
   fi
-  ui_review 'Revisar opcionais' show_optionals_diff || cancel "$?" 'Edição dos opcionais cancelada.'
-  ui_confirm 'Salvar as escolhas para a próxima publicação?' ||
-    cancel "$?" 'Edição dos opcionais cancelada.'
-
-  new_choices=$(mktemp -- "$checkout/config/.optionals.XXXXXXXX")
-  printf '{\n  "cron": %s,\n  "virtualization": %s,\n  "codex": %s\n}\n' \
-    "${booleans[${after[0]}]}" "${booleans[${after[1]}]}" "${booleans[${after[2]}]}" > "$new_choices"
-  ui_progress 'Validando opcionais'
-  validate_optionals "$checkout" "$file" "$new_choices"
-  chmod 644 -- "$new_choices"
-  mv -fT -- "$new_choices" "$choices" || die 'Falha ao salvar as escolhas dos opcionais.'
+  printf '\n' >> "$new_choices"
+  validate_settings "$checkout" "$new_choices"
+  ui_review 'Revisar settings.json' show_file_diff settings.json "$prepared/settings.json" "$new_choices" ||
+    cancel "$?" 'Edição das preferências cancelada.'
+  ui_confirm 'Salvar as preferências para a próxima publicação?' ||
+    cancel "$?" 'Edição das preferências cancelada.'
+  if [[ $source != "$choices" ]]; then require_revision "$source" "$source_revision"; fi
+  if [[ $choices_revision == absent ]]; then
+    ln -T -- "$new_choices" "$choices" || die 'settings.json apareceu durante a edição.'
+    rm -- "$new_choices"
+  else
+    chmod --reference="$choices" -- "$new_choices"
+    require_revision "$choices" "$choices_revision"
+    mv -fT -- "$new_choices" "$choices" || die 'Falha ao salvar settings.json.'
+  fi
   new_choices=''
-  optionals_result='Escolhas salvas. Use Instalar ou atualizar para publicá-las.'
+  settings_result='Preferências salvas. Use Instalar ou atualizar para publicá-las.'
 }
 
 publish() (
   set -euo pipefail
   umask 022
   unset TAR_OPTIONS
-  local target=$1 expected=$2 parent stage tree keep_stage=false
+  local target=$1 expected=$2 expected_settings=$3 parent stage tree keep_stage=false
   local previous="$1.previous"
   local archive archive_size end_block end_offset trailer_size
   local tar_end='^block ([0-9]+): \*\* Block of NULs \*\*$'
@@ -531,6 +559,15 @@ publish() (
       [[ -z $(find "$target" "$target/config" "$target/config/local.nix" -maxdepth 0 \
         \( ! -user root -o -perm /022 \) -print) ]] ||
         die "A implantação e a configuração local devem pertencer a root, com escrita restrita ao proprietário."
+    fi
+  fi
+
+  if [[ $expected != absent ]]; then
+    require_revision "$target/settings.json" "$expected_settings"
+    if (( EUID == 0 )) && [[ $expected_settings != absent ]]; then
+      [[ -z $(find "$target/settings.json" -maxdepth 0 \
+        \( ! -user root -o -perm /022 \) -print) ]] ||
+        die 'O settings.json publicado deve pertencer a root, com escrita restrita ao proprietário.'
     fi
   fi
 
@@ -563,8 +600,8 @@ publish() (
     cmp -s -n "$trailer_size" -- "$archive" /dev/zero "$end_offset" ||
     die "Fim do TAR de implantação inválido."
   [[ -z $(find "$tree" ! -type d ! -type f -print -quit) &&
-     -f $tree/personal.nix && -f $tree/config/options.nix && -f $tree/config/local.nix &&
-     ! -e $tree/.git ]] || die "Árvore de publicação inválida."
+     -f $tree/noir.nix && -f $tree/core/config/options.nix && -f $tree/config/local.nix &&
+     -f $tree/settings.json && -f $tree/applications.nix && ! -e $tree/.git ]] || die "Árvore de publicação inválida."
   chmod -R go-w -- "$tree"
 
   if [[ $expected == absent ]]; then
@@ -592,6 +629,7 @@ publish() (
     [[ -d $previous && ! -L $previous && -O $previous ]] ||
       die "O caminho de backup $previous está ocupado. Verifique-o antes de continuar."
   fi
+  require_revision "$target/settings.json" "$expected_settings"
   # Antes e depois da troca, target aponta para uma árvore completa.
   printf 'Substituindo a implantação e preparando o backup anterior.\n'
   keep_stage=true
@@ -711,7 +749,7 @@ sudo_dialog() (
 )
 
 publish_dialog() {
-  local archive=$1 root_script=$2 target=$3 expected=$4
+  local archive=$1 root_script=$2 target=$3 expected=$4 expected_settings=$5
   local started="Noir publicação ${prepared##*/}"
   if [[ $archive != /* ]]; then archive=$PWD/$archive; fi
   [[ -f $archive && -r $archive ]] || {
@@ -727,11 +765,11 @@ printf '%s\n' "$4" >&2
   die "Identidade do usuário de publicação indisponível."
 # O leitor abre o TAR como usuário. O publicador herda a entrada pelo pipe.
 setpriv --reuid "$SUDO_UID" --regid "$SUDO_GID" --clear-groups --no-new-privs -- \
-  cat -- "$3" | publish "$1" "$2"
+  cat -- "$3" | publish "$1" "$2" "$5"
 ROOT
   )
   sudo_dialog prepared "$started" /run/current-system/sw/bin/bash -p -c "$root_script" \
-    -- "$target" "$expected" "$archive" "$started"
+    -- "$target" "$expected" "$archive" "$started" "$expected_settings"
 }
 
 show_next_steps() {
@@ -740,7 +778,7 @@ show_next_steps() {
     ui_section 'MIGRAÇÃO'
     cat <<'INSTRUCTIONS'
 
-Em /etc/nixos/configuration.nix, adicione ./nixos-config/personal.nix a imports.
+Em /etc/nixos/configuration.nix, adicione ./nixos-config/noir.nix a imports.
 Remova os imports antigos do projeto. Preserve os imports de hardware e os ajustes da máquina.
 INSTRUCTIONS
   fi
@@ -803,7 +841,7 @@ rebuild_configuration() {
   }
   require_readable_file "$machine_dir/configuration.nix"
   require_searchable_directory "$default_destination"
-  require_readable_file "$default_destination/personal.nix"
+  require_readable_file "$default_destination/noir.nix"
   require_searchable_directory "$default_destination/config"
   require_readable_file "$default_destination/config/local.nix"
 
@@ -964,16 +1002,10 @@ show_publication() {
 }
 
 main() {
-  local backend=$1 entrypoint
-  shift
   local destination=$default_destination checkout plain=false
   local revision status last_status=0 argument_error='' selection interactive=false screen=main operation
   local -a menu=('Instalar ou atualizar')
-  case $backend in
-    dialog) entrypoint=config.sh ;;
-    gum) entrypoint=install.sh ;;
-  esac
-  local usage="Uso: bash $entrypoint [--plain] [--destination DIRETÓRIO]"
+  local usage='Uso: ./noir [--plain] [--destination DIRETÓRIO]'
   while (( $# )); do
     case $1 in
       --help|-h) printf '%s\n' "$usage"; return ;;
@@ -991,19 +1023,19 @@ main() {
   done
   (( EUID != 0 )) || die "Execute o Noir pela sua conta normal, sem sudo."
   command -v dirname >/dev/null || die "Comando necessário ausente: dirname."
-  checkout=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-  [[ -r $checkout/lib/ui.sh ]] || die "Módulo de interface ausente: $checkout/lib/ui.sh."
-  source "$checkout/lib/ui.sh"
+  checkout=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+  [[ -r $checkout/core/lib/ui.sh ]] || die "Módulo de interface ausente: $checkout/core/lib/ui.sh."
+  source "$checkout/core/lib/ui.sh"
   if ui_interactive; then interactive=true; fi
   trap 'finish "$?"' EXIT
   trap 'cancel 130' INT
   trap 'cancel 143' TERM
-  if ! "$plain" && [[ $backend == dialog ]]; then
-    [[ -r $checkout/lib/ui-dialog.sh ]] || die "Módulo de interface ausente: $checkout/lib/ui-dialog.sh."
-    source "$checkout/lib/ui-dialog.sh"
-    prepare_ui dialog
+  if ! "$plain"; then
+    [[ -r $checkout/core/lib/ui-dialog.sh ]] || die "Módulo de interface ausente: $checkout/core/lib/ui-dialog.sh."
+    source "$checkout/core/lib/ui-dialog.sh"
+    prepare_ui
     if [[ -n $ui_dialog ]]; then
-      ui_dialog_open "$checkout/lib/noir.dialogrc" || {
+      ui_dialog_open "$checkout/core/lib/noir.dialogrc" || {
         if (( $? == 2 )); then exit 1; fi
         die "Não foi possível iniciar o Dialog. Use --plain."
       }
@@ -1011,7 +1043,6 @@ main() {
     fi
   fi
   [[ -z $argument_error ]] || die "$argument_error"
-  if ! "$plain" && [[ $backend == gum ]]; then prepare_ui gum; fi
   cd -- "$checkout"
   # Identificação visual sem carregar configurações Git.
   revision=''
@@ -1021,7 +1052,7 @@ main() {
   fi
   [[ $revision =~ ^[a-zA-Z0-9._/-]+$ ]] || revision=''
   if [[ $destination == "$default_destination" ]]; then menu+=('Gerenciar sistema'); fi
-  if [[ -n $ui_dialog ]]; then menu+=('Gerenciar opcionais'); fi
+  if [[ -n $ui_dialog ]]; then menu+=('Editar preferências'); fi
   while :; do
     status=0
     case $screen in
@@ -1064,10 +1095,10 @@ main() {
           screen=system; continue
         fi
         [[ -n $ui_dialog ]] || die 'Selecione uma opção do menu.'
-        operation=optionals ;;
+        operation=settings ;;
       main:3)
         [[ $destination == "$default_destination" && -n $ui_dialog ]] || die 'Selecione uma opção do menu.'
-        operation=optionals ;;
+        operation=settings ;;
       system:back|published:2|published:back|switch-result:1|switch-result:back|alternate-publication:1|alternate-publication:back)
         screen=main; continue ;;
       validated:2|validated:back|dry-result:1|dry-result:back)
@@ -1083,7 +1114,7 @@ main() {
     trap ':' INT
     case $operation in
       install) run_operation install_configuration "$checkout" "$destination" ;;
-      optionals) run_operation manage_optionals "$checkout" "$destination" ;;
+      settings) run_operation manage_settings "$checkout" "$destination" ;;
       *) run_operation rebuild_configuration "$operation" "$interactive" ;;
     esac
     status=$?
@@ -1103,7 +1134,7 @@ main() {
         if (( status == 0 )); then screen=validated; fi
         ;;
       switch) screen=switch-result ;;
-      optionals) screen=main ;;
+      settings) screen=main ;;
     esac
   done
 }
@@ -1111,7 +1142,8 @@ main() {
 install_configuration() {
   local checkout=$1 destination=$2 parent expected=absent source_commit
   local username git_name git_email git_target tree entry mode file checkout_local root_script
-  local local_info account profile previous backup status shell_options=$- choices_source
+  local local_info account profile previous backup status shell_options=$- checkout_lock
+  local choices_revision published_revision=absent applications_revision
   local +x password
   local -a identity_args=() nix_files=() identity_summary=()
 
@@ -1129,6 +1161,8 @@ install_configuration() {
   [[ $destination != "$checkout" && $destination != "$checkout/"* && $checkout != "$destination/"* ]] ||
     die "Escolha um destino separado do checkout."
   wizard_started=true
+  exec {checkout_lock}< "$checkout"
+  flock -n -x "$checkout_lock" || die 'Outra edição ou publicação está em andamento neste checkout.'
   backup=$destination.previous
   if [[ -d $backup && ! -L $backup ]]; then backup_result=(ok "$backup"); fi
   if [[ -e $destination || -L $destination ]]; then
@@ -1137,7 +1171,9 @@ install_configuration() {
     for file in "$destination" "$destination/config" "$destination/config/local.nix"; do
       [[ ! -L $file ]] || die "Link simbólico não permitido na implantação: $file."
     done
+    require_readable_file "$destination/noir.nix"
     require_readable_file "$destination/config/local.nix"
+    published_revision=$(file_revision "$destination/settings.json")
     expected=$(stat -c '%d:%i' -- "$destination") || die "Não foi possível identificar a implantação em $destination."
   fi
 
@@ -1150,14 +1186,14 @@ install_configuration() {
     identity_args=(--argstr username "$username" --argstr gitName "$git_name" --argstr gitEmail "$git_email")
   else
     identity_result=(ok 'Preservada')
-    ui_info 'Identidade e escolhas locais serão preservadas.'
+    ui_info 'A identidade da implantação será preservada.'
   fi
   if [[ $expected == absent ]]; then check_git_identity "$git_target"; fi
   [[ $(git rev-parse --show-toplevel) == "$checkout" ]] || die "Execute o script a partir de um checkout Git."
   ui_section 'Sincronização Git'
   ui_confirm 'Consultar remoto?' || cancel "$?"
   sync_checkout
-  for file in config/local.nix config/optionals.json; do
+  for file in config/local.nix settings.json; do
     git check-ignore --quiet -- "$file" ||
       die "Inclua $file nas regras de exclusão do Git antes de continuar."
   done
@@ -1170,7 +1206,7 @@ install_configuration() {
   while IFS= read -r -d '' entry; do
     mode=${entry%% *}
     file=${entry#*$'\t'}
-    [[ ( $mode == 100644 || $mode == 100755 ) && $file != config/local.nix && $file != config/optionals.json ]] ||
+    [[ ( $mode == 100644 || $mode == 100755 ) && $file != config/local.nix && $file != settings.json ]] ||
       die "Arquivo versionado incompatível com a implantação: $file."
   done < "$prepared/files"
   git -c tar.umask=0022 archive --format=tar "$source_commit" | tar -xf - -C "$tree" ||
@@ -1182,8 +1218,14 @@ install_configuration() {
       nix_files+=("$tree/$file")
     fi
   done < "$prepared/files"
-  [[ -f $tree/personal.nix && -f $tree/config/options.nix && -f $tree/config/local.example.nix ]] ||
+  [[ -f $tree/noir.nix && -f $tree/core/config/options.nix && -f $tree/config/local.example.nix ]] ||
     die "O checkout atualizado está incompleto."
+  applications_revision=$(file_revision "$checkout/applications.nix")
+  [[ $applications_revision != absent && -f $tree/applications.nix ]] ||
+    die 'applications.nix é obrigatório no checkout e na revisão sincronizada.'
+  cp -- "$tree/applications.nix" "$prepared/applications.nix"
+  cat -- "$checkout/applications.nix" > "$tree/applications.nix"
+  require_revision "$checkout/applications.nix" "$applications_revision"
   ui_run 'Validando arquivos Nix' nix-instantiate --parse "${nix_files[@]}" >/dev/null || {
     fail_command "$?" "A validação dos arquivos Nix falhou."
   }
@@ -1193,10 +1235,10 @@ install_configuration() {
   checkout_local=$checkout/config/local.nix
   if [[ -e $checkout_local || -L $checkout_local ]]; then
     [[ -f $checkout_local && ! -L $checkout_local ]] || die "Use um arquivo regular em $checkout_local."
-    validate_local "$tree/config/options.nix" "$checkout_local" "${identity_args[@]}" >/dev/null
+    validate_local "$tree/core/config/options.nix" "$checkout_local" "${identity_args[@]}" >/dev/null
   fi
   if [[ $expected != absent ]]; then
-    validate_local "$tree/config/options.nix" "$destination/config/local.nix" >/dev/null
+    validate_local "$tree/core/config/options.nix" "$destination/config/local.nix" >/dev/null
     cp -- "$destination/config/local.nix" "$tree/config/local.nix"
     local_result=(ok 'Preservada da implantação')
   else
@@ -1208,20 +1250,32 @@ install_configuration() {
       local_result=(warning 'Gerada na área de preparação')
     fi
   fi
-  local_info=$(validate_local "$tree/config/options.nix" "$tree/config/local.nix" "${identity_args[@]}")
-  choices_source=$checkout/config/optionals.json
-  check_regular_file "$choices_source"
-  if [[ ! -f $choices_source && $expected != absent ]]; then
-    choices_source=$destination/config/optionals.json
-    check_regular_file "$choices_source"
+  local_info=$(validate_local "$tree/core/config/options.nix" "$tree/config/local.nix" "${identity_args[@]}")
+  choices_revision=$(file_revision "$checkout/settings.json")
+  if [[ $published_revision == absent ]]; then
+    printf '{}\n' > "$prepared/settings.json"
+  else
+    cp -- "$destination/settings.json" "$prepared/settings.json"
+    require_revision "$destination/settings.json" "$published_revision"
   fi
-  if [[ -f $choices_source ]]; then
-    cp -- "$choices_source" "$tree/config/optionals.json"
-    chmod 644 -- "$tree/config/optionals.json"
+  if [[ $choices_revision == absent ]]; then
+    if [[ $expected == absent ]]; then
+      ui_section 'Ambiente gráfico'
+      profile=$(choose_desktop) || cancel "$?" 'Publicação cancelada.'
+      settings_eval "$tree" "$prepared/settings.json" --argstr field desktop --argstr value "$profile" +        > "$tree/settings.json"
+      printf '\n' >> "$tree/settings.json"
+    else
+      cp -- "$prepared/settings.json" "$tree/settings.json"
+    fi
+  else
+    cp -- "$checkout/settings.json" "$tree/settings.json"
+    require_revision "$checkout/settings.json" "$choices_revision"
   fi
-  validate_optionals "$tree" "$tree/config/local.nix" "$tree/config/optionals.json"
-  # A saída é composta apenas pelo nome de conta validado e pelo enum do perfil.
-  read -r account profile <<< "${local_info:1:-1}"
+  chmod 644 -- "$tree/settings.json"
+  validate_settings "$tree" "$tree/settings.json"
+  account=${local_info:1:-1}
+  profile=$(settings_eval "$tree" "$tree/settings.json" --argstr attr desktop)
+  profile=${profile:1:-1}
   case $profile in
     kde) profile='KDE Plasma' ;;
     gnome) profile='GNOME' ;;
@@ -1241,18 +1295,31 @@ install_configuration() {
   ui_review 'Revisar publicação' show_publication "$account" "$profile" "$checkout" "$source_commit" \
     "$destination" "$previous" "$backup" "${identity_summary[@]}" ||
     cancel "$?" 'Publicação cancelada.'
+  if ! cmp -s -- "$prepared/applications.nix" "$tree/applications.nix"; then
+    ui_review 'Alterações locais em applications.nix' show_file_diff applications.nix \
+      "$prepared/applications.nix" "$tree/applications.nix" || cancel "$?" 'Publicação cancelada.'
+  fi
+  if ! cmp -s -- "$prepared/settings.json" "$tree/settings.json"; then
+    ui_review 'Preferências para publicação' show_file_diff settings.json \
+      "$prepared/settings.json" "$tree/settings.json" || cancel "$?" 'Publicação cancelada.'
+  fi
   ui_section 'Publicação'
   ui_confirm 'Publicar a configuração revisada?' || cancel "$?" 'Publicação cancelada.'
   if [[ -n $ui_dialog && $destination == "$default_destination" ]]; then
     set +x +a
     password=$(ui_dialog_password) || cancel "$?" 'Autenticação cancelada.'
   fi
+  require_revision "$checkout/settings.json" "$choices_revision"
+  require_revision "$checkout/applications.nix" "$applications_revision"
+  [[ $(git rev-parse HEAD) == "$source_commit" ]] ||
+    die 'A revisão do checkout mudou durante a confirmação. Execute novamente.'
   if [[ ! -e $checkout_local && ! -L $checkout_local ]]; then
     new_local=$(mktemp -- "$checkout/config/.local.nix.XXXXXXXX")
     cat -- "$tree/config/local.nix" > "$new_local"
-    ln -T -- "$new_local" "$checkout_local" || die "Falha ao criar $checkout_local. Preserve o arquivo existente."
-    rm -- "$new_local"
-    new_local=''
+  fi
+  if [[ $choices_revision == absent ]]; then
+    new_choices=$(mktemp -- "$checkout/.settings.XXXXXXXX")
+    cat -- "$tree/settings.json" > "$new_choices"
   fi
 
   tar -cf "$prepared/deployment.tar" -C "$tree" . || die "Falha ao preparar a cópia para publicação."
@@ -1261,21 +1328,21 @@ install_configuration() {
   status=0
   if [[ $destination == "$default_destination" ]]; then
     root_script="PATH=$system_path"$'\n'
-    root_script+=$(declare -f die publish)
+    root_script+=$(declare -f die check_regular_file file_revision require_revision publish)
     if [[ -n $ui_dialog ]]; then
-      publish_dialog "$prepared/deployment.tar" "$root_script" "$destination" "$expected" || status=$?
+      publish_dialog "$prepared/deployment.tar" "$root_script" "$destination" "$expected" "$published_revision" || status=$?
       unset -v password
       if [[ $shell_options == *a* ]]; then set -a; fi
       if [[ $shell_options == *x* ]]; then set -x; fi
     else
       root_script+=$'\npublish "$@"'
-      sudo -- /run/current-system/sw/bin/bash -p -c "$root_script" -- "$destination" "$expected" \
+      sudo -- /run/current-system/sw/bin/bash -p -c "$root_script" -- "$destination" "$expected" "$published_revision" \
         < "$prepared/deployment.tar" || status=$?
     fi
   else
     # Colete o status sem suprimir o errexit do publicador.
     set +e
-    publish "$destination" "$expected" < "$prepared/deployment.tar"
+    publish "$destination" "$expected" "$published_revision" < "$prepared/deployment.tar"
     status=$?
     set -e
   fi
@@ -1285,6 +1352,12 @@ install_configuration() {
   fi
   published_destination=$destination
   publication_result=(ok "Concluída em $destination")
+  if [[ -n $new_local ]] && ! ln -T -- "$new_local" "$checkout_local"; then
+    ui_warning "Preservado o arquivo em $checkout_local. Confira a identidade do checkout."
+  fi
+  if [[ -n $new_choices ]] && ! ln -T -- "$new_choices" "$checkout/settings.json"; then
+    ui_warning 'Preservado settings.json do checkout. Confira as preferências antes da próxima publicação.'
+  fi
   if [[ ${local_result[0]} == warning ]]; then local_result=(ok 'Gerada e publicada'); fi
   if (( status == 74 )); then
     backup_result=(error 'Falha ao gravar. Consulte os registros para recuperar a cópia anterior.')
@@ -1304,7 +1377,3 @@ install_configuration() {
   fi
   if [[ $expected == absent ]]; then identity_result=(ok 'Aplicada'); fi
 }
-
-if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
-  main gum "$@"
-fi

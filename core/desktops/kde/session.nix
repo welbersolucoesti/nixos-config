@@ -1,10 +1,7 @@
 { config, lib, pkgs, ... }:
 
 let
-  inherit (config.personalConfig) defaultWallpaper;
-  wallpaperSource = config.personalConfig.kde.wallpaperSource;
-  wallpaperOverride = "/run/noir-kde-wallpaper";
-  wallpaperPath = "noir/kde-wallpaper.png";
+  inherit (config.personalConfig) wallpaper;
   wallpaperName = "Noir";
   wallpaperMetadata = pkgs.writeText "noir-wallpaper-metadata.json" (builtins.toJSON {
     KPackageStructure = "Wallpaper/Images";
@@ -47,82 +44,57 @@ let
     wallpaperDir="$out/share/wallpapers/${wallpaperName}"
     mkdir -p "$wallpaperDir/contents/images"
     cp ${wallpaperMetadata} "$wallpaperDir/metadata.json"
-    cp ${defaultWallpaper} "$wallpaperDir/contents/images/${baseNameOf defaultWallpaper}"
+    cp ${wallpaper} "$wallpaperDir/contents/images/${baseNameOf wallpaper}"
   '';
 in
 {
-  options.personalConfig.kde.wallpaperSource = lib.mkOption {
-    type = lib.types.nullOr (lib.types.strMatching "/[^[:cntrl:]]+");
-    default = null;
-    description = ''
-      Caminho absoluto, como string, de um PNG local legível pela conta configurada.
-      Use null para aplicar o papel de parede padrão do Noir.
-    '';
-  };
-
   config = lib.mkIf (config.personalConfig.desktop == "kde") {
     environment.systemPackages = [ themeWithLayout ];
 
-    assertions = [
-      {
-        assertion = wallpaperSource == null || (
-          builtins.pathExists wallpaperSource && !builtins.pathExists (wallpaperSource + "/.")
-        );
-        message = "personalConfig.kde.wallpaperSource deve apontar para um arquivo PNG existente e acessível, ou ser null para usar o padrão do Noir.";
-      }
-    ];
-
-    # Valida o conteúdo local fora da construção, sem copiar a imagem para o store.
-    system.activationScripts.noir-kde-wallpaper = lib.mkIf (wallpaperSource != null) {
-      deps = [ "etc" ];
-      text = ''
-      (
-        source=${lib.escapeShellArg wallpaperSource}
-        target=${lib.escapeShellArg "${defaultWallpaper}"}
-        if [ -f "$source" ] && ${lib.getExe' pkgs.util-linux "runuser"} -u ${lib.escapeShellArg config.personalConfig.username} -- \
-          ${lib.getExe' (lib.getDev pkgs.libpng) "pngfix"} -q -q "$source"; then
-          target="$source"
-        else
-          printf '%s\n' 'KDE Noir: personalConfig.kde.wallpaperSource não é um PNG válido ou legível pela conta configurada. Usando o padrão do Noir.' >&2
-        fi
-        ${lib.getExe' pkgs.coreutils "ln"} -sfnT -- "$target" ${lib.escapeShellArg wallpaperOverride}
-      )
-      '';
+    systemd.user.services.noir-plasma-wallpaper = {
+      description = "Aplicar o wallpaper do Noir ao Plasma";
+      wantedBy = [ "plasma-plasmashell.service" ];
+      after = [ "plasma-plasmashell.service" ];
+      partOf = [ "graphical-session.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${lib.getExe' pkgs.kdePackages.plasma-workspace "plasma-apply-wallpaperimage"} ${wallpaper}";
+      };
     };
 
     environment.etc = {
       "xdg/kdeglobals".text = ''
         [General]
-        ColorScheme=BreezeDark
+        ColorScheme[$i]=BreezeDark
 
         [Icons]
-        Theme=breeze-dark
+        Theme[$i]=breeze-dark
 
         [KDE]
-        LookAndFeelPackage=${theme}
-        widgetStyle=Breeze
+        LookAndFeelPackage[$i]=${theme}
+        widgetStyle[$i]=Breeze
       '';
 
       "xdg/plasmarc".text = ''
         [Theme]
-        name=default
+        name[$i]=default
       '';
 
       "xdg/kwinrc".text = ''
         [Desktops]
-        Number=2
-        Rows=1
-        Name_1=Work 1
-        Name_2=Work 2
+        Number[$i]=2
+        Rows[$i]=1
+        Name_1[$i]=Work 1
+        Name_2[$i]=Work 2
 
         [Plugins]
-        glideEnabled=true
-        magiclampEnabled=true
-        scaleEnabled=false
-        squashEnabled=false
+        glideEnabled[$i]=true
+        magiclampEnabled[$i]=true
+        scaleEnabled[$i]=false
+        squashEnabled[$i]=false
 
         [Windows]
-        RollOverDesktops=false
+        RollOverDesktops[$i]=false
       '';
 
       # O modelo do KDE usa essa lista ao importar os favoritos de um lançador novo.
@@ -152,16 +124,22 @@ in
         OnlyShowIn=KDE;
       '';
 
-      "${wallpaperPath}".source = if wallpaperSource == null then defaultWallpaper else wallpaperOverride;
-
       "xdg/kscreenlockerrc".text = ''
+        [Greeter]
+        WallpaperPlugin[$i]=org.kde.image
+
         [Greeter][Wallpaper][org.kde.image][General]
-        Image=file:///etc/${wallpaperPath}
+        Image[$i]=file://${wallpaper}
+      '';
+
+      "xdg/kglobalshortcutsrc".text = ''
+        [noir-configurator.desktop]
+        _launch[$i]=Meta+N,Meta+N,Noir
       '';
     };
 
     programs.dconf.profiles.user.databases = [
-      { settings."org/gnome/desktop/interface".color-scheme = "prefer-dark"; }
+      { lockAll = true; settings."org/gnome/desktop/interface".color-scheme = "prefer-dark"; }
     ];
   };
 }

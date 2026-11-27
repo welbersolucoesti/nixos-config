@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# shellcheck source=core/install.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/core/install.sh"
+main "$@"

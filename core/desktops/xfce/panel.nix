@@ -104,7 +104,7 @@ in
           <?xml version="1.0" encoding="UTF-8"?>
           <channel name="xfce4-power-manager" version="1.0">
             <property name="xfce4-power-manager" type="empty">
-              <property name="show-panel-label" type="int" value="0"/>
+              <property name="show-panel-label" type="int" value="0" unlocked="root"/>
             </property>
           </channel>
         '';
