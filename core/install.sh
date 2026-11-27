@@ -1393,7 +1393,6 @@ install_configuration() {
     for file in "$destination" "$destination/config" "$destination/config/local.nix"; do
       [[ ! -L $file ]] || die "Link simbólico não permitido na implantação: $file."
     done
-    require_readable_file "$destination/noir.nix"
     require_readable_file "$destination/config/local.nix"
     published_revision=$(file_revision "$destination/settings.json")
     expected=$(stat -c '%d:%i' -- "$destination") || die "Não foi possível identificar a implantação em $destination."
