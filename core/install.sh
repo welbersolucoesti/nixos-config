@@ -1010,13 +1010,13 @@ run_logged_rebuild() {
   shift
   local -a statuses=()
 
+  printf '\n%s\n' "$title" >> "$rebuild_log" || return "$?"
   if [[ -n $ui_dialog && $1 == sudo_dialog ]]; then
     # O relay mantém a tela do switch e a pausa durante a autenticação.
-    ui_message "$ui_accent" '›' "$title" || return "$?"
+    printf '› %s\n' "$title" || return "$?"
   else
     ui_progress "$title" || return "$?"
   fi
-  printf '\n%s\n' "$title" >> "$rebuild_log" || return "$?"
   if [[ -n $ui_dialog ]]; then
     "$@" >> "$rebuild_log" 2>&1
   else
