@@ -43,7 +43,7 @@ in
 
       [org.cinnamon.desktop.interface]
       gtk-theme='Mint-Y-Dark-Aqua'
-      icon-theme='Mint-Y-Aqua'
+      icon-theme='Papirus-XApp-Dark'
       cursor-theme='Bibata-Modern-Classic'
       cursor-size=24
       clock-show-date=false
@@ -103,6 +103,8 @@ in
     programs.gnome-terminal.enable = true;
 
     environment.systemPackages = [
+      pkgs.papirus-icon-theme
+      (pkgs.callPackage ./papirus-xapp-dark.nix { })
       (pkgs.writeTextDir "share/applications/noir-configurator.desktop" ''
         [Desktop Entry]
         Type=Application
