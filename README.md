@@ -180,7 +180,7 @@ Escolha outro papel de parede pela interface, mova um widget, remova um favorito
 
 ### GNOME Noir
 
-O perfil usa GNOME em Wayland com GDM e conserva os aplicativos e serviços padrão fornecidos pelo NixOS, incluindo o GNOME Console. O GNOME Shell mantém o relógio central e as animações nativas. Adwaita segue a preferência por modo escuro com realce azul. As janelas que respeitam o layout do desktop recebem os botões **Maximizar** e **Fechar**. O fundo padrão vem da imagem compartilhada do Noir.
+O perfil usa GNOME em Wayland com GDM e conserva os aplicativos e serviços padrão fornecidos pelo NixOS, incluindo o GNOME Console. O GNOME Shell mantém o relógio central e as animações nativas. Adwaita segue a preferência por modo escuro com realce azul. O backend GNOME do XDG Desktop Portal publica a preferência de aparência com a configuração padrão do NixOS. As janelas que respeitam o layout do desktop recebem **Minimizar**, **Maximizar** e **Fechar**, nessa ordem à direita. O fundo padrão vem da imagem compartilhada do Noir.
 
 - **Dash to Dock** oferece um dock inferior, centralizado e ajustado ao conteúdo, com ocultação inteligente e aparência padrão da extensão. [Dash to Dock](https://extensions.gnome.org/extension/307/dash-to-dock/)
 - **Clipboard Indicator** oferece histórico no painel. O perfil limita o cache e deixa os atalhos globais da extensão desativados. Na versão 71, a extensão ainda pode gravar o item recém-copiado, os favoritos e imagens. O modo privado pausa a captura. [Clipboard Indicator 71](https://extensions.gnome.org/review/70694)
@@ -189,11 +189,15 @@ O perfil usa GNOME em Wayland com GDM e conserva os aplicativos e serviços padr
 - **NumLock.** O GDM e a sessão recebem o padrão inicial ligado. O Mutter lembra a última escolha em cada ambiente. O LED e a digitação do teclado numérico dependem do dispositivo.
 - **Aplicativos preferenciais.** O Chrome abre links HTTP e HTTPS e arquivos HTML por padrão. O Nautilus abre pastas. As associações da conta têm precedência.
 
-O dconf fornece padrões editáveis. Uma lista de extensões ou atalhos já gravada pela conta pode prevalecer. `Super+N` abre o Noir no GNOME Terminal, também disponível pela entrada **Noir** no menu de aplicativos. O perfil inicial do GNOME Terminal oculta a barra de menus e a barra de rolagem, mantendo o histórico. Perfis adicionais do terminal têm suas próprias preferências.
+O dconf fornece padrões editáveis. Uma lista de extensões ou atalhos já gravada pela conta pode prevalecer. `Super+N` abre o Noir no GNOME Terminal, também disponível pela entrada **Noir** no menu de aplicativos. `Super+Esc` abre o GNOME System Monitor e `Ctrl+Alt+T` abre o GNOME Console. `Ctrl+Shift+T` continua disponível para ações de abas dos aplicativos. O foco da notificação ativa passa para `Super+Shift+N` e a restauração dos atalhos inibidos no Wayland passa para `Super+Alt+Esc`.
+
+O perfil inicial do GNOME Terminal oculta a barra de menus e a barra de rolagem, mantendo o histórico. Perfis adicionais do terminal têm suas próprias preferências.
 
 #### Homologação do GNOME Noir
 
-Em uma VM QEMU/KVM com uma conta nova, confira o GDM e a sessão Wayland, o carregamento das três extensões, o dock, o relógio, as animações, o fundo e o bloqueio. Copie texto e imagens entre aplicativos, confira a bandeja e o autostart do Bitwarden, selecione entradas e saídas em **Som** e teste o NumLock no GDM e na sessão. Verifique `Super+N`, a rolagem de histórico do terminal e a precedência das preferências em uma conta já personalizada.
+Em uma VM QEMU/KVM com uma conta nova, confira o GDM e a sessão Wayland, o carregamento das três extensões, o dock, o relógio, as animações, o fundo e o bloqueio. Copie texto e imagens entre aplicativos, confira a bandeja e o autostart do Bitwarden, selecione entradas e saídas em **Som** e teste o NumLock no GDM e na sessão.
+
+O modo escuro do Chrome no primeiro login ainda depende de homologação gráfica. Abra o Chrome com a aparência configurada para seguir o sistema e verifique o modo escuro antes de tocar nas configurações de aparência. Confira os três botões à direita, teste os atalhos do perfil e confirme que `Ctrl+Shift+T` ainda reabre abas no Chrome e abre uma nova aba nos terminais. Verifique a rolagem de histórico do GNOME Terminal e a precedência das preferências em uma conta já personalizada.
 
 ### Cinnamon Noir
 

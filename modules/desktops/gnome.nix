@@ -4,7 +4,7 @@ let
   extensions = with pkgs.gnomeExtensions; [ dash-to-dock clipboard-indicator appindicator ];
   terminalCommand = "${lib.getExe pkgs.gnome-terminal} -- /run/current-system/sw/bin/noir-session";
   mediaKeys = "org/gnome/settings-daemon/plugins/media-keys";
-  noirShortcut = "${mediaKeys}/custom-keybindings/noir";
+  customKeybindings = "${mediaKeys}/custom-keybindings";
   terminalSettings = "org/gnome/terminal/legacy";
   # UUID do perfil inicial definido no schema do GNOME Terminal.
   terminalProfile = "${terminalSettings}/profiles:/:b1dcc9dd-5262-4d8d-a863-c897e6d979b9";
@@ -40,7 +40,8 @@ in
             color-scheme = "prefer-dark";
             accent-color = "blue";
           };
-          "org/gnome/desktop/wm/preferences".button-layout = ":maximize,close";
+          "org/gnome/desktop/wm/preferences".button-layout = ":minimize,maximize,close";
+          "org/gnome/mutter/wayland/keybindings".restore-shortcuts = [ "<Super><Alt>Escape" ];
           "org/gnome/desktop/background" = {
             picture-uri = wallpaperUri;
             picture-uri-dark = wallpaperUri;
@@ -48,6 +49,7 @@ in
           };
           "org/gnome/desktop/screensaver".picture-uri = wallpaperUri;
           "org/gnome/shell".enabled-extensions = map (extension: extension.extensionUuid) extensions;
+          "org/gnome/shell/keybindings".focus-active-notification = [ "<Super><Shift>n" ];
           "org/gnome/shell/extensions/dash-to-dock" = {
             dock-position = "BOTTOM";
             extend-height = false;
@@ -59,11 +61,26 @@ in
             cache-only-favorites = true;
             enable-keybindings = false;
           };
-          "${mediaKeys}".custom-keybindings = [ "/${noirShortcut}/" ];
-          "${noirShortcut}" = {
+          "${mediaKeys}".custom-keybindings = [
+            "/${customKeybindings}/noir/"
+            "/${customKeybindings}/system-monitor/"
+            "/${customKeybindings}/console/"
+          ];
+          "${customKeybindings}/noir" = {
             name = "Noir";
             binding = "<Super>n";
             command = terminalCommand;
+          };
+          "${customKeybindings}/system-monitor" = {
+            name = "GNOME System Monitor";
+            binding = "<Super>Escape";
+            command = lib.getExe pkgs.gnome-system-monitor;
+          };
+          "${customKeybindings}/console" = {
+            name = "GNOME Console";
+            # Ctrl+Shift+T pertence às ações de abas dos aplicativos.
+            binding = "<Control><Alt>t";
+            command = lib.getExe pkgs.gnome-console;
           };
           "${terminalSettings}".default-show-menubar = false;
           "${terminalProfile}".scrollbar-policy = "never";
