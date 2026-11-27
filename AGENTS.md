@@ -1,83 +1,54 @@
 # Instruções para agentes
 
-## Projeto
+## Projeto e arquitetura
 
-Este repositório contém configurações pessoais e declarativas do NixOS para uma estação de desenvolvimento com KDE Plasma e Wayland. Utiliza módulos tradicionais do NixOS e Nixpkgs, sem Flakes ou Home Manager.
+O Noir reúne módulos declarativos do NixOS para KDE Plasma, GNOME, Cinnamon e XFCE, nessa ordem. Utilize módulos tradicionais do NixOS e do Nixpkgs.
 
-- `personal.nix` é o ponto de entrada da máquina e importa diretamente `config/local.nix`. O `configuration.nix` importa `./nixos-config/personal.nix`.
-- `config.sh` é a entrada do configurador com Dialog. Durante a migração, `install.sh` mantém o fluxo compartilhado de instalação e atualização e também funciona como entrada compatível com Gum. As duas entradas aceitam `--plain`.
-- `lib/ui.sh` reúne a interface comum, o modo texto e Gum. `lib/ui-dialog.sh` contém os widgets do Dialog. Mantenha as verificações e as operações de publicação no fluxo compartilhado e exiba no menu apenas as operações implementadas.
-- `config/options.nix` declara o perfil e a identidade. `config/local.example.nix` é o modelo versionado. O instalador mantém uma cópia dos arquivos versionados em `/etc/nixos/nixos-config` e preserva `config/local.nix` na implantação.
-- `modules/applications/`, `modules/services/` e `modules/desktops/` organizam aplicativos, serviços e perfis gráficos. Mantenha os imports explícitos. O instalador copia os arquivos versionados, sem um inventário manual.
-- `modules/optional/cron.nix` declara o serviço e o timer systemd para um script privado externo ao repositório. O recurso é habilitado por `personalConfig.cron.enable`.
-- `modules/optional/virtualization.nix` declara o suporte a QEMU/KVM e as ferramentas de contêineres. O recurso é habilitado por `personalConfig.virtualization.enable`.
-- `modules/optional/zsh-theme.nix` define `personalConfig.zsh.theme`, cuja configuração padrão é `"bira"`. O valor `null` desativa o tema.
-- `README.md` documenta o repositório para pessoas que desejem adaptar a configuração aos próprios computadores.
-- `.gitignore` contém as regras de arquivos ignorados pelo Git.
+- `noir` é a entrada do configurador. `core/install.sh` concentra verificações, sincronização Git, integração, publicação e rebuild. `core/lib/ui.sh` oferece a interface comum e o modo texto, e `core/lib/ui-dialog.sh` fornece os widgets do Dialog. Mantenha as operações no fluxo comum e exponha no menu somente as operações implementadas.
+- `noir.nix` é o ponto de entrada Nix. `applications.nix` reúne os aplicativos comuns versionados. Mantenha imports explícitos. A publicação copia os arquivos regulares da revisão Git, sem inventário manual.
+- `core/config/options.nix` declara a identidade. `core/config/preferences.nix` lê e valida o JSON. `core/config/settings.nix` adapta as preferências para o NixOS e `core/config/edit-settings.nix` atende ao editor e às consultas do configurador.
+- `config/local.nix` guarda a identidade e `settings.json` guarda as preferências. Ambos ficam fora do Git. Os modelos versionados são `config/local.example.nix` e `settings.example.json`.
+- A configuração da máquina permanece sob controle do proprietário. Na publicação oficial, o Noir pode incluir `./nixos-config/noir.nix` no bloco convencional de imports de `/etc/nixos/configuration.nix`, após validação e revisão da alteração.
+- `core/applications/`, `core/services/`, `core/system/`, `core/desktops/` e `core/optional/` organizam os módulos. Consulte a [arquitetura](docs/architecture.md) para o mapa completo.
 
-## Fonte de verdade
+Leia os arquivos relevantes antes de alterar o projeto. Para arquitetura, comportamento e opções, use o código Nix, o fluxo Bash e os modelos versionados como fonte de verdade. Se a documentação divergir, corrija o texto segundo o código. Não invente opções, versões, compatibilidade, funcionalidades ou resultados de execução.
 
-Leia os arquivos relevantes do repositório antes de fazer alterações. Considere o código Nix existente como a fonte de verdade. Se o README divergir de `personal.nix` ou dos módulos em `modules/`, corrija a documentação em vez de presumir que a implementação funciona como descrito. Não invente configurações, versões de pacotes, resultados de execução ou compatibilidade de hardware.
+## Autoridade e publicação
 
-## Regras de edição
+- Preserve os arquivos locais e a implantação ativa. Na primeira publicação, valide a identidade preparada contra os dados coletados. Na atualização, a identidade efetiva é a do `config/local.nix` publicado.
+- A primeira publicação bem-sucedida consolida a escolha gráfica, independentemente da ativação. Antes dela, a ausência de `desktop` solicita seleção e `null` é a escolha explícita **Definido pela máquina**. Depois dela, o `settings.json` publicado é a autoridade. Preserve o bloqueio quando a escolha do checkout for removida ou alterada.
+- Preserve a leitura isolada da autoridade gráfica e a validação completa das demais preferências na preparação. Na migração, use a evidência da implantação legada ou do backup reconhecido e respeite os limites da transformação literal. Sem evidência, mantenha o bloqueio.
+- Mantenha as verificações de checkout limpo e sincronizado, as travas, a revisão da integração e as garantias de reversão. Preserve a área de recuperação e os backups quando houver reversão incompleta. A recuperação administrativa excepcional depende de autorização explícita e de evidência da escolha original.
+- Mantenha cron, virtualização e Codex CLI desativados por padrão. A habilitação depende de escolha explícita nas preferências locais. O tema Zsh usa `bira` por padrão e `null` o desativa.
+
+## Regras de edição e segurança
 
 - Prefira alterações pequenas, focadas e idiomáticas. Mantenha a configuração simples.
 - Não introduza Flakes, Home Manager, um diretório `shells/`, novas ferramentas ou dependências adicionais sem solicitação explícita.
-- Mantenha cron e virtualização desativados por padrão. A ativação depende de uma escolha explícita de David na configuração local. O `configuration.nix` da máquina não é gerenciado por este repositório.
-- Em tarefas exclusivamente de documentação, edite apenas os arquivos de documentação solicitados. Não altere `personal.nix`, serviços do sistema ou outros arquivos de configuração.
+- Em tarefas exclusivamente documentais, edite apenas os arquivos de documentação autorizados. Preserve código-fonte, serviços, arquivos Nix, configurações da máquina, implantação e arquivos pessoais.
 - Nunca adicione nem reproduza senhas, tokens, chaves privadas ou outros segredos. Evite repetir endereços de e-mail pessoais na documentação.
-- Não execute `sudo`, atualizações, instalações de pacotes, `git commit` ou `git push` sem solicitação explícita.
-- Nunca execute comandos de ativação do NixOS, conforme a seção "Aplicação do sistema".
-- Não afirme que verificações foram executadas se elas não foram realmente realizadas.
-
-## Convenções do README
-
-- Escreva em português brasileiro (`pt-BR`), com exemplos práticos e Markdown correto.
-- Organize o README para facilitar a leitura: objetivo, pré-requisitos, estrutura do repositório, instalação, recursos, validação, limitações e segurança.
-- Descreva fielmente os pacotes e serviços existentes em `personal.nix`, incluindo o JDK Java configurado, editores, PostgreSQL, Zsh, Git, Bluetooth, biometria e keyd, quando presentes. Documente os módulos opcionais sem pressupor que estejam habilitados.
-- Documente a aplicação única da identidade com `git config --global` pela própria conta selecionada após a primeira publicação protegida. `config/local.nix` registra as escolhas e as configurações de repositório têm precedência.
-- Explique que as versões dos pacotes dependem da revisão do Nixpkgs e que este repositório não fixa todas as dependências.
-- Destaque pressupostos específicos da máquina e etapas de adaptação; não prometa compatibilidade universal.
-- Inclua comandos somente quando forem relevantes e coerentes com o repositório.
-- Mantenha uma apresentação bem cuidada, mas discreta. Evite excesso de elementos decorativos e afirmações sem fundamento.
+- Não execute `sudo`, atualizações, instalações de pacotes, publicação, recuperação administrativa, `git commit` ou `git push` sem solicitação explícita. A proibição de ativação vale em qualquer caso.
 
 ## Aplicação do sistema
 
-Agentes podem editar e validar arquivos conforme as tarefas autorizadas.
+Agentes podem editar e validar arquivos conforme as tarefas autorizadas. A execução dos comandos abaixo por agentes é terminantemente proibida.
 
-É terminantemente proibido executar:
 - `nixos-rebuild switch`
 - `nixos-rebuild boot`
 - `nixos-rebuild test`
 
-Essa proibição vale com ou sem `sudo`, mesmo mediante
-aprovação genérica para executar comandos.
+A proibição vale com ou sem `sudo`, por alias, script ou interface, mesmo mediante aprovação genérica. Somente o proprietário da máquina executa comandos de ativação. A confirmação interativa do Noir depois do dry-build só autoriza a ativação quando respondida pelo proprietário. Agentes jamais selecionam uma ativação real no Noir. Nenhuma validação autoriza ativar o sistema.
 
-Somente o proprietário da máquina executa comandos de ativação da configuração.
-A confirmação interativa do Noir após o dry-build autoriza a ativação somente
-quando respondida pelo proprietário. Agentes devem testar o fluxo com comandos
-simulados e nunca selecionar uma ativação real no Noir.
+## Testes itinerantes e validação
 
-## Conclusão das tarefas
+- Para alterações em arquivos `.nix`, execute `git diff --check`, `git diff --cached --check` e `nixos-rebuild dry-build` sem `sudo`. Se o sandbox impedir acesso ao daemon do Nix, solicite autorização para executar fora do sandbox.
+- Para alterações exclusivamente documentais, execute as verificações Git aplicáveis. `git diff --check` é suficiente quando disponível. A revisão de texto dispensa rebuild.
+- Para alterações no configurador, execute `bash -n` nos scripts Bash alterados. Teste as interações com comandos simulados ou lógica isolada. Use casos e artefatos temporários para os testes itinerantes e remova-os ao concluir. Mantenha a publicação real, a ativação, a implantação ativa e os arquivos pessoais fora dos testes.
+- Informe as verificações realmente executadas, inclusive falhas e limitações.
 
-Ao concluir cada tarefa, apresente um resumo breve dos arquivos alterados, das decisões importantes e das verificações realmente executadas. Para tarefas exclusivamente de documentação, `git diff --check` é suficiente quando disponível; não reconstrua o sistema operacional apenas para atualizar textos.
+## Convenções documentais e entrega
 
-## Validação
-
-Para alterações em arquivos `.nix`, execute:
-
-- `git diff --check`
-- `git diff --cached --check`
-- `nixos-rebuild dry-build`, sem `sudo`
-
-Se o sandbox impedir o acesso ao daemon do Nix,
-solicite autorização para executar fora do sandbox.
-
-Para alterações exclusivamente de documentação,
-execute as verificações Git aplicáveis.
-
-Para alterações no configurador, execute `bash -n` nos scripts Bash alterados e teste as interações com comandos simulados ou lógica isolada. Mantenha a publicação e a ativação fora desses testes.
-
-Informe os resultados reais, inclusive eventuais falhas.
-
-Nenhuma validação autoriza a ativação da configuração.
+- Escreva em pt-BR, em Markdown válido, com exemplos relevantes e links relativos entre páginas. Mantenha o [README público](README.md) conciso e o [índice da documentação](docs/README.md) atualizado. Preserve a ordem KDE Plasma, GNOME, Cinnamon e XFCE.
+- Descreva fielmente pacotes e serviços, incluindo o JDK configurado, editores, PostgreSQL, Zsh, Git, Bluetooth, biometria e keyd, quando presentes. Documente os opcionais como escolhas. Explique a aplicação única da identidade Git global pela própria conta após a primeira publicação protegida e a precedência da configuração de cada repositório.
+- Explique que as versões dependem da revisão do Nixpkgs e que existem dependências sem revisão fixada no projeto. Registre pressupostos específicos da máquina, etapas de adaptação e limites de homologação, sem prometer compatibilidade universal.
+- Ao concluir, resuma os arquivos alterados, as decisões importantes e as verificações feitas.
