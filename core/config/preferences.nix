@@ -17,7 +17,7 @@ let
       {
         options = {
           desktop = mkOption {
-            type = types.nullOr (types.enum [ "kde" "gnome" "cinnamon" "xfce" ]);
+            type = types.nullOr (types.enum [ "kde" "gnome" "cinnamon" ]);
             default = null;
           };
         } // lib.optionalAttrs (!desktopOnly) {

@@ -8,7 +8,7 @@ O perfil mantém os controles de sessão no painel superior e reúne tarefas em 
 
 ## Sessão gráfica
 
-O Noir configura Cinnamon em X11 com LightDM, o gerenciador de login, e Slick Greeter, a interface de entrada. O módulo retira a entrada Wayland do Cinnamon e rejeita KDE Plasma, XFCE, SDDM ou GDM habilitados na configuração da máquina. O salvamento da sessão do Cinnamon fica desabilitado. [Módulo do perfil](../../core/desktops/cinnamon.nix)
+O Noir configura Cinnamon em X11 com LightDM, o gerenciador de login, e Slick Greeter, a interface de entrada. O módulo retira a entrada Wayland do Cinnamon e rejeita KDE Plasma, SDDM ou GDM habilitados na configuração da máquina. O salvamento da sessão do Cinnamon fica desabilitado. [Módulo do perfil](../../core/desktops/cinnamon.nix)
 
 ## Aparência
 
@@ -78,4 +78,4 @@ Os JSON pessoais podem estar em `${XDG_CONFIG_HOME:-$HOME/.config}/cinnamon/spic
 2. **Conta com preferências.** Confira os ajustes pessoais dos applets, uma única instância do Bitwarden no início e a ausência de restauração das janelas anteriores.
 3. **Autenticação e ambiente.** Confira bloqueio, retorno à sessão, NumLock, escala e múltiplos monitores, incluindo relógio e ocultação do painel inferior.
 
-Anterior: [GNOME](gnome.md) · [Índice dos perfis](../README.md#ambientes-gráficos) · Próximo: [XFCE](xfce.md)
+Anterior: [GNOME](gnome.md) · [Índice dos perfis](../README.md#ambientes-gráficos)

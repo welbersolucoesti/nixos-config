@@ -16,7 +16,7 @@ Para alterar a autoria de commits depois da primeira publicação, use a configu
 
 | Chave | Valores e padrão |
 | --- | --- |
-| `desktop` | `"kde"`, `"gnome"`, `"cinnamon"`, `"xfce"` ou `null`. O modelo omite a chave para permitir a seleção inicial. |
+| `desktop` | `"kde"`, `"gnome"`, `"cinnamon"` ou `null`. O modelo omite a chave para permitir a seleção inicial. |
 | `wallpaper` | Nome de um arquivo regular em [`core/wallpapers/`](../core/wallpapers/). O padrão é `nixos-001.png`. |
 | `optionals.cron` | Booleano, com padrão `false`. |
 | `optionals.virtualization` | Booleano, com padrão `false`. |
@@ -50,7 +50,7 @@ As escolhas em `settings.json` pertencem ao Noir. Aplicativos e ambientes gráfi
 | Editável pela conta | A interface do aplicativo grava a escolha pessoal quando a chave admite alteração. |
 | Padrão inicial | O perfil fornece um valor ou layout para contas que ainda não têm estado correspondente. |
 | Valor bloqueado | A chave gerenciada prevalece durante a sessão, como em configurações dconf com bloqueio ativo. |
-| Configuração reaplicada | Uma rotina de sessão volta a configurar o valor em um momento definido, como no início do Plasma ou no login XFCE. |
+| Configuração reaplicada | Uma rotina de sessão volta a configurar o valor em um momento definido, como o papel de parede no início do Plasma ou a lista de atalhos personalizados no login do GNOME. |
 
 As páginas dos [perfis](README.md#ambientes-gráficos) descrevem exemplos dessas diferenças. Para mudar o que um perfil define ou reaplica, consulte [personalização do fork](customization.md#modificar-perfis-gráficos).
 
@@ -60,11 +60,12 @@ As páginas dos [perfis](README.md#ambientes-gráficos) descrevem exemplos dessa
 | --- | --- |
 | Arquivo ausente ou objeto válido sem `desktop`, como `{}` | Na primeira publicação, o Noir solicita a escolha. A avaliação Nix isolada resolve a opção ausente para `null`. |
 | `"desktop": null` | Escolha explícita **Definido pela máquina**. Os módulos comuns continuam disponíveis e a configuração da máquina é responsável pelo desktop e pelo login. |
-| `desktop` com um perfil explícito | O Noir respeita a seleção. A lista oferece KDE Plasma, GNOME, Cinnamon e XFCE nessa ordem. |
+| `desktop` com um perfil explícito | O Noir respeita a seleção. A lista oferece KDE Plasma, GNOME e Cinnamon nessa ordem. |
+| `desktop` com um valor fora do esquema | A leitura falha. |
 | Arquivo com zero bytes ou JSON inválido | A leitura falha. |
 
 A primeira publicação bem-sucedida consolida a escolha, independentemente do dry-build ou da ativação. Em uma implantação atual com escolha explícita, o JSON publicado é a autoridade. O editor exibe o desktop para consulta. Se a chave for removida do checkout ou seu valor divergir do publicado, o Noir bloqueia a edição, a publicação e o rebuild. Essa regra inclui o valor `null`.
 
-Uma implantação antiga pode exigir [migração ou recuperação](recovery.md#escolha-gráfica-ausente-ou-divergente). Caso a publicação tenha sido concluída e a sincronização local tenha falhado, confira [Preferências locais após publicação](recovery.md#preferências-locais-após-publicação).
+Uma escolha ausente ou divergente na implantação pode exigir [recuperação](recovery.md#escolha-gráfica-ausente-ou-divergente). Caso a publicação tenha sido concluída e a sincronização local tenha falhado, confira [Preferências locais após publicação](recovery.md#preferências-locais-após-publicação).
 
 [Instalação](installation.md) · [Manutenção](maintenance.md)

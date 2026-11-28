@@ -530,14 +530,13 @@ prepare_machine_import() {
 
 choose_desktop() {
   local selection
-  selection=$(ui_choose 'Selecione o desktop.' 'KDE Plasma' 'GNOME' 'Cinnamon' 'XFCE' 'Definido pela máquina') ||
+  selection=$(ui_choose 'Selecione o desktop.' 'KDE Plasma' 'GNOME' 'Cinnamon' 'Definido pela máquina') ||
     return "$?"
   case $selection in
     1) printf 'kde\n' ;;
     2) printf 'gnome\n' ;;
     3) printf 'cinnamon\n' ;;
-    4) printf 'xfce\n' ;;
-    5) printf 'null\n' ;;
+    4) printf 'null\n' ;;
     *) die 'Desktop inválido.' ;;
   esac
 }
@@ -553,62 +552,9 @@ desktop_label() {
     kde) printf 'KDE Plasma\n' ;;
     gnome) printf 'GNOME\n' ;;
     cinnamon) printf 'Cinnamon\n' ;;
-    xfce) printf 'XFCE\n' ;;
     null) printf 'Definido pela máquina (null)\n' ;;
     absent) printf 'não informada (chave desktop ausente)\n' ;;
   esac
-}
-
-legacy_desktop_choice() {
-  local file=$1 choice
-  shift
-  choice=$(nix-instantiate --eval --strict --json --argstr file "$file" "$@" --expr '
-    { file, location ? false }:
-    let
-      local = import (builtins.toPath file);
-      prefs = if builtins.isAttrs local then local.personalConfig or {} else {};
-      desktop = prefs.desktop;
-      parent = builtins.unsafeGetAttrPos "personalConfig" local;
-      position = builtins.unsafeGetAttrPos "desktop" prefs;
-    in
-    if location then
-      if parent != null && position != null && toString parent.file == file && toString position.file == file
-      then "${toString parent.line}:${toString position.line}"
-      else throw "O desktop legado precisa estar declarado diretamente no arquivo local."
-    else if !(prefs ? desktop) then "absent"
-    else if desktop == null then "null"
-    else if builtins.elem desktop [ "kde" "gnome" "cinnamon" "xfce" ] then desktop
-    else throw "personalConfig.desktop legado inválido."
-  ') || return
-  printf '%s\n' "${choice:1:-1}"
-}
-
-strip_legacy_desktop() {
-  local file=$1 choice parent line pattern i opened=false
-  local -a lines=()
-  local ignored='^[[:blank:]]*(#.*)?$'
-  local root_line='^[[:blank:]]*\{[[:blank:]]*(#.*)?$'
-  local parent_line='^[[:blank:]]*personalConfig[[:blank:]]*=[[:blank:]]*\{[[:blank:]]*(#.*)?$'
-  IFS=: read -r choice parent line <<< "$2"
-  case $choice in
-    kde|gnome|cinnamon|xfce) choice=\"$choice\" ;;
-    null) ;;
-    *) return 1 ;;
-  esac
-  pattern="^[[:blank:]]*desktop[[:blank:]]*=[[:blank:]]*$choice[[:blank:]]*;[[:blank:]]*(#.*)?$"
-  [[ $parent =~ ^[1-9][0-9]*$ && $line =~ ^[1-9][0-9]*$ ]] || return 1
-  mapfile -t lines < "$file" || return
-  [[ $parent -lt $line && $line -le ${#lines[@]} ]] || return 1
-  # O instalador antigo emitia um conjunto literal, com desktop no início de personalConfig.
-  for ((i=0; i<parent-1; i++)); do
-    [[ ${lines[i]} =~ $ignored ]] && continue
-    if ! "$opened" && [[ ${lines[i]} =~ $root_line ]]; then opened=true; else return 1; fi
-  done
-  "$opened" && [[ ${lines[parent-1]} =~ $parent_line && ${lines[line-1]} =~ $pattern ]] || return 1
-  for ((i=parent; i<line-1; i++)); do
-    [[ ${lines[i]} =~ $ignored ]] || return 1
-  done
-  sed "${line}d" -- "$file"
 }
 
 require_no_pending_publication() {
@@ -629,20 +575,12 @@ read_deployed_desktop() {
     [[ -e $deployment || -L $deployment ]] || continue
     found=true
     [[ -d $deployment && ! -L $deployment ]] || die "Implantação inválida em $deployment."
-    if [[ ! -e $deployment/noir.nix && -f $deployment/personal.nix &&
-          ! -L $deployment/personal.nix && -f $deployment/config/options.nix &&
-          ! -L $deployment/config/options.nix && ! -L $deployment/config ]]; then
-      file=$deployment/config/local.nix
-      require_readable_file "$file"
-      revision=$(file_revision "$file")
-      deployed_desktop=$(legacy_desktop_choice "$file") ||
-        die "Não foi possível avaliar a interface gráfica legada em $file."
-    else
-      file=$deployment/settings.json
-      revision=$(file_revision "$file")
-      deployed_desktop=$(desktop_choice "$tree" "$file") ||
-        die "Não foi possível avaliar a interface gráfica em $file."
-    fi
+    file=$deployment/settings.json
+    revision=$(file_revision "$file")
+    deployed_desktop=$(desktop_choice "$tree" "$file") ||
+      die "Não foi possível avaliar a interface gráfica em $file."
+    [[ -f $deployment/noir.nix && ! -L $deployment/noir.nix ]] ||
+      die "Formato de implantação não suportado em $deployment: noir.nix ausente ou inválido."
     require_revision "$file" "$revision"
     if [[ $deployed_desktop != absent ]]; then
       desktop_source=$file
@@ -690,7 +628,8 @@ manage_settings() {
     fail_command "$?" 'Corrija settings.json antes de editar no Noir.'
   prompt='O desktop é escolhido na primeira publicação.'
   if [[ $deployed_desktop != absent ]]; then
-    requested=$(desktop_choice "$checkout" "$choices")
+    requested=$(desktop_choice "$checkout" "$choices") ||
+      die 'Revise o settings.json do checkout antes de editar.'
     if [[ $desktop_source == "$destination/settings.json" || $requested != absent ]]; then
       require_desktop_choice "$deployed_desktop" "$requested"
     fi
@@ -860,7 +799,7 @@ publish() (
   unset TAR_OPTIONS
   local target=$1 expected=$2 expected_settings=$3 parent stage tree
   local expected_machine=${4:-} reviewed_digest=${5:-} machine='' candidate='' machine_backup=''
-  local desktop_source=${6:-} desktop_revision=${7:-} legacy_local_choice=${8:-} desktop_root
+  local desktop_source=${6:-} desktop_revision=${7:-} desktop_root
   local deploy=true target_before previous_before=absent machine_before candidate_before tree_before
   local -a move_from=() move_to=() saved_from=() saved_to=()
   local previous="$1.previous"
@@ -913,14 +852,14 @@ publish() (
   fi
   if [[ -n $desktop_source ]]; then
     case $desktop_source in
-      "$target/settings.json"|"$target/config/local.nix") desktop_root=$target ;;
-      "$previous/settings.json"|"$previous/config/local.nix") desktop_root=$previous ;;
+      "$target/settings.json") desktop_root=$target ;;
+      "$previous/settings.json") desktop_root=$previous ;;
       *) die 'Origem inválida da interface gráfica implantada.' ;;
     esac
-    [[ -d $desktop_root && ! -L $desktop_root && ! -L ${desktop_source%/*} ]] ||
+    [[ -d $desktop_root && ! -L $desktop_root ]] ||
       die 'Diretório inválido na origem da interface gráfica.'
     if (( EUID == 0 )); then
-      [[ -z $(find "$desktop_root" "${desktop_source%/*}" "$desktop_source" -maxdepth 0 \
+      [[ -z $(find "$desktop_root" "$desktop_source" -maxdepth 0 \
         \( ! -user root -o -perm /022 \) -print) ]] ||
         die 'A origem da interface gráfica deve pertencer a root, com escrita restrita.'
     fi
@@ -978,18 +917,10 @@ publish() (
         die "Falha ao conceder leitura de config/local.nix ao UID $SUDO_UID por ACL."
     fi
   else
-    if [[ -n $legacy_local_choice ]]; then
-      [[ $desktop_source == "$target/config/local.nix" ]] &&
-        strip_legacy_desktop "$desktop_source" "$legacy_local_choice" | cmp -s -- - "$tree/config/local.nix" ||
-        die 'A configuração local proposta difere da migração da interface gráfica.'
-      cp --attributes-only --preserve=all -- "$desktop_source" "$tree/config/local.nix" ||
-        die 'Falha ao preservar as permissões da configuração local.'
-    else
-      cmp -s -- "$target/config/local.nix" "$tree/config/local.nix" ||
-        die "A configuração local mudou durante a preparação. Execute novamente."
-      cp -p -- "$target/config/local.nix" "$tree/config/local.nix" ||
-        die "Falha ao preservar as permissões da configuração local."
-    fi
+    cmp -s -- "$target/config/local.nix" "$tree/config/local.nix" ||
+      die "A configuração local mudou durante a preparação. Execute novamente."
+    cp -p -- "$target/config/local.nix" "$tree/config/local.nix" ||
+      die "Falha ao preservar as permissões da configuração local."
     if diff -qr --no-dereference -- "$tree" "$target" >/dev/null &&
        cmp -s <(find "$tree" -type f -printf '%P %m\0' | sort -z) \
          <(find "$target" -type f -printf '%P %m\0' | sort -z); then
@@ -1527,7 +1458,7 @@ install_configuration() {
   local username git_name git_email git_target tree entry mode file checkout_local root_script
   local local_info account profile previous backup status shell_options=$- checkout_lock
   local choices_revision published_revision=absent machine_revision='' machine_digest='' checkout_status
-  local deployed_desktop desktop_source desktop_revision requested legacy_local_choice='' settings_source
+  local deployed_desktop desktop_source desktop_revision requested settings_source
   local +x password
   local -a identity_args=() nix_files=() identity_summary=()
 
@@ -1617,14 +1548,7 @@ install_configuration() {
   fi
   if [[ $expected != absent ]]; then
     # Em atualizações, a identidade vem da implantação e é validada na árvore preparada.
-    if [[ $desktop_source == "$destination/config/local.nix" ]]; then
-      legacy_local_choice=$(legacy_desktop_choice "$desktop_source" --arg location true)
-      legacy_local_choice="$deployed_desktop:$legacy_local_choice"
-      strip_legacy_desktop "$desktop_source" "$legacy_local_choice" > "$tree/config/local.nix" ||
-        die "Não foi possível separar a interface legada em $desktop_source. A migração exige desktop literal no início de personalConfig, conforme o modelo legado."
-    else
-      cp -- "$destination/config/local.nix" "$tree/config/local.nix"
-    fi
+    cp -- "$destination/config/local.nix" "$tree/config/local.nix"
     local_result=(ok 'Preservada da implantação')
   else
     if [[ -f $checkout_local ]]; then
@@ -1721,25 +1645,25 @@ install_configuration() {
   if [[ $destination == "$default_destination" ]]; then
     root_script="PATH=$system_path"$'\n'"default_destination=$default_destination"$'\n'
     root_script+=$(declare -f die check_regular_file file_digest file_revision require_revision \
-      insert_noir_import strip_legacy_desktop require_no_pending_publication \
+      insert_noir_import require_no_pending_publication \
       publication_revision move_publication finish_publication publish)
     if [[ -n $ui_dialog ]]; then
       publish_dialog "$prepared/deployment.tar" "$root_script" "$destination" "$expected" "$published_revision" \
-        "$machine_revision" "$machine_digest" "$desktop_source" "$desktop_revision" "$legacy_local_choice" || status=$?
+        "$machine_revision" "$machine_digest" "$desktop_source" "$desktop_revision" || status=$?
       unset -v password
       if [[ $shell_options == *a* ]]; then set -a; fi
       if [[ $shell_options == *x* ]]; then set -x; fi
     else
       root_script+=$'\npublish "$@"'
       sudo -- /run/current-system/sw/bin/bash -p -c "$root_script" -- "$destination" "$expected" "$published_revision" \
-        "$machine_revision" "$machine_digest" "$desktop_source" "$desktop_revision" "$legacy_local_choice" \
+        "$machine_revision" "$machine_digest" "$desktop_source" "$desktop_revision" \
         < "$prepared/deployment.tar" || status=$?
     fi
   else
     # Colete o status sem suprimir o errexit do publicador.
     set +e
     publish "$destination" "$expected" "$published_revision" "$machine_revision" "$machine_digest" \
-      "$desktop_source" "$desktop_revision" "$legacy_local_choice" < "$prepared/deployment.tar"
+      "$desktop_source" "$desktop_revision" < "$prepared/deployment.tar"
     status=$?
     set -e
   fi

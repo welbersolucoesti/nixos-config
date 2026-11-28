@@ -8,7 +8,7 @@ O perfil combina a aparência Breeze com dois painéis flutuantes. O superior re
 
 ## Sessão gráfica
 
-O Noir habilita Plasma 6 e SDDM, o gerenciador de login. Selecione a sessão Wayland na tela de login quando estiver disponível. As verificações do perfil rejeitam XFCE ou LightDM habilitados na configuração da máquina. Por padrão do Noir, cada login inicia uma sessão vazia, com os aplicativos de início automático ainda disponíveis. [Módulo do perfil](../../core/desktops/kde.nix)
+O Noir habilita Plasma 6 e SDDM, o gerenciador de login. Selecione a sessão Wayland na tela de login quando estiver disponível. As verificações do perfil rejeitam LightDM habilitado na configuração da máquina. Por padrão do Noir, cada login inicia uma sessão vazia, com os aplicativos de início automático ainda disponíveis. [Módulo do perfil](../../core/desktops/kde.nix)
 
 ## Aparência
 

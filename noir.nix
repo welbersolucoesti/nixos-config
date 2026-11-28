@@ -23,12 +23,9 @@ in
     ./core/optional/virtualization.nix
     ./core/optional/codex.nix
     ./core/optional/zsh-theme.nix
-    ./core/desktops/numlock.nix
-    ./core/desktops/launcher-icon.nix
     ./core/desktops/kde.nix
     ./core/desktops/gnome.nix
     ./core/desktops/cinnamon.nix
-    ./core/desktops/xfce.nix
   ];
 
   assertions = [

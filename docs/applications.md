@@ -51,7 +51,7 @@ fprintd-list "$USER"
 fprintd-verify
 ```
 
-`fprintd-delete "$USER"` apaga todas as digitais da conta. O perfil [XFCE](desktops/xfce.md#autenticação-e-bloqueio) oferece também o comando `biometria` e configuração PAM específica. O comportamento no login e no desbloqueio precisa ser verificado no leitor físico.
+`fprintd-delete "$USER"` apaga todas as digitais da conta. O comportamento no login e no desbloqueio precisa ser verificado no leitor físico.
 
 ## Módulos opcionais
 

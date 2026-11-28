@@ -56,7 +56,7 @@ O NixOS tem partes imutáveis no Store e partes graváveis, como o diretório pe
 
 ## O que o Noir acrescenta
 
-O Noir reúne aplicativos, serviços e quatro perfis gráficos com imports explícitos. Separa a identidade em `config/local.nix`, as preferências em `settings.json` e os módulos versionados no Git. O configurador prepara uma cópia revisável desses arquivos para publicação. A [arquitetura](architecture.md) mostra onde cada decisão entra no fluxo.
+O Noir reúne aplicativos, serviços e três perfis gráficos com imports explícitos. Separa a identidade em `config/local.nix`, as preferências em `settings.json` e os módulos versionados no Git. O configurador prepara uma cópia revisável desses arquivos para publicação. A [arquitetura](architecture.md) mostra onde cada decisão entra no fluxo.
 
 No fluxo oficial, a configuração da máquina importa `noir.nix` da árvore publicada. A máquina continua responsável por iniciar com o hardware, a conta e a rede corretos. O Noir acrescenta aplicativos, serviços e, se escolhido, um perfil gráfico. Essa separação permite manter a configuração específica da máquina fora do repositório compartilhado.
 

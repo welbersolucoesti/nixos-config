@@ -130,9 +130,8 @@ in
     assertions = [
       {
         assertion = !config.services.desktopManager.plasma6.enable
-          && !config.services.xserver.desktopManager.cinnamon.enable
-          && !config.services.xserver.desktopManager.xfce.enable;
-        message = "O perfil GNOME requer que KDE Plasma, Cinnamon e XFCE estejam desabilitados nos módulos da máquina.";
+          && !config.services.xserver.desktopManager.cinnamon.enable;
+        message = "O perfil GNOME requer que KDE Plasma e Cinnamon estejam desabilitados nos módulos da máquina.";
       }
       {
         assertion = !config.services.displayManager.sddm.enable

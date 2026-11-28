@@ -57,9 +57,8 @@
 
     assertions = [
       {
-        assertion = !config.services.desktopManager.plasma6.enable
-          && !config.services.xserver.desktopManager.xfce.enable;
-        message = "O perfil Cinnamon requer que Plasma e XFCE estejam desabilitados nos módulos da máquina.";
+        assertion = !config.services.desktopManager.plasma6.enable;
+        message = "O perfil Cinnamon requer que Plasma esteja desabilitado nos módulos da máquina.";
       }
       {
         assertion = !config.services.displayManager.sddm.enable

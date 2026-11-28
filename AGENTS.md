@@ -2,7 +2,7 @@
 
 ## Projeto e arquitetura
 
-O Noir reúne módulos declarativos do NixOS para KDE Plasma, GNOME, Cinnamon e XFCE, nessa ordem. Utilize módulos tradicionais do NixOS e do Nixpkgs.
+O Noir reúne módulos declarativos do NixOS para KDE Plasma, GNOME e Cinnamon, nessa ordem. Utilize módulos tradicionais do NixOS e do Nixpkgs.
 
 - `noir` é a entrada do configurador. `core/install.sh` concentra verificações, sincronização Git, integração, publicação e rebuild. `core/lib/ui.sh` oferece a interface comum e o modo texto, e `core/lib/ui-dialog.sh` fornece os widgets do Dialog. Mantenha as operações no fluxo comum e exponha no menu somente as operações implementadas.
 - `noir.nix` é o ponto de entrada Nix. `applications.nix` reúne os aplicativos comuns versionados. Mantenha imports explícitos. A publicação copia os arquivos regulares da revisão Git, sem inventário manual.
@@ -17,7 +17,7 @@ Leia os arquivos relevantes antes de alterar o projeto. Para arquitetura, compor
 
 - Preserve os arquivos locais e a implantação ativa. Na primeira publicação, valide a identidade preparada contra os dados coletados. Na atualização, a identidade efetiva é a do `config/local.nix` publicado.
 - A primeira publicação bem-sucedida consolida a escolha gráfica, independentemente da ativação. Antes dela, a ausência de `desktop` solicita seleção e `null` é a escolha explícita **Definido pela máquina**. Depois dela, o `settings.json` publicado é a autoridade. Preserve o bloqueio quando a escolha do checkout for removida ou alterada.
-- Preserve a leitura isolada da autoridade gráfica e a validação completa das demais preferências na preparação. Na migração, use a evidência da implantação legada ou do backup reconhecido e respeite os limites da transformação literal. Sem evidência, mantenha o bloqueio.
+- Preserve a leitura isolada da autoridade gráfica e a validação completa das demais preferências na preparação. Se a escolha estiver ausente na implantação, só aceite evidência em `settings.json` de um backup reconhecido. Rejeite valores fora do esquema e mantenha o bloqueio quando faltar evidência.
 - Mantenha as verificações de checkout limpo e sincronizado, as travas, a revisão da integração e as garantias de reversão. Preserve a área de recuperação e os backups quando houver reversão incompleta. A recuperação administrativa excepcional depende de autorização explícita e de evidência da escolha original.
 - Mantenha cron, virtualização e Codex CLI desativados por padrão. A habilitação depende de escolha explícita nas preferências locais. O tema Zsh usa `bira` por padrão e `null` o desativa.
 
@@ -48,7 +48,7 @@ A proibição vale com ou sem `sudo`, por alias, script ou interface, mesmo medi
 
 ## Convenções documentais e entrega
 
-- Escreva em pt-BR, em Markdown válido, com exemplos relevantes e links relativos entre páginas. Mantenha o [README público](README.md) conciso e o [índice da documentação](docs/README.md) atualizado. Preserve a ordem KDE Plasma, GNOME, Cinnamon e XFCE.
+- Escreva em pt-BR, em Markdown válido, com exemplos relevantes e links relativos entre páginas. Mantenha o [README público](README.md) conciso e o [índice da documentação](docs/README.md) atualizado. Preserve a ordem KDE Plasma, GNOME e Cinnamon.
 - Descreva fielmente pacotes e serviços, incluindo o JDK configurado, editores, PostgreSQL, Zsh, Git, Bluetooth, biometria e keyd, quando presentes. Documente os opcionais como escolhas. Explique a aplicação única da identidade Git global pela própria conta após a primeira publicação protegida e a precedência da configuração de cada repositório.
 - Explique que as versões dependem da revisão do Nixpkgs e que existem dependências sem revisão fixada no projeto. Registre pressupostos específicos da máquina, etapas de adaptação e limites de homologação, sem prometer compatibilidade universal.
 - Ao concluir, resuma os arquivos alterados, as decisões importantes e as verificações feitas.

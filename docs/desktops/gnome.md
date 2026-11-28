@@ -8,7 +8,7 @@ O perfil conserva a navegação do GNOME Shell e acrescenta um dock de acesso ao
 
 ## Sessão gráfica
 
-O Noir configura GNOME em Wayland com GDM, o gerenciador de login, e sessão padrão `gnome`. As verificações do perfil rejeitam KDE Plasma, Cinnamon, XFCE, SDDM ou LightDM habilitados na configuração da máquina. [Módulo do perfil](../../core/desktops/gnome.nix)
+O Noir configura GNOME em Wayland com GDM, o gerenciador de login, e sessão padrão `gnome`. As verificações do perfil rejeitam KDE Plasma, Cinnamon, SDDM ou LightDM habilitados na configuração da máquina. [Módulo do perfil](../../core/desktops/gnome.nix)
 
 ## Aparência
 

@@ -10,7 +10,7 @@ O Noir usa o sistema tradicional de módulos do NixOS e o Nixpkgs da máquina, s
 | --- | --- |
 | Quais módulos e aplicativos fazem parte da revisão? | [`noir.nix`](../noir.nix), [`applications.nix`](../applications.nix) e seus imports. |
 | Como uma escolha do JSON chega ao sistema? | Esquema, adaptação Nix e editor em [`core/config/`](../core/config/). |
-| Qual identidade e qual desktop uma atualização preserva? | `config/local.nix` e `settings.json` da implantação publicada. A escolha gráfica legada tem regras próprias de [recuperação](recovery.md#escolha-gráfica-ausente-ou-divergente). |
+| Qual identidade e qual desktop uma atualização preserva? | `config/local.nix` e `settings.json` da implantação publicada. Uma escolha ausente ou divergente tem regras próprias de [recuperação](recovery.md#escolha-gráfica-ausente-ou-divergente). |
 | O que o menu verifica e em que momento? | [`core/install.sh`](../core/install.sh) e a camada de interface em [`core/lib/`](../core/lib/). |
 | Qual resultado entrou em execução? | O perfil e a sessão do sistema são analisados à parte dos arquivos publicados. Consulte [Ativação interrompida](recovery.md#ativação-interrompida). |
 
@@ -76,7 +76,7 @@ O rebuild usa a configuração publicada. Somente a verificação da escolha gr�
 | [`core/services/`](../core/services/) | Serviços comuns e serviços de libvirt e Podman, condicionados à virtualização. |
 | [`core/system/`](../core/system/) | Política de pacotes, fontes, ZRAM e manutenção do Nix. |
 | [`core/optional/`](../core/optional/) | Agendamento, composição do conjunto de virtualização, pacote do Codex CLI e adaptação do tema Zsh. |
-| [`core/desktops/`](../core/desktops/) | Perfis KDE Plasma, GNOME, Cinnamon e XFCE e seus recursos compartilhados. |
+| [`core/desktops/`](../core/desktops/) | Perfis KDE Plasma, GNOME e Cinnamon e seus recursos compartilhados. |
 | [`core/wallpapers/`](../core/wallpapers/) | Imagens disponíveis para a preferência declarativa de wallpaper. |
 
 ## Fluxo de preferências
