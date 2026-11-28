@@ -1,6 +1,6 @@
 # Noir · Configuração declarativa para NixOS
 
-O Noir configura uma estação NixOS de desenvolvimento com aplicativos, serviços e três perfis gráficos. Usa os módulos tradicionais do NixOS e o Nixpkgs, sem Flakes ou Home Manager.
+O Noir configura uma estação NixOS de desenvolvimento com aplicativos, serviços e quatro perfis gráficos. Usa os módulos tradicionais do NixOS e o Nixpkgs, sem Flakes ou Home Manager.
 
 - **Perfis que usam os componentes nativos de cada ambiente**, com temas, atalhos e layouts próprios do Noir.
 - **Publicação revisável** pelo configurador Dialog ou em modo texto, com uma cópia da implantação anterior quando há atualização da árvore.
@@ -13,6 +13,7 @@ O Noir configura uma estação NixOS de desenvolvimento com aplicativos, serviç
 | [KDE Plasma](docs/desktops/kde.md) | Plasma 6, com Wayland disponível e SDDM | Breeze Dark e dois painéis flutuantes. |
 | [GNOME](docs/desktops/gnome.md) | Wayland e GDM | Dock inferior, bandeja e histórico da área de transferência. |
 | [Cinnamon](docs/desktops/cinnamon.md) | X11 e LightDM com Slick Greeter | Painéis Noir e ícones Papirus-XApp-Dark. |
+| [LXQt](docs/desktops/lxqt.md) | KWin Wayland e SDDM | Dois painéis LXQt, QTerminal e gerenciamento de digitais pelo KCM do KDE. |
 
 Também é possível manter o ambiente gráfico sob controle da configuração da máquina e usar os módulos comuns do Noir. A escolha gráfica é consolidada na primeira publicação bem-sucedida. Consulte [Escolha gráfica](docs/configuration.md#escolha-gráfica).
 

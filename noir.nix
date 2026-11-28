@@ -26,6 +26,7 @@ in
     ./core/desktops/kde.nix
     ./core/desktops/gnome.nix
     ./core/desktops/cinnamon.nix
+    ./core/desktops/lxqt.nix
   ];
 
   assertions = [

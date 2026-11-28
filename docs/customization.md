@@ -31,8 +31,9 @@ Acrescente `./core/applications/ripgrep.nix` como mais um item da lista `imports
 | [KDE Plasma](desktops/kde.md) | Em [`layout.js`](../core/desktops/kde/layout.js), alterar `top.height` afeta o painel criado pelo modelo quando ainda não existem painéis. Para uma conta já configurada, ajuste o painel pela própria sessão. |
 | [GNOME](desktops/gnome.md) | Em [`gnome.nix`](../core/desktops/gnome.nix), trocar `intellihide = true;` por `intellihide = false;` muda a chave administrada do Dash to Dock. |
 | [Cinnamon](desktops/cinnamon.md) | Em [`session.nix`](../core/desktops/cinnamon/session.nix), trocar `panels-height = [ "1:42" "2:38" ];` por `[ "1:44" "2:38" ]` muda a altura declarada do painel inferior, identificado por `1`. |
+| [LXQt](desktops/lxqt.md) | Em [`panel.conf`](../core/desktops/lxqt/panel.conf), alterar `panelSize=42` na seção `[bottom]` muda a altura inicial do painel inferior. Uma conta com painéis próprios mantém precedência. |
 
-São mudanças no comportamento de um perfil. As propriedades dependem das versões do Plasma, Dash to Dock e Cinnamon. Ao atualizar o Nixpkgs, confira os identificadores do modelo, chaves da extensão e nomes das propriedades nos componentes usados pela nova revisão. A [escolha gráfica publicada](configuration.md#escolha-gráfica) continua sujeita à verificação do Noir. Use instalações descartáveis independentes para homologar perfis diferentes.
+São mudanças no comportamento de um perfil. As propriedades dependem das versões do Plasma, Dash to Dock, Cinnamon e LXQt Panel. Ao atualizar o Nixpkgs, confira os identificadores do modelo, chaves da extensão e nomes das propriedades nos componentes usados pela nova revisão. A [escolha gráfica publicada](configuration.md#escolha-gráfica) continua sujeita à verificação do Noir. Use instalações descartáveis independentes para homologar perfis diferentes.
 
 ## Criar um opcional e expor uma preferência
 

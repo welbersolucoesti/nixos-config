@@ -1,0 +1,154 @@
+--- a/panel/lxqtpanel.h
++++ b/panel/lxqtpanel.h
+@@ -457,6 +457,9 @@
+      * to the UI via this layout.
+      */
+     LXQtPanelLayout* mLayout;
++    bool mFitToContent = false;
++    QSize mLastContentSize;
++    bool eventFilter(QObject *watched, QEvent *event) override;
+     /**
+      * @brief The LXQt::Settings instance as retrieved from
+      * LXQtPanelApplication.
+--- a/panel/lxqtpanel.cpp
++++ b/panel/lxqtpanel.cpp
+@@ -195,6 +195,7 @@
+     mLayout = new LXQtPanelLayout(LXQtPanelWidget);
+     connect(mLayout, &LXQtPanelLayout::pluginMoved, this, &LXQtPanel::pluginMoved);
+     LXQtPanelWidget->setLayout(mLayout);
++    LXQtPanelWidget->installEventFilter(this);
+     mLayout->setLineCount(mLineCount);
+
+     mDelaySave.setSingleShot(true);
+@@ -362,6 +363,7 @@
+
+     mVisibleMargin = mSettings->value(QStringLiteral(CFG_KEY_VISIBLE_MARGIN), mVisibleMargin).toBool();
+
++    mFitToContent = mSettings->value(QStringLiteral("fit-to-content"), false).toBool();
+     mHideOnOverlap = mSettings->value(QStringLiteral(CFG_KEY_HIDE_ON_OVERLAP), mHideOnOverlap).toBool();
+
+     mAnimationTime = mSettings->value(QStringLiteral(CFG_KEY_ANIMATION), mAnimationTime).toInt();
+@@ -646,7 +648,10 @@
+                 rect.setWidth(mLength);
+         }
+
+-        rect.setWidth(std::max(rect.size().width(), mLayout->minimumSize().width()));
++        if (mFitToContent)
++            rect.setWidth(std::clamp(mLayout->sizeHint().width(), 1, currentScreen.width()));
++        else
++            rect.setWidth(std::max(rect.size().width(), mLayout->minimumSize().width()));
+
+         // Horiz ......................
+         switch (mAlignment)
+@@ -666,7 +671,7 @@
+             break;
+         }
+
+-        if(lengthInPercents() && mLength == 100)
++        if(!mFitToContent && lengthInPercents() && mLength == 100)
+         {
+             //Fill all available width
+             anchors.setFlag(LayerShellQt::Window::AnchorLeft);
+@@ -707,7 +712,10 @@
+                 rect.setHeight(mLength);
+         }
+
+-        rect.setHeight(std::max(rect.size().height(), mLayout->minimumSize().height()));
++        if (mFitToContent)
++            rect.setHeight(std::clamp(mLayout->sizeHint().height(), 1, currentScreen.height()));
++        else
++            rect.setHeight(std::max(rect.size().height(), mLayout->minimumSize().height()));
+
+         // Vert .......................
+         switch (mAlignment)
+@@ -727,7 +735,7 @@
+             break;
+         }
+
+-        if(lengthInPercents() && mLength == 100)
++        if(!mFitToContent && lengthInPercents() && mLength == 100)
+         {
+             //Fill all available width
+             anchors.setFlag(LayerShellQt::Window::AnchorTop);
+@@ -1401,6 +1409,20 @@
+ /************************************************
+
+  ************************************************/
++bool LXQtPanel::eventFilter(QObject *watched, QEvent *event)
++{
++    if (mFitToContent && watched == LXQtPanelWidget && event->type() == QEvent::LayoutRequest)
++    {
++        const QSize contentSize = mLayout->sizeHint();
++        if (contentSize != mLastContentSize)
++        {
++            mLastContentSize = contentSize;
++            QTimer::singleShot(0, this, &LXQtPanel::realign);
++        }
++    }
++    return QWidget::eventFilter(watched, event);
++}
++
+ bool LXQtPanel::event(QEvent *event)
+ {
+     switch (event->type())
+--- a/panel/plugin.h
++++ b/panel/plugin.h
+@@ -76,6 +76,7 @@
+
+     bool isSeparate() const;
+     bool isExpandable() const;
++    bool isCentered() const { return mSettings->value(QStringLiteral("centered"), false).toBool(); }
+
+     QWidget *widget() { return mPluginWidget; }
+
+--- a/panel/lxqtpanellayout.cpp
++++ b/panel/lxqtpanellayout.cpp
+@@ -650,6 +650,30 @@
+         expFactor = expWidth ? ((1.0 * geometry.width() - nonExpWidth) / expWidth) : 1;
+     }
+
++    // Center the first right-aligned plugin when each side has room.
++    // Give expandable plugins on the left only the space up to that plugin.
++    int centerLeft = -1;
++    double leftExpFactor = expFactor;
++    if (mRightGrid->count() && mRightGrid->colCount() == 1 && mLeftGrid->colCount() == 1
++        && !mRightGrid->expandableSize())
++    {
++        const LayoutItemInfo &info = mRightGrid->itemInfo(0, 0);
++        const auto *plugin = info.item ? qobject_cast<Plugin*>(info.item->widget()) : nullptr;
++        if (plugin && plugin->isCentered())
++        {
++            const int width = info.geometry.width();
++            const int leftBudget = (geometry.width() - width) / 2;
++            const int rightWidth = mRightGrid->sizeHint().width() - width;
++            const int leftExpandable = mLeftGrid->expandableSize();
++            const int leftFixed = mLeftGrid->sizeHint().width() - leftExpandable;
++            if (leftBudget >= leftFixed && geometry.width() - width - leftBudget >= rightWidth)
++            {
++                centerLeft = geometry.left() + leftBudget;
++                leftExpFactor = leftExpandable ? double(leftBudget - leftFixed) / leftExpandable : 1;
++            }
++        }
++    }
++
+     // Calc baselines for plugins like button.
+     QList<int> baseLines(std::max(mLeftGrid->colCount(), mRightGrid->colCount()));
+     const int bh = geometry.height() / baseLines.count();
+@@ -696,7 +720,7 @@
+                     rect.setHeight(geometry.height());
+
+                     if (info.expandable)
+-                        rect.setWidth(info.geometry.width() * expFactor);
++                        rect.setWidth(info.geometry.width() * leftExpFactor);
+                     else
+                         rect.setWidth(info.geometry.width());
+                 }
+@@ -763,6 +787,8 @@
+                     rect.moveRight(right);
+                 }
+
++                if (centerLeft >= 0 && r == 0 && c == 0)
++                    rect.moveLeft(centerLeft);
+                 rw = std::max(rw, rect.width());
+                 if (visual_h_reversed)
+                     rect.moveLeft(geometry.left() + geometry.right() - rect.x() - rect.width() + 1);

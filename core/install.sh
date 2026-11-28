@@ -530,13 +530,14 @@ prepare_machine_import() {
 
 choose_desktop() {
   local selection
-  selection=$(ui_choose 'Selecione o desktop.' 'KDE Plasma' 'GNOME' 'Cinnamon' 'Definido pela máquina') ||
+  selection=$(ui_choose 'Selecione o desktop.' 'KDE Plasma' 'GNOME' 'Cinnamon' 'LXQt' 'Definido pela máquina') ||
     return "$?"
   case $selection in
     1) printf 'kde\n' ;;
     2) printf 'gnome\n' ;;
     3) printf 'cinnamon\n' ;;
-    4) printf 'null\n' ;;
+    4) printf 'lxqt\n' ;;
+    5) printf 'null\n' ;;
     *) die 'Desktop inválido.' ;;
   esac
 }
@@ -552,6 +553,7 @@ desktop_label() {
     kde) printf 'KDE Plasma\n' ;;
     gnome) printf 'GNOME\n' ;;
     cinnamon) printf 'Cinnamon\n' ;;
+    lxqt) printf 'LXQt\n' ;;
     null) printf 'Definido pela máquina (null)\n' ;;
     absent) printf 'não informada (chave desktop ausente)\n' ;;
   esac

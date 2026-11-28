@@ -1,0 +1,89 @@
+--- a/src/item/itemstore.cpp
++++ b/src/item/itemstore.cpp
+@@ -14,6 +14,15 @@
+ #include <QSaveFile>
+ #include <QSet>
+
++QString itemTabFilePrefix()
++{
++    const auto prefix = getConfigurationFilePath("_tab_");
++    if (qEnvironmentVariableIsEmpty("COPYQ_ITEM_DATA_PATH"))
++        return prefix;
++
++    return QDir(itemDataPath()).filePath(QFileInfo(prefix).fileName());
++}
++
+ namespace {
+
+ /// @return File name for data file with items.
+@@ -21,7 +30,7 @@
+ {
+     QString part( id.toUtf8().toBase64() );
+     part.replace( QChar('/'), QChar('-') );
+-    return getConfigurationFilePath("_tab_") + part + QLatin1String(".dat");
++    return itemTabFilePrefix() + part + QLatin1String(".dat");
+ }
+
+ void printItemFileError(
+@@ -113,7 +122,7 @@
+ {
+     const QString tabFileName = itemFileName(tabName);
+
+-    if ( !ensureSettingsDirectoryExists() )
++    if ( !QDir().mkpath(QFileInfo(tabFileName).absolutePath()) )
+         return false;
+
+     // Save tab data to a new temporary file.
+--- a/src/item/itemstore.h
++++ b/src/item/itemstore.h
+@@ -9,6 +9,8 @@
+ class QAbstractItemModel;
+ class QString;
+ using ItemSaverPtr = std::shared_ptr<ItemSaverInterface>;
++
++QString itemTabFilePrefix();
+
+ /** Load items from configuration file. */
+ ItemSaverPtr loadItems(const QString &tabName, QAbstractItemModel &model //!< Model for items.
+--- a/src/gui/tabicons.cpp
++++ b/src/gui/tabicons.cpp
+@@ -7,6 +7,7 @@
+ #include "common/settings.h"
+ #include "common/textdata.h"
+ #include "gui/iconfactory.h"
++#include "item/itemstore.h"
+
+ #include <QComboBox>
+ #include <QDir>
+@@ -28,9 +29,7 @@
+ {
+     QList<QString> tabs = AppConfig().option<Config::tabs>();
+
+-    const QString configPath = settingsDirectoryPath();
+-
+-    QDir configDir(configPath);
++    const QDir configDir = QFileInfo(itemTabFilePrefix()).absoluteDir();
+     QList<QString> files = configDir.entryList({QStringLiteral("*_tab_*.dat")});
+     files.append(configDir.entryList({QStringLiteral("*_tab_*.dat.tmp")}));
+
+--- a/src/gui/actiondialog.cpp
++++ b/src/gui/actiondialog.cpp
+@@ -11,6 +11,7 @@
+ #include "item/serialize.h"
+
+ #include <QAbstractButton>
++#include <QDir>
+ #include <QFile>
+ #include <QMessageBox>
+ #include <QShortcut>
+@@ -119,7 +120,10 @@
+
+ const QString ActionDialog::dataFilename() const
+ {
++    if (!qEnvironmentVariableIsEmpty("COPYQ_ITEM_DATA_PATH"))
++        return QDir(itemDataPath()).filePath(QStringLiteral("action-history.dat"));
++
+     return getConfigurationFilePath("_cmds.dat");
+ }
+
+ void ActionDialog::saveHistory()

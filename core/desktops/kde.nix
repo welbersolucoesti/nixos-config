@@ -26,17 +26,8 @@
       loginMode[$i]=emptySession
     '';
 
-    environment.etc."xdg/kcminputrc".text = ''
-      [Keyboard]
-      NumLock[$i]=0
-
-      [Mouse]
-      cursorTheme[$i]=breeze_cursors
-      cursorSize[$i]=24
-
-      [Libinput][Defaults][Touchpad]
-      NaturalScroll[$i]=true
-    '';
+    environment.etc."xdg/kcminputrc".text =
+      (import ./kwin-settings.nix config.personalConfig.wallpaper).input;
 
     assertions = [
       {

@@ -34,5 +34,5 @@ let
 in
 {
   config.environment.systemPackages = [ noir ]
-    ++ lib.optional (lib.elem config.personalConfig.desktop [ "kde" "gnome" "cinnamon" ]) noirSession;
+    ++ lib.optional ((config.personalConfig.desktop != null)) noirSession;
 }

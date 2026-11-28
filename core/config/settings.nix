@@ -10,7 +10,7 @@ let
 in
 {
   options.personalConfig = {
-    desktop = readOnly (types.nullOr (types.enum [ "kde" "gnome" "cinnamon" ]));
+    desktop = readOnly (types.nullOr (types.enum [ "kde" "gnome" "cinnamon" "lxqt" ]));
     wallpaper = readOnly types.path;
     cron.enable = readOnly types.bool;
     virtualization.enable = readOnly types.bool;

@@ -30,5 +30,6 @@ Nas tabelas de atalhos, **Super** é a tecla de sistema, geralmente marcada com 
 - [KDE Plasma](desktops/kde.md)
 - [GNOME](desktops/gnome.md)
 - [Cinnamon](desktops/cinnamon.md)
+- [LXQt](desktops/lxqt.md)
 
 Os roteiros de validação gráfica usam uma instalação descartável ou VM, com uma conta nova e outra com preferências já gravadas. Registre a revisão do Noir, a do Nixpkgs e o tipo de sessão. Quando um teste depender de hardware físico, registre também o equipamento ou marque o caso como pendente.

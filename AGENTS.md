@@ -2,7 +2,7 @@
 
 ## Projeto e arquitetura
 
-O Noir reúne módulos declarativos do NixOS para KDE Plasma, GNOME e Cinnamon, nessa ordem. Utilize módulos tradicionais do NixOS e do Nixpkgs.
+O Noir reúne módulos declarativos do NixOS para KDE Plasma, GNOME, Cinnamon e LXQt, nessa ordem. Utilize módulos tradicionais do NixOS e do Nixpkgs.
 
 - `noir` é a entrada do configurador. `core/install.sh` concentra verificações, sincronização Git, integração, publicação e rebuild. `core/lib/ui.sh` oferece a interface comum e o modo texto, e `core/lib/ui-dialog.sh` fornece os widgets do Dialog. Mantenha as operações no fluxo comum e exponha no menu somente as operações implementadas.
 - `noir.nix` é o ponto de entrada Nix. `applications.nix` reúne os aplicativos comuns versionados. Mantenha imports explícitos. A publicação copia os arquivos regulares da revisão Git, sem inventário manual.
@@ -48,7 +48,7 @@ A proibição vale com ou sem `sudo`, por alias, script ou interface, mesmo medi
 
 ## Convenções documentais e entrega
 
-- Escreva em pt-BR, em Markdown válido, com exemplos relevantes e links relativos entre páginas. Mantenha o [README público](README.md) conciso e o [índice da documentação](docs/README.md) atualizado. Preserve a ordem KDE Plasma, GNOME e Cinnamon.
+- Escreva em pt-BR, em Markdown válido, com exemplos relevantes e links relativos entre páginas. Mantenha o [README público](README.md) conciso e o [índice da documentação](docs/README.md) atualizado. Preserve a ordem KDE Plasma, GNOME, Cinnamon e LXQt.
 - Descreva fielmente pacotes e serviços, incluindo o JDK configurado, editores, PostgreSQL, Zsh, Git, Bluetooth, biometria e keyd, quando presentes. Documente os opcionais como escolhas. Explique a aplicação única da identidade Git global pela própria conta após a primeira publicação protegida e a precedência da configuração de cada repositório.
 - Explique que as versões dependem da revisão do Nixpkgs e que existem dependências sem revisão fixada no projeto. Registre pressupostos específicos da máquina, etapas de adaptação e limites de homologação, sem prometer compatibilidade universal.
 - Ao concluir, resuma os arquivos alterados, as decisões importantes e as verificações feitas.

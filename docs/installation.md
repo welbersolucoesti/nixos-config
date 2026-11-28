@@ -45,6 +45,7 @@ Compare as sessões antes de publicar. O **gerenciador de login** é o serviço 
 | [KDE Plasma](desktops/kde.md) | Plasma 6, com Wayland quando disponível, SDDM e dois painéis flutuantes. |
 | [GNOME](desktops/gnome.md) | GNOME em Wayland, GDM e extensões de dock, bandeja e área de transferência. |
 | [Cinnamon](desktops/cinnamon.md) | Sessão X11, LightDM com Slick Greeter e dois painéis com tarefas agrupadas. |
+| [LXQt](desktops/lxqt.md) | Sessão LXQt Wayland com KWin e SDDM. O XWayland atende aplicativos X11. |
 | **Definido pela máquina** | Módulos comuns do Noir. A máquina continua responsável pela sessão gráfica ou pelo uso somente em console. |
 
 Para um perfil Noir, confira se a instalação base já declara outro desktop, gerenciador de login, sessão padrão ou login automático. Resolva as configurações incompatíveis à luz da página do perfil antes da validação. A [escolha gráfica](configuration.md#escolha-gráfica) fica consolidada na primeira publicação bem-sucedida, mesmo que a ativação seja adiada.

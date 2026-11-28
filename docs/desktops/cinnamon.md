@@ -78,4 +78,4 @@ Os JSON pessoais podem estar em `${XDG_CONFIG_HOME:-$HOME/.config}/cinnamon/spic
 2. **Conta com preferências.** Confira os ajustes pessoais dos applets, uma única instância do Bitwarden no início e a ausência de restauração das janelas anteriores.
 3. **Autenticação e ambiente.** Confira bloqueio, retorno à sessão, NumLock, escala e múltiplos monitores, incluindo relógio e ocultação do painel inferior.
 
-Anterior: [GNOME](gnome.md) · [Índice dos perfis](../README.md#ambientes-gráficos)
+Anterior: [GNOME](gnome.md) · [Índice dos perfis](../README.md#ambientes-gráficos) · Próximo: [LXQt](lxqt.md)

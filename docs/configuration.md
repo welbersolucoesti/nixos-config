@@ -16,7 +16,7 @@ Para alterar a autoria de commits depois da primeira publicação, use a configu
 
 | Chave | Valores e padrão |
 | --- | --- |
-| `desktop` | `"kde"`, `"gnome"`, `"cinnamon"` ou `null`. O modelo omite a chave para permitir a seleção inicial. |
+| `desktop` | `"kde"`, `"gnome"`, `"cinnamon"`, `"lxqt"` ou `null`. O modelo omite a chave para permitir a seleção inicial. |
 | `wallpaper` | Nome de um arquivo regular em [`core/wallpapers/`](../core/wallpapers/). O padrão é `nixos-001.png`. |
 | `optionals.cron` | Booleano, com padrão `false`. |
 | `optionals.virtualization` | Booleano, com padrão `false`. |
@@ -60,7 +60,7 @@ As páginas dos [perfis](README.md#ambientes-gráficos) descrevem exemplos dessa
 | --- | --- |
 | Arquivo ausente ou objeto válido sem `desktop`, como `{}` | Na primeira publicação, o Noir solicita a escolha. A avaliação Nix isolada resolve a opção ausente para `null`. |
 | `"desktop": null` | Escolha explícita **Definido pela máquina**. Os módulos comuns continuam disponíveis e a configuração da máquina é responsável pelo desktop e pelo login. |
-| `desktop` com um perfil explícito | O Noir respeita a seleção. A lista oferece KDE Plasma, GNOME e Cinnamon nessa ordem. |
+| `desktop` com um perfil explícito | O Noir respeita a seleção. A lista oferece KDE Plasma, GNOME, Cinnamon e LXQt nessa ordem. |
 | `desktop` com um valor fora do esquema | A leitura falha. |
 | Arquivo com zero bytes ou JSON inválido | A leitura falha. |
 

@@ -2,6 +2,7 @@
 
 let
   inherit (config.personalConfig) wallpaper;
+  kwinSettings = import ../kwin-settings.nix wallpaper;
   wallpaperName = "Noir";
   wallpaperMetadata = pkgs.writeText "noir-wallpaper-metadata.json" (builtins.toJSON {
     KPackageStructure = "Wallpaper/Images";
@@ -80,22 +81,7 @@ in
         name[$i]=default
       '';
 
-      "xdg/kwinrc".text = ''
-        [Desktops]
-        Number[$i]=2
-        Rows[$i]=1
-        Name_1[$i]=Work 1
-        Name_2[$i]=Work 2
-
-        [Plugins]
-        glideEnabled[$i]=true
-        magiclampEnabled[$i]=true
-        scaleEnabled[$i]=false
-        squashEnabled[$i]=false
-
-        [Windows]
-        RollOverDesktops[$i]=false
-      '';
+      "xdg/kwinrc".text = kwinSettings.desktops + "\n" + kwinSettings.plugins + "\n" + kwinSettings.windows;
 
       # O modelo do KDE usa essa lista ao importar os favoritos de um lançador novo.
       "xdg/kicker-extra-favoritesrc".text = ''
@@ -124,13 +110,7 @@ in
         OnlyShowIn=KDE;
       '';
 
-      "xdg/kscreenlockerrc".text = ''
-        [Greeter]
-        WallpaperPlugin[$i]=org.kde.image
-
-        [Greeter][Wallpaper][org.kde.image][General]
-        Image[$i]=file://${wallpaper}
-      '';
+      "xdg/kscreenlockerrc".text = kwinSettings.locker;
 
       "xdg/kglobalshortcutsrc".text = ''
         [noir-configurator.desktop]

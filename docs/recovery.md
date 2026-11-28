@@ -88,6 +88,8 @@ Se a falha ocorrer antes de criar um registro, use a mensagem do Noir. Um arquiv
 | Construção | Erro ao obter uma dependência ou falha de uma derivação identificada por um caminho `.drv`. | Leia a primeira falha do construtor ou do download. Quando houver um caminho de derivação e o recurso estiver disponível, `nix log /nix/store/…-pacote.drv` consulta o registro correspondente. |
 | Ativação | A construção terminou e uma unidade ou ação de aplicação falhou. | Use o registro do rebuild e o journal para identificar a unidade. Antes de repetir, compare o sistema ativo, o perfil e o próximo boot. |
 
+No perfil LXQt, o valor publicado é `"lxqt"` e a sessão esperada no SDDM é **LXQt (Wayland)**. Para falhas de portal, painel, bloqueador ou KCM, consulte o [diagnóstico do perfil LXQt](desktops/lxqt.md#diagnóstico).
+
 ## Ativação interrompida
 
 Uma falha no `switch` pode ocorrer depois da construção ou da mudança do perfil, com o sistema anterior ainda em execução. Compare o sistema ativo, o perfil e a entrada que o carregador configurou para o próximo boot. Uma entrada existente no menu, por si só, não indica a entrada padrão.
