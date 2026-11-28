@@ -5,6 +5,7 @@ let
   inherit (lib) getExe getExe';
   systemctl = getExe' config.systemd.package "systemctl";
   sessionTarget = "noir-lxqt-session.target";
+  lockerQml = "${kdePackages.plasma-workspace}/${pkgs.qt6.qtbase.qtQmlPrefix}";
   # O KWin passa WAYLAND_DISPLAY e os dados do XWayland ao processo da sessão.
   desktop = pkgs.writeShellScript "noir-lxqt-desktop" ''
     set -e
@@ -38,7 +39,10 @@ let
     trap 'exit 143' TERM
     trap 'exit 130' INT
 
-    ${getExe' kdePackages.kwin "kwin_wayland_wrapper"} --xwayland --exit-with-session ${desktop} 9>&- &
+    # O greeter herda do KWin o tema do Plasma Desktop e os imports do Workspace.
+    XDG_DATA_DIRS="${kdePackages.plasma-desktop}/share:''${XDG_DATA_DIRS:-/usr/local/share:/usr/share}" \
+    NIXPKGS_QT6_QML_IMPORT_PATH="${lockerQml}''${NIXPKGS_QT6_QML_IMPORT_PATH:+:$NIXPKGS_QT6_QML_IMPORT_PATH}" \
+      ${getExe' kdePackages.kwin "kwin_wayland_wrapper"} --xwayland --exit-with-session ${desktop} 9>&- &
     compositor=$!
     status=0
     wait "$compositor" || status=$?
@@ -56,11 +60,18 @@ let
   '').overrideAttrs (_: { passthru.providedSessions = [ "lxqt-wayland" ]; });
 
   panel = lxqt.lxqt-panel.overrideAttrs (old: {
-    patches = (old.patches or [ ]) ++ [ ./lxqt/panel-layout.patch ];
+    patches = (old.patches or [ ]) ++ [
+      ./lxqt/panel-layout.patch
+      ./lxqt/panel-favorites.patch
+    ];
     postPatch = (old.postPatch or "") + ''
       # O Nixpkgs passa CMAKE_INSTALL_BINDIR como caminho absoluto.
       substituteInPlace autostart/lxqt-panel_wayland.desktop.in \
         --replace-fail '@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_BINDIR@' '@CMAKE_INSTALL_FULL_BINDIR@'
+    '';
+    postInstall = (old.postInstall or "") + ''
+      # O wrapper prioriza seu próprio XDG_CONFIG_DIRS. O padrão vem de /etc/xdg.
+      rm "$out/etc/xdg/lxqt/panel.conf"
     '';
   });
   kdePortal = "plasma-xdg-desktop-portal-kde";

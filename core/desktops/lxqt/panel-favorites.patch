@@ -1,0 +1,22 @@
+--- a/plugin-fancymenu/lxqtfancymenu.cpp
++++ b/plugin-fancymenu/lxqtfancymenu.cpp
+@@ -49,6 +49,7 @@
+ #include <XdgAction>
+ 
+ #include <QDir>
++#include <QSignalBlocker>
+ 
+ #include <algorithm>
+ 
+@@ -283,8 +284,11 @@
+         list.append(item);
+     }
+ 
++    // Between removal and replacement, QSettings may expose the unnormalized
++    // system favorites again. Do not reload the menu during this write.
++    const QSignalBlocker blocker(settings());
+     // HACK: force Qt to clear old array and rewrite it
+     // Otherwise it would leave garbage values inside it.
+     settings()->remove(QStringLiteral("favorites"));
+     settings()->setArray(QStringLiteral("favorites"), list);
+ }
