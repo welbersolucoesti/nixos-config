@@ -1,0 +1,45 @@
+--- a/src/view/dock_item.h
++++ b/src/view/dock_item.h
+@@ -130,6 +130,6 @@
+ 
+   void nextAnimationStep() {
+-    ++currentStep_;
+-    if (currentStep_ <= numSteps_) {
++    if (currentStep_ < numSteps_) {
++      ++currentStep_;
+       left_ = startLeft_ + (endLeft_ - startLeft_) * currentStep_ / numSteps_;
+       top_ = startTop_ + (endTop_ - startTop_) * currentStep_ / numSteps_;
+@@ -191,6 +191,7 @@
+   int endTop_;
+   int endSize_;
+-  int currentStep_;
+-  int numSteps_;
++  // An item added while the panel is animating has no animation yet.
++  int currentStep_ = 0;
++  int numSteps_ = 0;
+ 
+  private:
+--- a/src/view/program.cc
++++ b/src/view/program.cc
+@@ -315,5 +315,5 @@
+   parent_->update();
+   launch(command_);
+-  QTimer::singleShot(kLaunchingAcknowledgementDurationMs,
++  QTimer::singleShot(kLaunchingAcknowledgementDurationMs, this,
+                      [this] {
+                        launching_ = false; parent_->update();
+@@ -347,8 +347,10 @@
+   process.setWorkingDirectory(QDir::homePath());
+   if (!process.startDetached()) {
+-    QMessageBox warning(QMessageBox::Warning, "Error",
+-                        QString("Could not run command: ") + command,
+-                        QMessageBox::Ok, nullptr, Qt::Tool);
+-    warning.exec();
++    // Keep window events from re-entering the dock during this launch.
++    auto* warning = new QMessageBox(QMessageBox::Warning, "Error",
++                                    QString("Could not run command: ") + command,
++                                    QMessageBox::Ok, nullptr, Qt::Tool);
++    warning->setAttribute(Qt::WA_DeleteOnClose);
++    warning->show();
+   }
+ }

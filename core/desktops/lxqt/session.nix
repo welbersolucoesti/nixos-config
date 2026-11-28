@@ -20,6 +20,16 @@ let
     widgetStyle[$i]=Breeze
   '';
   breezeColors = "${pkgs.kdePackages.breeze}/share/color-schemes/BreezeDark.colors";
+  dolphin = pkgs.symlinkJoin {
+    name = "noir-lxqt-dolphin";
+    paths = [ pkgs.kdePackages.dolphin ];
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    postBuild = ''
+      wrapProgram "$out/bin/dolphin" \
+        --set QT_QPA_PLATFORMTHEME kde \
+        --prefix QT_PLUGIN_PATH : ${pkgs.kdePackages.plasma-integration}/${pkgs.qt6.qtbase.qtPluginPrefix}
+    '';
+  };
   vscodeLauncher = pkgs.runCommand "noir-lxqt-code-desktop" { } ''
     install -Dm644 ${pkgs.vscode}/share/applications/code.desktop "$out/share/applications/code.desktop"
     # O tamanho 1024x1024 do pacote não consta no índice do tema hicolor.
@@ -84,7 +94,9 @@ let
 in
 {
   config = lib.mkIf (config.personalConfig.desktop == "lxqt") {
-    environment.systemPackages = [ shortcutFiles copyq (lib.hiPrio vscodeLauncher) ];
+    # O Dolphin usa o kdeglobals. O PCManFM-Qt segue como gerenciador padrão.
+    environment.systemPackages = [ shortcutFiles copyq (lib.hiPrio vscodeLauncher) ]
+      ++ lib.optional config.noir.lxqt.crystalDock.enable dolphin;
     programs.dconf.enable = true;
     programs.dconf.profiles.user.databases = [{
       locks = [ "/org/gnome/desktop/interface/color-scheme" ];

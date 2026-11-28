@@ -28,6 +28,8 @@ O gerenciador de energia LXQt usa o ícone do tema como padrão. A bandeja aplic
 
 O relógio fica no centro geométrico quando há espaço entre os grupos laterais. Em telas estreitas, volta ao fluxo dos componentes para evitar sobreposição. A sessão inicia o Crystal Dock após importar o ambiente Wayland, e o alvo de sessão encerra o serviço no logout. O LXQt Panel reserva a borda inferior para o dock durante o modo candidato, inclusive ao carregar painéis pessoais ou conectar um monitor. [Ajuste do relógio](../../core/desktops/lxqt/panel-layout.patch) · [Reserva da borda inferior](../../core/desktops/lxqt/panel-reserve-bottom.patch) · [Módulo do dock](../../core/desktops/lxqt/crystal-dock.nix)
 
+Os lançadores do Crystal Dock resolvem executáveis pelo perfil do sistema ativo. Em caso de falha, o systemd espera cinco segundos e limita o serviço a três partidas em 60 segundos, contando a inicial. O Dolphin usa a integração Qt do KDE para ler a paleta Breeze Dark do `kdeglobals`. Os aplicativos Qt nativos do LXQt continuam usando a integração do LXQt. [Módulo do dock](../../core/desktops/lxqt/crystal-dock.nix) · [Preferências da sessão](../../core/desktops/lxqt/session.nix)
+
 O Crystal Dock usa o protocolo KDE de gerenciamento de janelas. A correspondência depende dos identificadores que o KWin fornece para janelas Wayland e XWayland. A ocultação cobre janelas maximizadas, tela cheia e sobreposição quando o compositor fornece a geometria. O 2.16 pode clonar o primeiro dock no primeiro início com várias saídas. Depois, a conta pode associar docks a telas pelos controles do próprio aplicativo. [Documentação do Crystal Dock](https://github.com/dangvd/crystal-dock/wiki/Documentation)
 
 ## Integrações

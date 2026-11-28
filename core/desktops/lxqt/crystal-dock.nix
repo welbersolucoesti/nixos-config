@@ -1,7 +1,9 @@
 { config, lib, pkgs, ... }:
 
 let
-  dock = pkgs.crystal-dock;
+  dock = pkgs.crystal-dock.overrideAttrs (old: {
+    patches = (old.patches or [ ]) ++ [ ./crystal-dock-animation.patch ];
+  });
 in
 {
   options.noir.lxqt.crystalDock.enable = lib.mkOption {
@@ -16,8 +18,7 @@ in
       message = "O preset LXQt Noir foi validado com Crystal Dock 2.16. Revise-o ao atualizar o pacote.";
     }];
 
-    # O Dolphin integra a lista de lançadores do KDE Noir. O PCManFM-Qt segue como desktop.
-    environment.systemPackages = [ dock pkgs.kdePackages.dolphin ];
+    environment.systemPackages = [ dock ];
 
     # O Crystal Dock copia o preset no primeiro uso e preserva configurações pessoais.
     # Arquivos regulares conservam a permissão de escrita quando copiados pelo usuário.
@@ -71,10 +72,16 @@ in
       description = "Crystal Dock da sessão LXQt do Noir";
       wantedBy = [ "noir-lxqt-session.target" ];
       partOf = [ "noir-lxqt-session.target" ];
+      # As entradas desktop podem usar nomes de executáveis da geração ativa.
+      environment.PATH = lib.mkForce "${config.security.wrapperDir}:/run/current-system/sw/bin";
+      startLimitIntervalSec = 60;
+      startLimitBurst = 3;
       serviceConfig = {
         Type = "exec";
         ExecStart = lib.getExe dock;
         Environment = "QT_QPA_PLATFORM=wayland";
+        Restart = "on-failure";
+        RestartSec = "5s";
       };
     };
   };
