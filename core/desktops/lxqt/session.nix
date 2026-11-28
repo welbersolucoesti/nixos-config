@@ -8,6 +8,24 @@ let
     patches = (old.patches or [ ]) ++ [ ./copyq-runtime-history.patch ];
   });
   kwinSettings = import ../kwin-settings.nix wallpaper;
+  inherit (config.services.xserver) xkb;
+  kdeGlobals = pkgs.writeText "noir-lxqt-kdeglobals" ''
+    [General]
+    ColorScheme[$i]=BreezeDark
+
+    [Icons]
+    Theme[$i]=breeze-dark
+
+    [KDE]
+    widgetStyle[$i]=Breeze
+  '';
+  breezeColors = "${pkgs.kdePackages.breeze}/share/color-schemes/BreezeDark.colors";
+  vscodeLauncher = pkgs.runCommand "noir-lxqt-code-desktop" { } ''
+    install -Dm644 ${pkgs.vscode}/share/applications/code.desktop "$out/share/applications/code.desktop"
+    # O tamanho 1024x1024 do pacote não consta no índice do tema hicolor.
+    substituteInPlace "$out/share/applications/code.desktop" \
+      --replace-fail 'Icon=vscode' 'Icon=${pkgs.vscode}/share/pixmaps/vscode.png'
+  '';
   terminal = getExe' lxqt.qterminal "qterminal";
   noirEntry = ''
     [Desktop Entry]
@@ -59,29 +77,40 @@ let
     gtk-theme-name=Breeze-Dark
     gtk-icon-theme-name=breeze-dark
     gtk-application-prefer-dark-theme=true
+    gtk-decoration-layout=${buttonLayout}
   '';
+  buttonLayout = ":minimize,maximize,close";
 in
 {
   config = lib.mkIf (config.personalConfig.desktop == "lxqt") {
-    environment.systemPackages = [ shortcutFiles copyq ];
+    environment.systemPackages = [ shortcutFiles copyq (lib.hiPrio vscodeLauncher) ];
     programs.dconf.enable = true;
-    programs.dconf.profiles.user.databases = [
-      { lockAll = true; settings."org/gnome/desktop/interface".color-scheme = "prefer-dark"; }
-    ];
+    programs.dconf.profiles.user.databases = [{
+      locks = [ "/org/gnome/desktop/interface/color-scheme" ];
+      settings = {
+        "org/gnome/desktop/interface".color-scheme = "prefer-dark";
+        # GTK Wayland também recebe esta preferência do portal de configurações.
+        "org/gnome/desktop/wm/preferences".button-layout = buttonLayout;
+      };
+    }];
 
     environment.etc = {
-      "xdg/kdeglobals".text = ''
-        [General]
-        ColorScheme[$i]=BreezeDark
-
-        [Icons]
-        Theme[$i]=breeze-dark
-
-        [KDE]
-        widgetStyle[$i]=Breeze
+      "xdg/kdeglobals".source = pkgs.runCommand "noir-lxqt-breeze-dark-kdeglobals" { } ''
+        cat ${kdeGlobals} > "$out"
+        # O KWin lê as cores da decoração do kdeglobals.
+        awk '/^\[/ { palette = /^\[(Colors:|ColorEffects:|WM\])/ } palette' ${breezeColors} >> "$out"
       '';
       "xdg/kwinrc".text = kwinSettings.desktops + "\n" + kwinSettings.plugins + "\n" + kwinSettings.windows;
       "xdg/kcminputrc".text = kwinSettings.input;
+      "xdg/kxkbrc".text = ''
+        [Layout]
+        Use=true
+        Model=${xkb.model}
+        LayoutList=${xkb.layout}
+        VariantList=${xkb.variant}
+        Options=${xkb.options}
+        ResetOldOptions=true
+      '';
       "xdg/kscreenlockerrc".text = ''
         [Daemon]
         RequirePassword[$i]=true

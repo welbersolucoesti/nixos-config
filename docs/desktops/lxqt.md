@@ -12,13 +12,13 @@ O Noir inicia **LXQt (Wayland)** pelo SDDM. O KWin gerencia janelas, atalhos, á
 
 ## Aparência
 
-O perfil aplica uma paleta escura a Qt e GTK. O KWin habilita Glide e Lâmpada Mágica. O PCManFM-Qt usa o [papel de parede selecionado](../configuration.md#preferências). O KScreenLocker recebe a mesma imagem quando o tema fornece o plugin de imagem. [Preferências da sessão LXQt](../../core/desktops/lxqt/session.nix) · [Efeitos do KWin](../../core/desktops/kwin-settings.nix)
+O perfil usa a paleta Breeze Dark para a decoração do KWin e define padrões escuros para Qt e GTK. O KWin habilita Glide e Lâmpada Mágica. O Chrome com decoração própria segue a disposição padrão dos botões do GTK, também disponibilizada pelo portal de configurações. O PCManFM-Qt usa o [papel de parede selecionado](../configuration.md#preferências). O KScreenLocker recebe a mesma imagem quando o tema fornece o plugin de imagem. [Preferências da sessão LXQt](../../core/desktops/lxqt/session.nix) · [Efeitos do KWin](../../core/desktops/kwin-settings.nix)
 
 ## Painéis e navegação
 
 | Componente | Padrão do Noir |
 | --- | --- |
-| Painel superior | 38 px lógicos, largura integral e reserva de espaço. Menu com o floco do NixOS, lista de janelas, relógio centralizado, bandeja, volume, mídias removíveis, seletor de áreas de trabalho e atalhos de sessão no menu. |
+| Painel superior | 38 px lógicos, largura integral e reserva de espaço. Menu com o floco do NixOS, relógio centralizado, bandeja, volume, mídias removíveis, seletor de áreas de trabalho, botão para mostrar a área de trabalho e atalhos de sessão no menu. A lista de janelas fica no painel inferior. |
 | Painel inferior | 42 px lógicos, centralizado e com largura ajustada aos componentes. Recolhe quando uma janela se sobrepõe à área do painel. |
 | Lançadores inferiores | Chrome, IntelliJ IDEA, Visual Studio Code, DBeaver e PCManFM-Qt. O Quick Launch fixa os atalhos e a lista de tarefas agrupa as janelas abertas. Um aplicativo pode aparecer nos dois componentes. |
 | Favoritos do menu | Chrome, Configurações do LXQt, PCManFM-Qt, IntelliJ IDEA, DBeaver, Visual Studio Code e Postman. |
@@ -26,11 +26,15 @@ O perfil aplica uma paleta escura a Qt e GTK. O KWin habilita Glide e Lâmpada M
 
 O Noir inclui um ajuste no LXQt Panel para atualizar o comprimento do painel inferior com o tamanho do conteúdo e centralizar o relógio quando há espaço entre as laterais. Em telas estreitas, o relógio volta ao fluxo normal dos componentes para evitar sobreposição. [Configuração e ajuste do painel](../../core/desktops/lxqt/)
 
+No LXQt Panel 2.4, o Quick Launch mantém os lançadores e a barra de tarefas agrupa as janelas por aplicativo. Esses componentes independentes podem mostrar dois ícones para o mesmo aplicativo, mesmo quando os identificadores correspondem. A integração equivalente ao gerenciador de tarefas do Plasma continua em discussão no LXQt. [Discussão do LXQt](https://github.com/lxqt/lxqt/discussions/2812)
+
 ## Integrações
 
 A configuração da máquina continua responsável pelos dispositivos, pela rede e pela compatibilidade do vídeo com Wayland. Se a máquina usa NetworkManager, o Noir disponibiliza o applet de rede na bandeja. O perfil usa PipeWire e WirePlumber para áudio, Blueman para Bluetooth, UPower e o gerenciador de energia do LXQt. PCManFM-Qt, GVfs e UDisks2 cuidam dos arquivos e das mídias removíveis.
 
 O KWin liga o NumLock e ativa rolagem natural para touchpads compatíveis. O Chrome é o navegador inicial. O Bitwarden inicia pelo autostart XDG, sujeito à precedência de uma entrada pessoal de mesmo nome. O portal LXQt atende à seleção de arquivos, o KDE atende à captura e ao compartilhamento de tela, e o GTK complementa a seleção de interfaces. [Configuração da sessão](../../core/desktops/lxqt/session.nix) · [Configuração dos portais](../../core/desktops/lxqt.nix)
+
+O mapa XKB do KWin parte de `services.xserver.xkb` da máquina. O KScreenLocker usa o teclado da sessão Wayland. O SDDM tem um compositor separado, configurado pelo NixOS para consultar o mapa de `locale1`. Antes de iniciar o PCManFM-Qt, a sessão chama `xdg-user-dirs-update` quando a conta ainda não tem `user-dirs.dirs`. O utilitário usa o idioma e os padrões XDG e mantém os diretórios já configurados pela conta. [Inicialização da sessão](../../core/desktops/lxqt.nix)
 
 O CopyQ oferece histórico com limite inicial de 20 itens. O serviço guarda as abas, anexos, histórico de ações e logs próprios no diretório de execução, removido quando o serviço encerra. As preferências e definições de comandos da conta continuam nos arquivos pessoais e podem alterar o limite ou exportar dados. Históricos gravados antes dessa configuração ficam onde foram salvos. O CopyQ reconhece o marcador MIME de senha do KDE quando o aplicativo de origem o fornece. Senhas copiadas do Bitwarden sem esse marcador podem entrar no histórico. [Ajuste de armazenamento](../../core/desktops/lxqt/copyq-runtime-history.patch) · [CopyQ 13.0.0](https://github.com/hluk/CopyQ/tree/v13.0.0)
 
@@ -47,8 +51,9 @@ O QTerminal começa com JetBrains Mono Nerd Font, esquema escuro, menu e rolagem
 | `Super+L` | Bloqueia a sessão pelo KScreenLocker. |
 | `Ctrl+Alt+T` | Abre o QTerminal. |
 | `Super` isolada | Abre ou alterna o menu de aplicativos ao soltar a tecla. |
+| `Print Screen` | Abre o Spectacle para capturar a tela pelo KWin Wayland. |
 
-O **Noir** também aparece no menu. [Atalhos do Noir](../../core/desktops/lxqt/session.nix)
+O **Noir** e o **Spectacle** também aparecem no menu. O Spectacle registra seu atalho padrão pelo KGlobalAccel. [Atalhos do Noir](../../core/desktops/lxqt/session.nix) · [Atalhos do Spectacle](https://docs.kde.org/stable_kf6/en/spectacle/spectacle/starting.html)
 
 ## Autenticação e bloqueio
 
@@ -71,17 +76,18 @@ No fork, altere `panelSize` em [`panel.conf`](../../core/desktops/lxqt/panel.con
 | Sintoma | O que conferir |
 | --- | --- |
 | Sessão ausente ou falha no login | Verifique `systemctl status display-manager.service`, o valor publicado do desktop e eventuais módulos ou sessões gráficos concorrentes. |
-| Layout ou atalhos diferentes | Compare com uma conta nova. Revise `~/.config/lxqt/panel.conf` e `~/.config/kglobalshortcutsrc` na conta de teste. |
+| Painel ou atalhos diferentes | Compare com uma conta nova. Revise `~/.config/lxqt/panel.conf` e `~/.config/kglobalshortcutsrc` na conta de teste. |
+| Teclado diferente no login, na sessão ou no bloqueio | Compare `localectl status`, a configuração de `services.xserver.xkb`, o `kxkbrc` pessoal e a lista do KWin com `busctl --user call org.kde.KWin /Layouts org.kde.KeyboardLayouts getLayoutsList`. |
 | A página de digitais não abre ou o botão não aparece | Confirme que o KCM é descoberto, que AccountsService e fprintd estão acessíveis e que o leitor é compatível. Veja `journalctl -b -u fprintd.service` e o log da sessão. |
 | Aplicativo não oferece compartilhamento | Confira `journalctl --user -b -u xdg-desktop-portal.service -u plasma-xdg-desktop-portal-kde.service` e verifique PipeWire. Teste novamente depois de encerrar e entrar na sessão. |
 
 ## Validação gráfica
 
-1. **Entrada e sessão.** Em ambiente descartável, confira a única entrada LXQt no SDDM, login por senha, sessão Wayland e abertura de um aplicativo X11 via XWayland. Encerre a sessão e entre novamente. Verifique que as janelas anteriores não retornam, que o Bitwarden abre uma vez e que `plasmashell` está ausente.
+1. **Entrada e sessão.** Em ambiente descartável, confira a única entrada LXQt no SDDM, login por senha, sessão Wayland e abertura de um aplicativo X11 via XWayland. Confira as teclas específicas do mapa da máquina no login, na sessão e no bloqueio. Encerre a sessão e entre novamente. Verifique que as janelas anteriores não retornam, que o Bitwarden abre uma vez e que `plasmashell` está ausente. Em uma conta nova, confira os diretórios XDG no primeiro e no segundo login.
 2. **Biometria.** Com leitor compatível, abra o KCM pelo menu e pelo centro de configurações. Cadastre, liste, recadastre e exclua uma digital. Cancele um cadastro e tente de novo. Repita o fluxo com leitor ocupado, desconectado ou indisponível. Verifique as mensagens do agente Polkit e a autorização alternativa por senha.
 3. **Bloqueio.** Teste Super+L, bloqueio por inatividade e suspensão pelo menu e pela tampa, quando disponíveis. Em múltiplos monitores, confira todas as saídas antes e depois de reconectar uma delas. Desbloqueie separadamente por digital e senha. Repita com digital incorreta, ausência de cadastro e leitor desconectado. Verifique que a senha continua disponível e que nenhuma janela fica acessível enquanto a sessão estiver bloqueada.
 4. **Portais.** Abra um seletor de arquivos. Teste captura e compartilhamento de tela e de janela em aplicativos Wayland e XWayland. Encerre a sessão e repita para verificar nova ativação do backend.
-5. **Identidade.** Confira os cinco atalhos, incluindo Super isolada e combinada, relógio, bandeja, áreas de trabalho e ordens iniciais. Abra várias janelas do mesmo aplicativo, confira o agrupamento e o ajuste da largura do painel ao abrir e fechar janelas, cubra sua área com uma janela e recupere-o pela borda. Confirme escala e geometria em múltiplos monitores. Confira fonte, abas e histórico do terminal.
+5. **Identidade.** Confira os atalhos, incluindo Super isolada e combinada. Use `Print Screen` para abrir o Spectacle e faça uma captura de teste. Confira o floco do NixOS no menu, a posição do relógio no centro geométrico do painel superior, a bandeja, as áreas de trabalho e as ordens iniciais. Confira o ícone do VS Code antes de abrir o editor, as cores da decoração em janelas ativas e inativas e os três botões na moldura do Chrome. Abra várias janelas do mesmo aplicativo e confira o agrupamento no painel inferior e a posição do relógio no superior. Confira o ajuste da largura do painel inferior ao abrir e fechar janelas, cubra sua área com uma janela e recupere-o pela borda. Confirme escala e geometria em múltiplos monitores. Confira fonte, abas e histórico do terminal.
 6. **Integrações e desempenho.** Teste áudio, Bluetooth, rede, perfis de energia, suspensão e mídias removíveis. Com dados fictícios, confira o limite e a limpeza do histórico ao sair da sessão. Compare a memória e a resposta com KDE Plasma Noir usando as mesmas condições, aplicativos abertos e serviços.
 
 Anterior: [Cinnamon](cinnamon.md) · [Índice dos perfis](../README.md#ambientes-gráficos)

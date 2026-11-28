@@ -9,6 +9,11 @@ let
   # O KWin passa WAYLAND_DISPLAY e os dados do XWayland ao processo da sessão.
   desktop = pkgs.writeShellScript "noir-lxqt-desktop" ''
     set -e
+    # Inicializa antes de o PCManFM-Qt consultar os diretórios da conta.
+    userDirs="''${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs"
+    if [[ ! -e $userDirs && ! -L $userDirs ]]; then
+      ${getExe pkgs.xdg-user-dirs} || true
+    fi
     ${getExe' pkgs.dbus "dbus-update-activation-environment"} --systemd \
       DISPLAY XAUTHORITY WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE \
       XDG_DATA_DIRS XDG_CONFIG_DIRS XDG_MENU_PREFIX QT_PLUGIN_PATH QT_QPA_PLATFORMTHEME
@@ -139,6 +144,7 @@ in
       lxqt-themes pavucontrol-qt qtxdg-tools
     ]) ++ (with kdePackages; [
       kwin kscreen kscreenlocker kactivitymanagerd breeze breeze-icons breeze-gtk
+      spectacle
     ]) ++ [
       panel
       pkgs.nixos-icons
