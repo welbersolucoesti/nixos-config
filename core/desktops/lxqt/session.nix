@@ -61,8 +61,9 @@ let
       ++ lib.imap1 (i: id: "${name}\\${toString i}\\${key}=/run/current-system/sw/share/applications/${id}.desktop") ids
     );
   panel = lib.replaceStrings
-    [ "@nixIcon@" "@favorites@" "@launchers@" ]
+    [ "@panels@" "@nixIcon@" "@favorites@" "@launchers@" ]
     [
+      (if config.noir.lxqt.crystalDock.enable then "top" else "top,bottom")
       "${pkgs.nixos-icons}/share/icons/hicolor/scalable/apps/nix-snowflake.svg"
       (desktopArray "favorites" "desktopFile" [
         "google-chrome" "lxqt-config" "pcmanfm-qt" "idea" "dbeaver" "code" "postman"
@@ -134,7 +135,7 @@ in
       '';
       "xdg/lxqt/lxqt.conf".text = ''
         [General]
-        theme=dark
+        theme=noir
         icon_theme=breeze-dark
 
         [Qt]

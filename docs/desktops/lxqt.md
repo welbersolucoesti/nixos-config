@@ -4,29 +4,31 @@
 
 ## Visão geral
 
-O perfil combina LXQt com KWin Wayland. O painel superior reúne navegação e indicadores, e o inferior acompanha aplicativos fixados e janelas abertas.
+O perfil combina LXQt com KWin Wayland. O LXQt Panel reúne navegação e indicadores na parte superior. O Crystal Dock 2.16 é o candidato para reunir aplicativos fixados e janelas abertas na parte inferior.
 
 ## Sessão gráfica
 
-O Noir inicia **LXQt (Wayland)** pelo SDDM. O KWin gerencia janelas, atalhos, áreas de trabalho e bloqueio. O XWayland permite executar aplicativos X11 dentro da sessão. O perfil registra uma única sessão e usa o LXQt Panel e o PCManFM-Qt para o painel e a área de trabalho. O módulo completo do Plasma fica desabilitado. A sessão inicia os aplicativos de autostart e começa sem restaurar janelas. [Módulo do perfil](../../core/desktops/lxqt.nix)
+O Noir inicia **LXQt (Wayland)** pelo SDDM. O KWin gerencia janelas, atalhos, áreas de trabalho e bloqueio. O XWayland permite executar aplicativos X11 dentro da sessão. O perfil registra uma única sessão. O PCManFM-Qt desenha a área de trabalho. O módulo completo do Plasma fica desabilitado. A sessão inicia os aplicativos de autostart e começa sem restaurar janelas. [Módulo do perfil](../../core/desktops/lxqt.nix)
 
 ## Aparência
 
-O perfil usa a paleta Breeze Dark para a decoração do KWin e define padrões escuros para Qt e GTK. O KWin habilita Glide e Lâmpada Mágica. O Chrome com decoração própria segue a disposição padrão dos botões do GTK, também disponibilizada pelo portal de configurações. O PCManFM-Qt usa o [papel de parede selecionado](../configuration.md#preferências). O KScreenLocker recebe a mesma imagem quando o tema fornece o plugin de imagem. [Preferências da sessão LXQt](../../core/desktops/lxqt/session.nix) · [Efeitos do KWin](../../core/desktops/kwin-settings.nix)
+O tema LXQt **Noir** usa o tema System com Breeze como referência. O QSS define superfícies escuras, seleção azul e contornos de foco visíveis no painel e no Fancy Menu. Os widgets usam Breeze, o GTK usa Breeze-Dark e a decoração do KWin segue a paleta Breeze Dark. O KWin habilita Glide e Lâmpada Mágica. O Chrome com decoração própria segue a disposição padrão dos botões do GTK, também disponibilizada pelo portal de configurações. O PCManFM-Qt usa o [papel de parede selecionado](../configuration.md#preferências). O KScreenLocker recebe a mesma imagem quando o tema fornece o plugin de imagem. [Tema Noir](../../core/desktops/lxqt/noir-panel.qss) · [Preferências da sessão](../../core/desktops/lxqt/session.nix) · [Efeitos do KWin](../../core/desktops/kwin-settings.nix)
+
+O gerenciador de energia LXQt usa o ícone do tema como padrão. A bandeja aplica aos três estados do Blueman os desenhos do Breeze Dark, tanto para os nomes normais quanto para os simbólicos. Os demais ícones seguem a herança do tema, inclusive os recursos enviados pelos próprios aplicativos. [Configuração da aparência](../../core/desktops/lxqt/appearance.nix)
 
 ## Painéis e navegação
 
 | Componente | Padrão do Noir |
 | --- | --- |
-| Painel superior | 38 px lógicos, largura integral e reserva de espaço. Menu com o floco do NixOS, relógio centralizado, bandeja, volume, mídias removíveis, seletor de áreas de trabalho, botão para mostrar a área de trabalho e atalhos de sessão no menu. A lista de janelas fica no painel inferior. |
-| Painel inferior | 42 px lógicos, centralizado e com largura ajustada aos componentes. Recolhe quando uma janela se sobrepõe à área do painel. |
-| Lançadores inferiores | Chrome, IntelliJ IDEA, Visual Studio Code, DBeaver e PCManFM-Qt. O Quick Launch fixa os atalhos e a lista de tarefas agrupa as janelas abertas. Um aplicativo pode aparecer nos dois componentes. |
+| Painel superior | 38 px lógicos, largura integral e reserva de espaço. O fundo arredondado tem uma margem visual em QSS. A superfície Wayland continua encostada à borda. O painel contém Fancy Menu com o floco do NixOS, relógio, bandeja, volume, mídias removíveis, seletor de áreas de trabalho e botão para mostrar a área de trabalho. |
+| Dock inferior | Crystal Dock 2.16 com estilo plano flutuante, fundo de referência de 42 px lógicos, alinhamento central, largura pelo conteúdo e ocultação inteligente. O gerenciador agrupa janelas e associa lançadores aos aplicativos reconhecidos. |
+| Lançadores do dock | Chrome, IntelliJ IDEA, Visual Studio Code, DBeaver e Dolphin, nessa ordem. O PCManFM-Qt continua responsável pela área de trabalho e como gerenciador padrão. |
 | Favoritos do menu | Chrome, Configurações do LXQt, PCManFM-Qt, IntelliJ IDEA, DBeaver, Visual Studio Code e Postman. |
 | Áreas de trabalho | `Work 1` e `Work 2` em uma linha, com navegação sem ciclo. |
 
-O Noir inclui um ajuste no LXQt Panel para atualizar o comprimento do painel inferior com o tamanho do conteúdo e centralizar o relógio quando há espaço entre as laterais. Em telas estreitas, o relógio volta ao fluxo normal dos componentes para evitar sobreposição. [Configuração e ajuste do painel](../../core/desktops/lxqt/)
+O relógio fica no centro geométrico quando há espaço entre os grupos laterais. Em telas estreitas, volta ao fluxo dos componentes para evitar sobreposição. A sessão inicia o Crystal Dock após importar o ambiente Wayland, e o alvo de sessão encerra o serviço no logout. O LXQt Panel reserva a borda inferior para o dock durante o modo candidato, inclusive ao carregar painéis pessoais ou conectar um monitor. [Ajuste do relógio](../../core/desktops/lxqt/panel-layout.patch) · [Reserva da borda inferior](../../core/desktops/lxqt/panel-reserve-bottom.patch) · [Módulo do dock](../../core/desktops/lxqt/crystal-dock.nix)
 
-No LXQt Panel 2.4, o Quick Launch mantém os lançadores e a barra de tarefas agrupa as janelas por aplicativo. Esses componentes independentes podem mostrar dois ícones para o mesmo aplicativo, mesmo quando os identificadores correspondem. A integração equivalente ao gerenciador de tarefas do Plasma continua em discussão no LXQt. [Discussão do LXQt](https://github.com/lxqt/lxqt/discussions/2812)
+O Crystal Dock usa o protocolo KDE de gerenciamento de janelas. A correspondência depende dos identificadores que o KWin fornece para janelas Wayland e XWayland. A ocultação cobre janelas maximizadas, tela cheia e sobreposição quando o compositor fornece a geometria. O 2.16 pode clonar o primeiro dock no primeiro início com várias saídas. Depois, a conta pode associar docks a telas pelos controles do próprio aplicativo. [Documentação do Crystal Dock](https://github.com/dangvd/crystal-dock/wiki/Documentation)
 
 ## Integrações
 
@@ -73,7 +75,11 @@ O painel resolve os lançadores exportados pelo sistema pelo caminho da geraçã
 
 ## Personalização do perfil
 
-No fork, altere `panelSize` em [`panel.conf`](../../core/desktops/lxqt/panel.conf) para ajustar a altura inicial dos painéis. Uma conta que já ajustou o painel usa suas preferências pessoais. Consulte [Personalização](../customization.md#modificar-perfis-gráficos).
+No fork, altere `panelSize` na seção `[top]` de [`panel.conf`](../../core/desktops/lxqt/panel.conf) para ajustar a altura inicial do painel. Temas, ícones e dimensões que a conta selecionou continuam tendo precedência. O Crystal Dock copia o preset no primeiro uso e guarda a configuração deste ambiente no subdiretório `LXQt`. Configurações pessoais em `$XDG_CONFIG_HOME/crystal-dock` ou no local legado `~/.crystal-dock-2` têm precedência. Consulte [Personalização](../customization.md#modificar-perfis-gráficos).
+
+### Restaurar o painel inferior LXQt
+
+Defina `noir.lxqt.crystalDock.enable = false;` na configuração NixOS da máquina. Após o proprietário aplicar a configuração e entrar novamente, o Noir volta a disponibilizar as seções originais do painel inferior, incluindo as preferências que a conta já tinha. As preferências do Crystal Dock ficam disponíveis para um teste posterior. No painel inferior LXQt, o Quick Launch e a barra de tarefas funcionam como plugins separados. [Opção de reversão](../../core/desktops/lxqt/crystal-dock.nix)
 
 ## Diagnóstico
 
@@ -81,6 +87,7 @@ No fork, altere `panelSize` em [`panel.conf`](../../core/desktops/lxqt/panel.con
 | --- | --- |
 | Sessão ausente ou falha no login | Verifique `systemctl status display-manager.service`, o valor publicado do desktop e eventuais módulos ou sessões gráficos concorrentes. |
 | Painel ou atalhos diferentes | Compare com uma conta nova. Revise `~/.config/lxqt/panel.conf` e `~/.config/kglobalshortcutsrc` na conta de teste. |
+| Dock ausente ou ícone de janela separado do lançador | Consulte `journalctl --user -b -u noir-lxqt-crystal-dock.service`. Confira o ID da entrada `.desktop`, a classe ou app ID da janela e a tela do dock. |
 | Teclado diferente no login, na sessão ou no bloqueio | Compare `localectl status`, a configuração de `services.xserver.xkb`, o `kxkbrc` pessoal e a lista do KWin com `busctl --user call org.kde.KWin /Layouts org.kde.KeyboardLayouts getLayoutsList`. |
 | A página de digitais não abre ou o botão não aparece | Confirme que o KCM é descoberto, que AccountsService e fprintd estão acessíveis e que o leitor é compatível. Veja `journalctl -b -u fprintd.service` e o log da sessão. |
 | Aplicativo não oferece compartilhamento | Confira `journalctl --user -b -u xdg-desktop-portal.service -u plasma-xdg-desktop-portal-kde.service` e verifique PipeWire. Teste novamente depois de encerrar e entrar na sessão. |
@@ -91,7 +98,7 @@ No fork, altere `panelSize` em [`panel.conf`](../../core/desktops/lxqt/panel.con
 2. **Biometria.** Com leitor compatível, abra o KCM pelo menu e pelo centro de configurações. Cadastre, liste, recadastre e exclua uma digital. Cancele um cadastro e tente de novo. Repita o fluxo com leitor ocupado, desconectado ou indisponível. Verifique as mensagens do agente Polkit e a autorização alternativa por senha.
 3. **Bloqueio.** Teste Super+L, bloqueio por inatividade e suspensão pelo menu e pela tampa, quando disponíveis. Em múltiplos monitores, confira todas as saídas antes e depois de reconectar uma delas. Desbloqueie separadamente por digital e senha. Repita com digital incorreta, ausência de cadastro e leitor desconectado. Verifique que a senha continua disponível e que nenhuma janela fica acessível enquanto a sessão estiver bloqueada.
 4. **Portais.** Abra um seletor de arquivos. Teste captura e compartilhamento de tela e de janela em aplicativos Wayland e XWayland. Encerre a sessão e repita para verificar nova ativação do backend.
-5. **Identidade.** Confira os atalhos, incluindo Super isolada e combinada. Use `Print Screen` para abrir o Spectacle e faça uma captura de teste. Confira o floco do NixOS no menu, a posição do relógio no centro geométrico do painel superior, a bandeja, as áreas de trabalho e as ordens iniciais. Confira o ícone do VS Code antes de abrir o editor, as cores da decoração em janelas ativas e inativas e os três botões na moldura do Chrome. Abra várias janelas do mesmo aplicativo e confira o agrupamento no painel inferior e a posição do relógio no superior. Confira o ajuste da largura do painel inferior ao abrir e fechar janelas, cubra sua área com uma janela e recupere-o pela borda. Confirme escala e geometria em múltiplos monitores. Confira fonte, abas e histórico do terminal.
+5. **Identidade.** Confira Super isolada, busca, favoritos, foco por teclado, relógio central e reserva de espaço. Verifique os três estados do Bluetooth, bateria carregando e descarregando, rede e mudo. Confira os ícones do VS Code e do IntelliJ antes e depois de abrir janelas Wayland e XWayland. Teste agrupamento, largura, ocultação, recuperação pela borda, escala fracionária, segundo monitor, segundo login e reversão para o painel anterior. Confirme uma instância do dock e o encerramento junto à sessão. Teste o Spectacle, o wallpaper, a decoração das janelas, fonte, abas e histórico do terminal.
 6. **Integrações e desempenho.** Teste áudio, Bluetooth, rede, perfis de energia, suspensão e mídias removíveis. Com dados fictícios, confira o limite e a limpeza do histórico ao sair da sessão. Compare a memória e a resposta com KDE Plasma Noir usando as mesmas condições, aplicativos abertos e serviços.
 
 Anterior: [Cinnamon](cinnamon.md) · [Índice dos perfis](../README.md#ambientes-gráficos)

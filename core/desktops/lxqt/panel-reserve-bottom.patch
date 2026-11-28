@@ -1,0 +1,109 @@
+--- a/panel/lxqtpanelapplication_p.h
++++ b/panel/lxqtpanelapplication_p.h
+@@ -42,6 +42,7 @@
+     ILXQtPanel::Position computeNewPanelPosition(const LXQtPanel *p, const int screenNum);
+
+     void loadBackend();
++    QStringList configuredPanels() const;
+
+ private:
+     LXQtPanelApplication *const q_ptr;
+--- a/panel/lxqtpanelapplication.cpp
++++ b/panel/lxqtpanelapplication.cpp
+@@ -176,16 +176,28 @@
+         }
+     }
+
+-    int availablePosition = 0;
++    int availablePosition = ILXQtPanel::PositionTop;
+
+     for (int i = 0; i < 4; ++i) { // Bottom, Top, Left, Right
+-        if (!screenPositions[i]) {
++        if (!screenPositions[i] && LXQtPanel::positionAllowed(static_cast<ILXQtPanel::Position>(i))) {
+             availablePosition = i;
+             break;
+         }
+     }
+
+     return static_cast<ILXQtPanel::Position> (availablePosition);
++}
++
++QStringList LXQtPanelApplicationPrivate::configuredPanels() const
++{
++    auto names = mSettings->value(QStringLiteral("panels")).toStringList();
++    names.removeIf([this](const QString &name) {
++        const auto position = mSettings->value(name + QStringLiteral("/position")).toString();
++        return !LXQtPanel::positionAllowed(LXQtPanel::strToPosition(position, ILXQtPanel::PositionBottom));
++    });
++    if (names.isEmpty())
++        names << QStringLiteral("top");
++    return names;
+ }
+
+ void LXQtPanelApplicationPrivate::loadBackend()
+@@ -371,7 +383,7 @@
+     connect(this, &QCoreApplication::aboutToQuit, this, &LXQtPanelApplication::cleanup);
+
+
+-    QStringList panels = d->mSettings->value(QStringLiteral("panels")).toStringList();
++    QStringList panels = d->configuredPanels();
+
+     // WARNING: Giving a separate icon theme to the panel is wrong and has side effects.
+     // However, it is optional and can be used as the last resort for avoiding a low
+@@ -473,7 +485,7 @@
+ {
+     Q_D(LXQtPanelApplication);
+
+-    const QStringList names = d->mSettings->value(QStringLiteral("panels")).toStringList();
++    const QStringList names = d->configuredPanels();
+     for (const QString& name : names)
+     {
+         d->mSettings->beginGroup(name);
+@@ -506,7 +518,7 @@
+     // LXQtPanelApplication::screenDestroyed().
+
+     // qDebug() << "LXQtPanelApplication::reloadPanelsAsNeeded()";
+-    const QStringList names = d->mSettings->value(QStringLiteral("panels")).toStringList();
++    const QStringList names = d->configuredPanels();
+     for(const QString& name : names)
+     {
+         bool found = false;
+--- a/panel/lxqtpanel.h
++++ b/panel/lxqtpanel.h
+@@ -193,6 +193,7 @@
+      * \sa findAvailableScreen(), mScreenNum, mActualScreenNum.
+      */
+     static bool canPlacedOn(int screenNum, LXQtPanel::Position position);
++    static bool positionAllowed(LXQtPanel::Position position);
+     /**
+      * @brief Returns a string representation of the given position. This
+      * string is human-readable and can be used in config files.
+--- a/panel/lxqtpanel.cpp
++++ b/panel/lxqtpanel.cpp
+@@ -1013,8 +1013,16 @@
+   NOTE: The panel can be placed only at screen edges
+   but no part of it should be between two screens.
+  ************************************************/
++bool LXQtPanel::positionAllowed(LXQtPanel::Position position)
++{
++    return position != PositionBottom;
++}
++
+ bool LXQtPanel::canPlacedOn(int screenNum, LXQtPanel::Position position)
+ {
++    if (!positionAllowed(position))
++        return false;
++
+     const auto screens = QApplication::screens();
+     if (screens.size() > screenNum)
+     {
+@@ -1250,6 +1258,9 @@
+  ************************************************/
+ void LXQtPanel::setPosition(int screen, ILXQtPanel::Position position, bool save)
+ {
++    if (!positionAllowed(position))
++        position = PositionTop;
++
+     if ((mWaylandScreenNum >= 0 ? mWaylandScreenNum // on Wayland
+                                 : mScreenNum) == screen
+         && mPosition == position)

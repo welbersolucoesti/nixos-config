@@ -1,0 +1,128 @@
+/* A margem pertence ao fundo. A camada Wayland continua encostada à borda. */
+LXQtPanel #BackgroundWidget {
+    margin: 3px 6px;
+    border: 1px solid #41464c;
+    border-radius: 8px;
+    background-color: rgba(32, 35, 38, 94%);
+}
+
+LXQtPanel Plugin > QToolButton,
+LXQtPanel Plugin > QWidget > QToolButton {
+    padding: 2px 3px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+}
+
+LXQtPanel Plugin QToolButton:hover {
+    background-color: #303b43;
+}
+
+LXQtPanel Plugin QToolButton:checked {
+    background-color: #24465b;
+}
+
+LXQtPanel Plugin QToolButton:focus {
+    border-color: #3daee9;
+}
+
+#TaskBar QToolButton[urgent="true"],
+#DesktopSwitch QToolButton[urgent="true"] {
+    color: #141618;
+    background-color: #3daee9;
+}
+
+#MainMenu, #FancyMenu {
+    qproperty-icon: url(mainmenu.svg);
+}
+
+#TopLevelFancyMenu {
+    color: #eff0f1;
+    background-color: #202326;
+    border: 1px solid #454b51;
+    border-radius: 9px;
+}
+
+#TopLevelFancyMenu QLabel {
+    color: #eff0f1;
+}
+
+#TopLevelFancyMenu QLineEdit {
+    padding: 6px 9px;
+    color: #eff0f1;
+    background-color: #141618;
+    border: 1px solid #50565d;
+    border-radius: 5px;
+    selection-background-color: #3daee9;
+    selection-color: #141618;
+}
+
+#TopLevelFancyMenu QLineEdit:focus,
+#TopLevelFancyMenu QListView:focus,
+#TopLevelFancyMenu QToolButton:focus {
+    border-color: #3daee9;
+}
+
+#TopLevelFancyMenu QListView {
+    color: #eff0f1;
+    background-color: #202326;
+    border: 1px solid #454b51;
+    border-radius: 5px;
+    padding: 2px;
+}
+
+#TopLevelFancyMenu QListView#CategoryView {
+    background-color: #292c30;
+}
+
+#TopLevelFancyMenu QListView::item {
+    padding: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+
+#TopLevelFancyMenu QListView::item:hover {
+    background-color: #303f49;
+}
+
+#TopLevelFancyMenu QListView::item:selected {
+    color: #fcfcfc;
+    background-color: #24536c;
+}
+
+#TopLevelFancyMenu QListView::item:selected:focus {
+    border-color: #3daee9;
+}
+
+#TopLevelFancyMenu QToolButton {
+    padding: 4px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+}
+
+#TopLevelFancyMenu QToolButton:hover {
+    background-color: #303f49;
+}
+
+#TopLevelFancyMenu QToolButton:pressed {
+    background-color: #24536c;
+}
+
+QToolTip {
+    color: #eff0f1;
+    background-color: #292c30;
+    border: 1px solid #50565d;
+    padding: 4px;
+}
+
+/* Os separadores são os mesmos do tema System. */
+#Spacer {
+    background-position: center center;
+}
+
+#Spacer[type="lined"] {
+    background-image: url(/spacer-plugin/spacer-line.svg);
+}
+
+#Spacer[type="dotted"] {
+    background-image: url(/spacer-plugin/spacer-dots.svg);
+}

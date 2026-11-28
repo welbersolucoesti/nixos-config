@@ -27,7 +27,7 @@ O Noir usa o sistema tradicional de módulos do NixOS e o Nixpkgs da máquina, s
     └── applications.nix, serviços, opcionais e perfis → configuração do NixOS
 ```
 
-O perfil [LXQt](desktops/lxqt.md) registra uma sessão Wayland própria. O KWin inicia o gerenciador de sessão LXQt e assume o bloqueio e os atalhos. A sessão importa o ambiente gráfico no D-Bus e no systemd do usuário. Os portais e o histórico da área de transferência acompanham o alvo da sessão. KDE Plasma e LXQt compartilham os padrões KConfig de entrada, áreas de trabalho e papel de parede do bloqueador. [Módulo LXQt](../core/desktops/lxqt.nix) · [Padrões KWin](../core/desktops/kwin-settings.nix)
+O perfil [LXQt](desktops/lxqt.md) registra uma sessão Wayland própria. O KWin inicia o gerenciador de sessão LXQt e assume o bloqueio e os atalhos. A sessão importa o ambiente gráfico no D-Bus e no systemd do usuário. Os portais, o histórico da área de transferência e o Crystal Dock candidato acompanham o alvo da sessão. O LXQt Panel permanece na parte superior. KDE Plasma e LXQt compartilham os padrões KConfig de entrada, áreas de trabalho e papel de parede do bloqueador. [Módulo LXQt](../core/desktops/lxqt.nix) · [Padrões KWin](../core/desktops/kwin-settings.nix)
 
 Os perfis e opcionais consultam `personalConfig` para decidir quais definições aplicar. O editor usa o mesmo esquema de preferências por meio de `edit-settings.nix`. Isso permite revisar o JSON candidato antes de gravá-lo e reaproveitar as mesmas regras na avaliação do sistema.
 

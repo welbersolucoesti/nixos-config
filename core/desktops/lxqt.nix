@@ -85,7 +85,7 @@ let
     patches = (old.patches or [ ]) ++ [
       ./lxqt/panel-layout.patch
       ./lxqt/panel-favorites.patch
-    ];
+    ] ++ lib.optional config.noir.lxqt.crystalDock.enable ./lxqt/panel-reserve-bottom.patch;
     postPatch = (old.postPatch or "") + ''
       # O Nixpkgs passa CMAKE_INSTALL_BINDIR como caminho absoluto.
       substituteInPlace autostart/lxqt-panel_wayland.desktop.in \
@@ -108,6 +108,8 @@ in
   imports = [
     ./lxqt/session.nix
     ./lxqt/biometrics.nix
+    ./lxqt/appearance.nix
+    ./lxqt/crystal-dock.nix
   ];
 
   config = lib.mkIf (config.personalConfig.desktop == "lxqt") {
