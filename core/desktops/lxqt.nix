@@ -4,27 +4,41 @@ let
   inherit (pkgs) kdePackages lxqt;
   inherit (lib) getExe getExe';
   systemctl = getExe' config.systemd.package "systemctl";
+  updateActivationEnvironment = getExe' pkgs.dbus "dbus-update-activation-environment";
   sessionTarget = "noir-lxqt-session.target";
+  sessionEnvironment = [
+    "DISPLAY" "XAUTHORITY" "WAYLAND_DISPLAY" "XDG_CURRENT_DESKTOP" "XDG_SESSION_TYPE"
+    "XDG_DATA_DIRS" "XDG_CONFIG_DIRS" "XDG_MENU_PREFIX" "QT_PLUGIN_PATH" "QT_QPA_PLATFORMTHEME"
+  ];
+  breezePluginPath = "${kdePackages.breeze}/${pkgs.qt6.qtbase.qtPluginPrefix}";
+  migratePreferences = pkgs.writeShellScript "noir-lxqt-migrate-preferences" ''
+    export PATH=${lib.makeBinPath [ pkgs.coreutils pkgs.diffutils pkgs.gnused ]}
+    ${builtins.readFile ./lxqt/migrate-preferences.sh}
+  '';
   lockerQml = "${kdePackages.plasma-workspace}/${pkgs.qt6.qtbase.qtQmlPrefix}";
   # O KWin passa WAYLAND_DISPLAY e os dados do XWayland ao processo da sessão.
   desktop = pkgs.writeShellScript "noir-lxqt-desktop" ''
     set -e
+    : "''${WAYLAND_DISPLAY:?KWin não informou WAYLAND_DISPLAY}"
+    ${updateActivationEnvironment} --systemd ${lib.escapeShellArgs sessionEnvironment}
+    ${systemctl} --user start ${sessionTarget}
+    # Uma solicitação D-Bus anterior ao compositor pode ter sido recusada.
+    ${systemctl} --user start --no-block xdg-desktop-portal.service
+
+    ${migratePreferences} || printf '%s\n' 'Não foi possível migrar todas as preferências locais do LXQt.' >&2
+
     # Inicializa antes de o PCManFM-Qt consultar os diretórios da conta.
     userDirs="''${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs"
     if [[ ! -e $userDirs && ! -L $userDirs ]]; then
       ${getExe pkgs.xdg-user-dirs} || true
     fi
-    ${getExe' pkgs.dbus "dbus-update-activation-environment"} --systemd \
-      DISPLAY XAUTHORITY WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE \
-      XDG_DATA_DIRS XDG_CONFIG_DIRS XDG_MENU_PREFIX QT_PLUGIN_PATH QT_QPA_PLATFORMTHEME
-    ${systemctl} --user start ${sessionTarget}
     exec ${getExe' lxqt.lxqt-session "lxqt-session"}
   '';
   launch = pkgs.writeShellScript "noir-lxqt-wayland" ''
     set -e
     export XDG_CURRENT_DESKTOP=LXQt:kwin_wayland XDG_SESSION_TYPE=wayland XDG_MENU_PREFIX=lxqt-
     export QT_QPA_PLATFORMTHEME=lxqt
-    export QT_PLUGIN_PATH=${lxqt.lxqt-qtplugin}/${pkgs.qt6.qtbase.qtPluginPrefix}''${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}
+    export QT_PLUGIN_PATH=${lxqt.lxqt-qtplugin}/${pkgs.qt6.qtbase.qtPluginPrefix}:${breezePluginPath}''${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}
     export XDG_CONFIG_DIRS="''${XDG_CONFIG_DIRS:-/etc/xdg}:/run/current-system/sw/etc/xdg:/run/current-system/sw/share"
     export PATH="${lib.makeBinPath [ kdePackages.kwin ]}:$PATH"
 
@@ -38,7 +52,10 @@ let
         kill "$compositor" 2>/dev/null || true
         wait "$compositor" 2>/dev/null || true
       fi
-      ${systemctl} --user stop ${sessionTarget}
+      ${systemctl} --user stop ${sessionTarget} || true
+      # O D-Bus permite substituir valores, mas não removê-los.
+      ${updateActivationEnvironment} ${lib.escapeShellArgs (map (name: "${name}=") sessionEnvironment)} || true
+      ${systemctl} --user unset-environment ${lib.escapeShellArgs sessionEnvironment} || true
     }
     trap cleanup EXIT
     trap 'exit 143' TERM
@@ -172,15 +189,15 @@ in
     };
 
     # Mantém a identidade LXQt. A seleção interna das interfaces de captura ocorre no backend KDE.
-    systemd.user.services = lib.genAttrs portalUnits (_: {
+    systemd.user.services = lib.genAttrs portalUnits (name: {
       overrideStrategy = "asDropin";
       partOf = [ sessionTarget ];
-    }) // {
-      ${kdePortal} = {
-        overrideStrategy = "asDropin";
-        partOf = [ sessionTarget ];
-        serviceConfig.Environment = "XDG_CURRENT_DESKTOP=KDE";
+      # Requisite impede a ativação D-Bus de inicializar a sessão por conta própria.
+      requisite = [ sessionTarget ];
+      after = [ sessionTarget "graphical-session.target" ];
+      serviceConfig = lib.optionalAttrs (name == kdePortal) {
+        Environment = "XDG_CURRENT_DESKTOP=KDE";
       };
-    };
+    });
   };
 }

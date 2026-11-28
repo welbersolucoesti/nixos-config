@@ -127,6 +127,8 @@ in
         compositor=kwin_wayland
         # O KScreenLocker coordena o bloqueio antes do repouso com o logind.
         lock_screen_before_power_actions=false
+
+        [Mouse]
         cursor_theme=breeze_cursors
         cursor_size=24
       '';
@@ -134,6 +136,8 @@ in
         [General]
         theme=dark
         icon_theme=breeze-dark
+
+        [Qt]
         style=Breeze
 
         [Palette]
@@ -148,9 +152,10 @@ in
         tooltip_base_color="#292c31"
         tooltip_text_color="#eff0f1"
       '';
+      "xdg/pcmanfm-qt/lxqt/noir-wallpaper".source = wallpaper;
       "xdg/pcmanfm-qt/lxqt/settings.conf".text = ''
         [Desktop]
-        Wallpaper=${wallpaper}
+        Wallpaper=/etc/xdg/pcmanfm-qt/lxqt/noir-wallpaper
         WallpaperMode=zoom
       '';
       "xdg/qterminal.org/qterminal.ini".text = ''
@@ -170,14 +175,6 @@ in
         x-scheme-handler/https=google-chrome.desktop;
         text/html=google-chrome.desktop;
         inode/directory=pcmanfm-qt.desktop;
-      '';
-      "xdg/autostart/bitwarden.desktop".text = ''
-        [Desktop Entry]
-        Type=Application
-        Name=Bitwarden
-        Exec=bitwarden --autostart
-        TryExec=bitwarden
-        OnlyShowIn=LXQt;
       '';
       "xdg/autostart/nm-applet.desktop" = lib.mkIf config.networking.networkmanager.enable {
         text = ''

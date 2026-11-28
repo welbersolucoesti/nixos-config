@@ -32,7 +32,9 @@ No LXQt Panel 2.4, o Quick Launch mantém os lançadores e a barra de tarefas ag
 
 A configuração da máquina continua responsável pelos dispositivos, pela rede e pela compatibilidade do vídeo com Wayland. Se a máquina usa NetworkManager, o Noir disponibiliza o applet de rede na bandeja. O perfil usa PipeWire e WirePlumber para áudio, Blueman para Bluetooth, UPower e o gerenciador de energia do LXQt. PCManFM-Qt, GVfs e UDisks2 cuidam dos arquivos e das mídias removíveis.
 
-O KWin liga o NumLock e ativa rolagem natural para touchpads compatíveis. O Chrome é o navegador inicial. O Bitwarden inicia pelo autostart XDG, sujeito à precedência de uma entrada pessoal de mesmo nome. O portal LXQt atende à seleção de arquivos, o KDE atende à captura e ao compartilhamento de tela, e o GTK complementa a seleção de interfaces. [Configuração da sessão](../../core/desktops/lxqt/session.nix) · [Configuração dos portais](../../core/desktops/lxqt.nix)
+O KWin liga o NumLock e ativa rolagem natural para touchpads compatíveis. O Chrome é o navegador inicial. A opção de iniciar com a sessão, no próprio Bitwarden, controla a entrada pessoal de autostart. Quando a entrada usa um executável versionado do pacote Nix, o Noir atualiza o caminho no próximo login LXQt. [Migração de preferências](../../core/desktops/lxqt/migrate-preferences.sh)
+
+O Noir libera os portais depois que o KWin fornece o ambiente gráfico. O roteamento dá prioridade ao LXQt para seleção de arquivos e solicitações de acesso. O KDE atende à captura, ao compartilhamento de tela e ao desktop remoto, e o GTK atende às configurações e às demais interfaces que fornece. [Configuração dos portais](../../core/desktops/lxqt.nix)
 
 O mapa XKB do KWin parte de `services.xserver.xkb` da máquina. O KScreenLocker usa o teclado da sessão Wayland. O SDDM tem um compositor separado, configurado pelo NixOS para consultar o mapa de `locale1`. Antes de iniciar o PCManFM-Qt, a sessão chama `xdg-user-dirs-update` quando a conta ainda não tem `user-dirs.dirs`. O utilitário usa o idioma e os padrões XDG e mantém os diretórios já configurados pela conta. [Inicialização da sessão](../../core/desktops/lxqt.nix)
 
@@ -67,6 +69,8 @@ Na suspensão, o KScreenLocker recebe o aviso do logind, solicita o bloqueio ime
 
 Uma conta nova usa os padrões do Noir. Os INIs de LXQt, PCManFM-Qt e QTerminal aceitam preferências da conta. As chaves KConfig administradas do KWin e do bloqueador preservam os padrões de áreas de trabalho, entrada e bloqueio.
 
+O painel resolve os lançadores exportados pelo sistema pelo caminho da geração ativa. Favoritos da conta são atualizados na mesma ordem. O papel de parede padrão do PCManFM-Qt também tem um caminho estável. Ao iniciar a sessão, a migração substitui referências anteriores ao wallpaper gerenciado pelo Noir e preserva caminhos personalizados. [Resolução de lançadores](../../core/desktops/lxqt/panel-favorites.patch) · [Migração de preferências](../../core/desktops/lxqt/migrate-preferences.sh)
+
 ## Personalização do perfil
 
 No fork, altere `panelSize` em [`panel.conf`](../../core/desktops/lxqt/panel.conf) para ajustar a altura inicial dos painéis. Uma conta que já ajustou o painel usa suas preferências pessoais. Consulte [Personalização](../customization.md#modificar-perfis-gráficos).
@@ -83,7 +87,7 @@ No fork, altere `panelSize` em [`panel.conf`](../../core/desktops/lxqt/panel.con
 
 ## Validação gráfica
 
-1. **Entrada e sessão.** Em ambiente descartável, confira a única entrada LXQt no SDDM, login por senha, sessão Wayland e abertura de um aplicativo X11 via XWayland. Confira as teclas específicas do mapa da máquina no login, na sessão e no bloqueio. Encerre a sessão e entre novamente. Verifique que as janelas anteriores não retornam, que o Bitwarden abre uma vez e que `plasmashell` está ausente. Em uma conta nova, confira os diretórios XDG no primeiro e no segundo login.
+1. **Entrada e sessão.** Em ambiente descartável, confira a única entrada LXQt no SDDM, login por senha, sessão Wayland e abertura de um aplicativo X11 via XWayland. Confira as teclas específicas do mapa da máquina no login, na sessão e no bloqueio. Encerre a sessão e entre novamente. Verifique que as janelas anteriores não retornam, que o Bitwarden abre uma vez com a opção de autostart ativa e que `plasmashell` está ausente. Repita com a opção desativada. Em uma conta nova, confira os diretórios XDG no primeiro e no segundo login.
 2. **Biometria.** Com leitor compatível, abra o KCM pelo menu e pelo centro de configurações. Cadastre, liste, recadastre e exclua uma digital. Cancele um cadastro e tente de novo. Repita o fluxo com leitor ocupado, desconectado ou indisponível. Verifique as mensagens do agente Polkit e a autorização alternativa por senha.
 3. **Bloqueio.** Teste Super+L, bloqueio por inatividade e suspensão pelo menu e pela tampa, quando disponíveis. Em múltiplos monitores, confira todas as saídas antes e depois de reconectar uma delas. Desbloqueie separadamente por digital e senha. Repita com digital incorreta, ausência de cadastro e leitor desconectado. Verifique que a senha continua disponível e que nenhuma janela fica acessível enquanto a sessão estiver bloqueada.
 4. **Portais.** Abra um seletor de arquivos. Teste captura e compartilhamento de tela e de janela em aplicativos Wayland e XWayland. Encerre a sessão e repita para verificar nova ativação do backend.

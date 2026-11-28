@@ -1,22 +1,197 @@
+--- /dev/null
++++ b/panel/noir-desktop-file.h
+@@ -0,0 +1,45 @@
++#pragma once
++
++#include <QDir>
++#include <QFileInfo>
++#include <QRegularExpression>
++
++// Use the active system's desktop entry for applications exported by its profile.
++inline QString noirDesktopFile(const QString &file)
++{
++    static const QRegularExpression storeApplication(
++        QStringLiteral("^/nix/store/[a-z0-9]{32}-([^/]+)/share/applications/(.+[.]desktop)$"));
++    static const QRegularExpression versionStart(QStringLiteral("-[0-9]"));
++    const auto match = storeApplication.match(file);
++    if (!match.hasMatch())
++        return file;
++
++    const QString relative = match.captured(2);
++    if (QDir::cleanPath(relative) != relative || relative.startsWith(QStringLiteral("../")))
++        return file;
++
++    const QString entry = QStringLiteral("/run/current-system/sw/share/applications/") + relative;
++    const auto current = storeApplication.match(QFileInfo(entry).canonicalFilePath());
++    if (!current.hasMatch())
++        return file;
++
++    // A matching desktop ID alone does not identify a package.
++    const QString package = match.captured(1).section(versionStart, 0, 0);
++    const QString currentPackage = current.captured(1).section(versionStart, 0, 0);
++    if (package == currentPackage
++        || (relative == QStringLiteral("code.desktop") && package == QStringLiteral("vscode")
++            && currentPackage == QStringLiteral("noir-lxqt-code-desktop"))
++        || (relative == QStringLiteral("idea.desktop") && package == QStringLiteral("idea.desktop")
++            && currentPackage == QStringLiteral("idea")))
++        return entry;
++    return file;
++}
++
++inline QString noirFavoriteFile(const QString &file)
++{
++    // Resolve legacy store paths before canonicalizing, even after garbage collection.
++    const QString stable = noirDesktopFile(file);
++    if (stable != file)
++        return stable;
++    return noirDesktopFile(QFileInfo(file).canonicalFilePath());
++}
 --- a/plugin-fancymenu/lxqtfancymenu.cpp
 +++ b/plugin-fancymenu/lxqtfancymenu.cpp
-@@ -49,6 +49,7 @@
+@@ -29,6 +29,7 @@
+ #include "lxqtfancymenu.h"
+ #include "lxqtfancymenuconfiguration.h"
+ #include "lxqtfancymenuwindow.h"
++#include "../panel/noir-desktop-file.h"
+ #include "../panel/lxqtpanel.h"
+ #include <QTimer>
+ #include <QMessageBox>
+@@ -49,6 +50,7 @@
  #include <XdgAction>
- 
+
  #include <QDir>
 +#include <QSignalBlocker>
- 
+
  #include <algorithm>
- 
-@@ -283,8 +284,11 @@
+
+@@ -246,21 +248,21 @@
+             continue;
+         }
+
+-        QString canonicalPath = QDir(file).canonicalPath();
+-        if(canonicalPath != file)
++        const QString entry = noirFavoriteFile(file);
++        if(entry != file)
+             listChanged = true;
+
+-        if(canonicalPath.isEmpty())
+-            continue;
+-
+-        if(fileList.contains(canonicalPath))
++        if(entry.isEmpty())
++            continue;
++
++        if(fileList.contains(entry))
+         {
+             // Don't add duplicates
+             listChanged = true;
+             continue;
+         }
+
+-        fileList.append(canonicalPath);
++        fileList.append(entry);
+     }
+
+     mWindow->setFavorites(fileList);
+@@ -283,6 +285,8 @@
          list.append(item);
      }
- 
-+    // Between removal and replacement, QSettings may expose the unnormalized
-+    // system favorites again. Do not reload the menu during this write.
+
++    // Removing the personal array temporarily exposes the system defaults.
 +    const QSignalBlocker blocker(settings());
      // HACK: force Qt to clear old array and rewrite it
      // Otherwise it would leave garbage values inside it.
      settings()->remove(QStringLiteral("favorites"));
-     settings()->setArray(QStringLiteral("favorites"), list);
- }
+--- a/plugin-fancymenu/lxqtfancymenuwindow.cpp
++++ b/plugin-fancymenu/lxqtfancymenuwindow.cpp
+@@ -27,6 +27,7 @@
+
+
+ #include "lxqtfancymenuwindow.h"
++#include "../panel/noir-desktop-file.h"
+
+ #include "lxqtfancymenuappmap.h"
+ #include "lxqtfancymenuappmodel.h"
+@@ -387,19 +388,19 @@
+
+     menu.addSeparator();
+
+-    QString canonicalFile = QDir(file).canonicalPath();
+-    if(mAppMap->isFavorite(canonicalFile))
++    const QString favoriteFile = noirFavoriteFile(file);
++    if(mAppMap->isFavorite(favoriteFile))
+     {
+         a = menu.addAction(XdgIcon::fromTheme(QLatin1String("bookmark-remove")), tr("Remove from Favorites"));
+-        connect(a, &QAction::triggered, this, [this, canonicalFile] {
+-            removeFromFavorites(canonicalFile);
++        connect(a, &QAction::triggered, this, [this, favoriteFile] {
++            removeFromFavorites(favoriteFile);
+         });
+     }
+     else
+     {
+         a = menu.addAction(XdgIcon::fromTheme(QLatin1String("bookmark-new")), tr("Add to Favorites"));
+-        connect(a, &QAction::triggered, this, [this, canonicalFile] {
+-            addToFavorites(canonicalFile);
++        connect(a, &QAction::triggered, this, [this, favoriteFile] {
++            addToFavorites(favoriteFile);
+         });
+     }
+
+--- a/plugin-quicklaunch/lxqtquicklaunch.cpp
++++ b/plugin-quicklaunch/lxqtquicklaunch.cpp
+@@ -29,6 +29,7 @@
+ #include "lxqtquicklaunch.h"
+ #include "quicklaunchbutton.h"
+ #include "quicklaunchaction.h"
++#include "../panel/noir-desktop-file.h"
+ #include "../panel/ilxqtpanelplugin.h"
+ #include <QDesktopServices>
+ #include <QDragEnterEvent>
+@@ -65,7 +66,7 @@
+     const auto apps = mPlugin->settings()->readArray(QStringLiteral("apps"));
+     for (const QMap<QString, QVariant> &app : apps)
+     {
+-        desktop = app.value(QStringLiteral("desktop"), QString()).toString();
++        desktop = noirDesktopFile(app.value(QStringLiteral("desktop"), QString()).toString());
+         file = app.value(QStringLiteral("file"), QString()).toString();
+         if (!desktop.isEmpty())
+         {
+@@ -211,7 +212,7 @@
+         QFileInfo fi(fileName);
+         XdgDesktopFile xdg;
+
+-        if (xdg.load(fileName))
++        if (xdg.load(noirDesktopFile(fileName)))
+         {
+             if (xdg.isSuitable())
+                 addButton(new QuickLaunchAction(&xdg, this));
+--- a/plugin-quicklaunch/quicklaunchaction.cpp
++++ b/plugin-quicklaunch/quicklaunchaction.cpp
+@@ -33,6 +33,7 @@
+ #include <QProcess>
+ #include <QUrl>
+ #include <XdgDesktopFile>
++#include "../panel/noir-desktop-file.h"
+ #include <XdgIcon>
+ #include <XdgMimeType>
+
+@@ -72,7 +73,8 @@
+ {
+     m_type = ActionXdg;
+
+-    m_settingsMap[QStringLiteral("desktop")] = xdg->fileName();
++    const QString desktopFile = noirDesktopFile(xdg->fileName());
++    m_settingsMap[QStringLiteral("desktop")] = desktopFile;
+
+     QString title(xdg->localizedValue(QStringLiteral("Name")).toString());
+     QString gn(xdg->localizedValue(QStringLiteral("GenericName")).toString());
+@@ -82,7 +84,7 @@
+
+     setIcon(xdg->icon(XdgIcon::defaultApplicationIcon()));
+
+-    setData(xdg->fileName());
++    setData(desktopFile);
+     connect(this, &QAction::triggered, this, [this] { execAction(); });
+
+     // populate the additional actions
